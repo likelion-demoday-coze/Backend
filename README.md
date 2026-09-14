@@ -1,10 +1,10 @@
 ## 📁 프로젝트 구조
 ```text
 src/main/java/~~
-└── 기능
+└── {domain}
     ├── code
     ├── controller
-    ├── entity
+    ├── domain
     ├── dto
     ├── service
     └── repository
