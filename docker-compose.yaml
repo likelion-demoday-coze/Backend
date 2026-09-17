@@ -3,8 +3,10 @@ services:
     image: mysql:8.0
     container_name: backend-mysql
     environment:
-      MYSQL_DATABASE: demoday_db
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "3307:3306"
     volumes:
@@ -24,8 +26,8 @@ services:
       - "8080:8080"
     environment:
       DB_URL: jdbc:mysql://mysql:3306/demoday_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul&sslMode=DISABLED&allowPublicKeyRetrieval=true
-      DB_USERNAME: root
-      DB_PASSWORD: root
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
     depends_on:
       mysql:
         condition: service_healthy
