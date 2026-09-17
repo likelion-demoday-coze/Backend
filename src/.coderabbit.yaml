@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "ko-KR"
+
+tone_instructions: >
+  COZ:E 백엔드 팀의 코드 품질 향상을 돕는 코치처럼, 명확하고 구체적인 개선 중심 피드백을 제공해주세요.
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  changed_files_summary: false
+  sequence_diagrams: false
+  assess_linked_issues: true
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  auto_apply_labels: false
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+  poem: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: false
+
+  path_filters:
+    - "!**/build/**"
+    - "!**/.gradle/**"
+    - "!**/generated/**"
+    - "!**/gradle-wrapper.jar"
+
+  path_instructions:
+    - path: "src/**"
+      instructions: |
+        1. Spring Boot 프로젝트의 계층과 책임이 적절히 분리되었는지 검토한다.
+        2. Controller에 비즈니스 로직이 포함되지 않았는지 확인한다.
+        3. 객체지향 설계, 도메인 책임 분리, 엔티티 연관관계, 확장성, 유지보수성을 함께 확인한다.
+        4. JPA, REST API, DB 설계를 기준으로 리뷰한다.
+        5. 예외 처리와 입력값 검증이 누락되지 않았는지 확인한다.
+        6. 불필요한 의존성과 순환 참조 가능성을 확인한다.
+        7. 보안 취약점과 민감 정보 노출 가능성을 우선적으로 검토한다.
+        8. 문제점이 있다면 원인, 대안, 장단점을 함께 설명한다.
+        9. 과도한 스타일 지적보다는 실제 버그 가능성, 설계 리스크, 테스트 누락에 집중한다.
+        10. 필요한 경우 예시 코드를 함께 제안한다.
+
+    - path: "**/resources/**/*.yml"
+      instructions: |
+        비밀번호, API 키, 토큰 등 민감 정보가 포함되지 않았는지 확인한다.
+        환경별 설정을 환경변수로 분리했는지 확인한다.
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  web_search:
+    enabled: true
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
