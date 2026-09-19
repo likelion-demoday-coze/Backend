@@ -21,6 +21,11 @@ public class SecurityConfig {
                                 "/swagger-ui/**"
                         ).permitAll()
                         .anyRequest().permitAll())
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization
+                                .baseUri("/api/v1/auth"))
+                        .redirectionEndpoint(redirection -> redirection
+                                .baseUri("/api/v1/auth/kakao/callback")))
                 .build();
     }
 }
