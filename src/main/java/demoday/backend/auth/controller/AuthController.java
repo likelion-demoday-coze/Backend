@@ -9,6 +9,8 @@ import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.dto.MemberResponse;
 import demoday.backend.member.service.MemberService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
+@Tag(name = "Auth", description = "인증 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
@@ -39,6 +42,7 @@ public class AuthController {
     private final MemberService memberService;
     private final HttpSessionSecurityContextRepository contextRepository;
 
+    @Operation(summary = "CSRF 토큰 조회")
     @GetMapping("/csrf")
     public ApiResponse<Map<String, String>> csrf(CsrfToken csrfToken) {
         return ApiResponse.onSuccess(
@@ -50,6 +54,7 @@ public class AuthController {
         );
     }
 
+    @Operation(summary = "카카오 신규 회원가입")
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<MemberResponse>> signup(
             @Valid @RequestBody SignupRequest signupRequest,
