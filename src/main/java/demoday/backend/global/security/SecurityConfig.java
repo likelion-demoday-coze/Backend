@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,11 +25,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             KakaoAuthService kakaoAuthService,
-            @Value("${app.frontend-base-url}") String frontendBaseUrl
+            @Value("${app.frontend-base-url}") String frontendBaseUrl,
+            HttpSessionSecurityContextRepository contextRepository
     ) throws Exception {
-
-        HttpSessionSecurityContextRepository contextRepository =
-                new HttpSessionSecurityContextRepository();
 
         return http
                 .securityContext(context -> context
@@ -41,7 +40,9 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
-                                "/api/v1/members/nickname-availability"
+                                "/api/v1/members/nickname-availability",
+                                "/api/v1/auth/csrf",
+                                "/api/v1/auth/signup"
                         ).permitAll()
                         .anyRequest().hasRole("MEMBER"))
                 .oauth2Login(oauth2 -> oauth2
@@ -93,6 +94,14 @@ public class SecurityConfig {
 
                             response.sendRedirect(frontendBaseUrl + "/");
                         }))
+                .csrf(csrf -> csrf.csrfTokenRequestHandler(
+                        new CsrfTokenRequestAttributeHandler()
+                ))
                 .build();
+    }
+
+    @Bean
+    public HttpSessionSecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
     }
 }
