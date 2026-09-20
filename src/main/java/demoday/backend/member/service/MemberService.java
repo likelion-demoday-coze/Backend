@@ -3,6 +3,7 @@ package demoday.backend.member.service;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
+import demoday.backend.member.dto.MemberResponse;
 import demoday.backend.member.dto.NicknameAvailabilityResponse;
 import demoday.backend.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,5 +34,13 @@ public class MemberService {
         } catch (DataIntegrityViolationException exception) {
             throw new ProjectException(GeneralErrorCode.CONFLICT);
         }
+    }
+
+
+    public MemberResponse getMyProfile(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
+
+        return MemberResponse.from(member);
     }
 }

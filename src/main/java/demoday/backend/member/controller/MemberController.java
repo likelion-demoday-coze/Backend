@@ -1,8 +1,13 @@
 package demoday.backend.member.controller;
 
 import demoday.backend.global.api.ApiResponse;
+import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.api.code.GeneralSuccessCode;
+import demoday.backend.global.exception.ProjectException;
+import demoday.backend.member.domain.Member;
+import demoday.backend.member.dto.MemberResponse;
 import demoday.backend.member.dto.NicknameAvailabilityResponse;
+import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.member.service.MemberService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -20,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MemberController {
 
     private final MemberService memberService;
+    private final MemberRepository memberRepository;
 
     @GetMapping("/nickname-availability")
     public ApiResponse<NicknameAvailabilityResponse> checkNickname(
@@ -32,5 +38,13 @@ public class MemberController {
                 GeneralSuccessCode.OK,
                 memberService.checkNickname(nickname)
         );
+    }
+
+
+    public MemberResponse getMyProfile(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
+
+        return MemberResponse.from(member);
     }
 }
