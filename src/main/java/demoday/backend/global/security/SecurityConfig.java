@@ -40,7 +40,8 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
-                                "/swagger-ui/**"
+                                "/swagger-ui/**",
+                                "/api/v1/members/nickname-availability"
                         ).permitAll()
                         .anyRequest().hasRole("MEMBER"))
                 .oauth2Login(oauth2 -> oauth2
