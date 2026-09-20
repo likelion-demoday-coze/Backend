@@ -40,4 +40,4 @@ springdoc:
     path: /swagger-ui.html
 
 app:
-  frontend-base-url: ${FRONTEND_BASE_URL}
+  frontend-base-url: http://localhost:3000
