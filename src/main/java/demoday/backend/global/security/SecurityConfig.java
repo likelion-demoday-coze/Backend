@@ -2,6 +2,7 @@ package demoday.backend.global.security;
 
 import demoday.backend.auth.service.KakaoAuthService;
 import demoday.backend.member.domain.Member;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -97,6 +98,15 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRequestHandler(
                         new CsrfTokenRequestAttributeHandler()
                 ))
+                .logout(logout -> logout
+                        .logoutUrl("/api/v1/auth/logout")
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
+                        .deleteCookies("SESSION")
+                        .logoutSuccessHandler((request, response, authentication) ->
+                                response.setStatus(HttpServletResponse.SC_NO_CONTENT)
+                        )
+                )
                 .build();
     }
 
