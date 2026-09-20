@@ -48,7 +48,7 @@ public class SecurityConfig {
                         .anyRequest().hasRole("MEMBER"))
                 .oauth2Login(oauth2 -> oauth2
                         .authorizationEndpoint(authorization -> authorization
-                                .baseUri("/api/v1/auth"))
+                                .baseUri("/api/v1/auth/oauth2/authorization"))
                         .redirectionEndpoint(redirection -> redirection
                                 .baseUri("/api/v1/auth/kakao/callback"))
                         .successHandler((request, response, authentication) -> {
