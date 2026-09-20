@@ -78,7 +78,7 @@ public class AuthController {
         request.changeSessionId();
 
         var authentication = new UsernamePasswordAuthenticationToken(
-                member.getMemberId().toString(),
+                member.getMemberId(),
                 null,
                 List.of(new SimpleGrantedAuthority("ROLE_MEMBER"))
         );

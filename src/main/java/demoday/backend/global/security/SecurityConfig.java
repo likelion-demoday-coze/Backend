@@ -82,7 +82,7 @@ public class SecurityConfig {
 
                             var memberAuthentication =
                                     new UsernamePasswordAuthenticationToken(
-                                            member.get().getMemberId().toString(),
+                                            member.get().getMemberId(),
                                             null,
                                             List.of(new SimpleGrantedAuthority("ROLE_MEMBER"))
                                     );
