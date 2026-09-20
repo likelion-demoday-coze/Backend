@@ -15,6 +15,7 @@ import java.util.Optional;
 public class KakaoAuthService {
 
     private final MemberRepository memberRepository;
+    public static final String PENDING_KAKAO_USER_ID = "PENDING_KAKAO_USER_ID";
 
     public Long extractKakaoUserId(OAuth2User oAuth2User) {
         Object id = oAuth2User.getAttribute("id");

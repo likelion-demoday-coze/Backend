@@ -38,3 +38,6 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+app:
+  frontend-base-url: ${FRONTEND_BASE_URL}
