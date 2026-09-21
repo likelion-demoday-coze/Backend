@@ -1,5 +1,6 @@
 package demoday.backend.global.api;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import demoday.backend.global.api.code.BaseErrorCode;
 import demoday.backend.global.api.code.BaseSuccessCode;
@@ -12,9 +13,16 @@ import lombok.Getter;
 @JsonPropertyOrder({"isSuccess", "code", "message", "result"})
 public class ApiResponse<T> {
 
+    @JsonProperty("isSuccess")
     private final boolean isSuccess;
+
+    @JsonProperty("code")
     private final String code;
+
+    @JsonProperty("message")
     private final String message;
+
+    @JsonProperty("result")
     private final T result;
 
     public static <T> ApiResponse<T> onSuccess(BaseSuccessCode code, T result) {

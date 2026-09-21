@@ -20,7 +20,7 @@ public class SwaggerConfig {
                         .title("Demoday API")
                         .description("Demoday backend API documentation")
                         .version("v1"))
-                .path("/api/v1/auth/kakao", new PathItem()
+                .path("/api/v1/auth/oauth2/authorization/kakao", new PathItem()
                         .get(new Operation()
                                 .tags(java.util.List.of("Auth"))
                                 .summary("카카오 로그인 시작")
