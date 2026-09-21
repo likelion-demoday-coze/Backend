@@ -6,6 +6,10 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   deploy:
     if: >
@@ -15,8 +19,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout CI passed commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/likelion-demoday-coze/backend:${{ github.event.workflow_run.head_sha }}
+            ghcr.io/likelion-demoday-coze/backend:latest
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.0
@@ -25,18 +47,19 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/Backend
+            echo "${{ secrets.GHCR_PAT }}" | sudo docker login ghcr.io \
+              -u "${{ secrets.GHCR_USERNAME }}" \
+              --password-stdin
 
-            git fetch origin
-            git checkout ${{ github.event.workflow_run.head_sha }}
-
-            sudo docker build -t backend:prod .
+            sudo docker pull \
+              ghcr.io/likelion-demoday-coze/backend:${{ github.event.workflow_run.head_sha }}
 
             sudo docker stop backend || true
             sudo docker rm backend || true
 
             sudo docker run -d \
               --name backend \
+              --restart unless-stopped \
               -p 8080:8080 \
               --env-file /home/ubuntu/Backend/.env \
-              backend:prod
+              ghcr.io/likelion-demoday-coze/backend:${{ github.event.workflow_run.head_sha }}
