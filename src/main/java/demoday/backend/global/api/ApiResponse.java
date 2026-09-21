@@ -13,17 +13,17 @@ import lombok.Getter;
 @JsonPropertyOrder({"isSuccess", "code", "message", "result"})
 public class ApiResponse<T> {
 
-    @JsonProperty("isSuccess")
+    @Getter(AccessLevel.NONE)
     private final boolean isSuccess;
 
-    @JsonProperty("code")
     private final String code;
-
-    @JsonProperty("message")
     private final String message;
-
-    @JsonProperty("result")
     private final T result;
+
+    @JsonProperty("isSuccess")
+    public boolean isSuccess() {
+        return isSuccess;
+    }
 
     public static <T> ApiResponse<T> onSuccess(BaseSuccessCode code, T result) {
         return new ApiResponse<>(true, code.getCode(), code.getMessage(), result);
