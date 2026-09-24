@@ -38,15 +38,15 @@ public class TimeAttackSession {
     @Column(name = "started_at", nullable = false)
     private LocalDateTime startedAt;
 
-    @Column(name = "passed_applied", nullable = false)
-    private Boolean passedApplied;
+    @Column(name = "pass_applied", nullable = false)
+    private Boolean passApplied;
 
     public static TimeAttackSession create(
             Member member,
             LocalDate attemptDate,
             TimeAttackStatus status,
             LocalDateTime startedAt,
-            Boolean passedApplied
+            Boolean passApplied
     ) {
         return TimeAttackSession.builder()
                 .member(member)
@@ -54,7 +54,7 @@ public class TimeAttackSession {
                 .status(status)
                 .correctCount(0)
                 .startedAt(startedAt)
-                .passedApplied(passedApplied)
+                .passApplied(passApplied)
                 .build();
     }
 }
