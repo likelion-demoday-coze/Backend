@@ -31,7 +31,7 @@ public class MemberController {
     public ApiResponse<NicknameAvailabilityResponse> checkNickname(
             @RequestParam
             @NotBlank
-            @Size(max = 10)
+            @Size(max = 8)
             String nickname
     ) {
         return ApiResponse.onSuccess(
