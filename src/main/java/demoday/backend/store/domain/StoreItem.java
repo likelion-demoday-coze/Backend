@@ -22,7 +22,14 @@ public class StoreItem {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(name = "fish_price", nullable = false)
+    @Column(
+            name = "fish_price",
+            nullable = false,
+            check = @CheckConstraint(
+                    name = "ck_store_item_fish_price_non_negative",
+                    constraint = "fish_price >= 0"
+            )
+    )
     private Integer fishPrice;
 
     @Column(nullable = false)
@@ -34,11 +41,21 @@ public class StoreItem {
             Integer fishPrice,
             Boolean active
     ) {
+        validateFishPrice(fishPrice);
+
         return StoreItem.builder()
                 .itemCode(itemCode)
                 .name(name)
                 .fishPrice(fishPrice)
                 .active(active)
                 .build();
+    }
+
+    private static void validateFishPrice(Integer fishPrice) {
+        if (fishPrice == null || fishPrice < 0) {
+            throw new IllegalArgumentException(
+                    "생선 판매 가격은 0 이상이어야 합니다."
+            );
+        }
     }
 }

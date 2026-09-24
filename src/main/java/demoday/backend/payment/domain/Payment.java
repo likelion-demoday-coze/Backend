@@ -35,7 +35,13 @@ public class Payment {
     @Column(name = "pg_payment_id", unique = true, length = 150)
     private String pgPaymentId;
 
-    @Column(nullable = false)
+    @Column(
+            nullable = false,
+            check = @CheckConstraint(
+                    name = "ck_payment_amount_non_negative",
+                    constraint = "amount >= 0"
+            )
+    )
     private Integer amount;
 
     @Enumerated(EnumType.STRING)
@@ -62,6 +68,8 @@ public class Payment {
             PaymentStatus status,
             LocalDateTime requestedAt
     ) {
+        validateAmount(amount);
+
         return Payment.builder()
                 .member(member)
                 .product(product)
@@ -70,5 +78,13 @@ public class Payment {
                 .status(status)
                 .requestedAt(requestedAt)
                 .build();
+    }
+
+    private static void validateAmount(Integer amount) {
+        if (amount == null || amount < 0) {
+            throw new IllegalArgumentException(
+                    "결제 금액은 0 이상이어야 합니다."
+            );
+        }
     }
 }

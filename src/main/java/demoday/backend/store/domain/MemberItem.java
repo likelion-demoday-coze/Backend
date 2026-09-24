@@ -31,14 +31,30 @@ public class MemberItem {
     @JoinColumn(name = "item_id", nullable = false)
     private StoreItem item;
 
-    @Column(nullable = false)
+    @Column(
+            nullable = false,
+            check = @CheckConstraint(
+                    name = "ck_member_item_quantity_non_negative",
+                    constraint = "quantity >= 0"
+            )
+    )
     private Integer quantity;
 
     public static MemberItem create(Member member, StoreItem item, Integer quantity) {
+        validateQuantity(quantity);
+
         return MemberItem.builder()
                 .member(member)
                 .item(item)
                 .quantity(quantity)
                 .build();
+    }
+
+    private static void validateQuantity(Integer quantity) {
+        if (quantity == null || quantity < 0) {
+            throw new IllegalArgumentException(
+                    "아이템 보유 수량은 0 이상이어야 합니다."
+            );
+        }
     }
 }

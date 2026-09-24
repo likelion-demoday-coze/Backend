@@ -29,10 +29,22 @@ public class Product {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(nullable = false)
+    @Column(
+            nullable = false,
+            check = @CheckConstraint(
+                    name = "ck_product_price_non_negative",
+                    constraint = "price >= 0"
+            )
+    )
     private Integer price;
 
-    @Column(name = "fish_amount")
+    @Column(
+            name = "fish_amount",
+            check = @CheckConstraint(
+                    name = "ck_product_fish_amount_non_negative",
+                    constraint = "fish_amount IS NULL OR fish_amount >= 0"
+            )
+    )
     private Integer fishAmount;
 
     @Column(name = "pass_duration_hours")
@@ -58,6 +70,8 @@ public class Product {
             LocalDateTime saleEndedAt,
             Boolean active
     ) {
+        validateAmount(price, fishAmount);
+
         return Product.builder()
                 .productCode(productCode)
                 .productType(productType)
@@ -69,5 +83,19 @@ public class Product {
                 .saleEndedAt(saleEndedAt)
                 .active(active)
                 .build();
+    }
+
+    private static void validateAmount(Integer price, Integer fishAmount) {
+        if (price == null || price < 0) {
+            throw new IllegalArgumentException(
+                    "상품 가격은 0 이상이어야 합니다."
+            );
+        }
+
+        if (fishAmount != null && fishAmount < 0) {
+            throw new IllegalArgumentException(
+                    "지급 생선 수량은 0 이상이어야 합니다."
+            );
+        }
     }
 }
