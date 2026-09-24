@@ -5,7 +5,13 @@ import lombok.*;
 
 @Getter
 @Entity
-@Table(name = "quiz_option")
+@Table(
+        name = "quiz_option",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_quiz_option_question_number",
+                columnNames = {"question_id", "option_number"}
+        )
+)
 @Builder(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
