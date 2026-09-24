@@ -3,15 +3,19 @@ package demoday.backend.trend.domain;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.HexFormat;
 
 @Getter
 @Entity
 @Table(
         name = "trend_reference",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_trend_reference_trend_url",
-                columnNames = {"economic_trend_id", "url"}
+                name = "uk_trend_reference_trend_url_hash",
+                columnNames = {"economic_trend_id", "url_hash"}
         )
 )
 @Builder(access = AccessLevel.PRIVATE)
@@ -34,6 +38,9 @@ public class TrendReference {
     @Column(nullable = false, length = 2048)
     private String url;
 
+    @Column(name = "url_hash", nullable = false, length = 64)
+    private String urlHash;
+
     @Column(nullable = false, length = 200)
     private String publisher;
 
@@ -51,8 +58,23 @@ public class TrendReference {
                 .economicTrend(economicTrend)
                 .title(title)
                 .url(url)
+                .urlHash(hashUrl(url))
                 .publisher(publisher)
                 .publishedDate(publishedDate)
                 .build();
+    }
+
+    private static String hashUrl(String url) {
+        if (url == null || url.isBlank()) {
+            throw new IllegalArgumentException("출처 URL은 필수입니다.");
+        }
+
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(url.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
+        }
     }
 }
