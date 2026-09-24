@@ -50,7 +50,6 @@ public class MemberPass {
             Member member,
             Payment payment,
             PassType passType,
-            PassStatus status,
             LocalDateTime startedAt,
             LocalDateTime expiresAt
     ) {
@@ -58,7 +57,7 @@ public class MemberPass {
                 .member(member)
                 .payment(payment)
                 .passType(passType)
-                .status(status)
+                .status(PassStatus.ACTIVE)
                 .startedAt(startedAt)
                 .expiresAt(expiresAt)
                 .build();
