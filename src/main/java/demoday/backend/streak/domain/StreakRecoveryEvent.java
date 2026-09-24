@@ -5,6 +5,7 @@ import demoday.backend.streak.code.StreakRecoveryStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -47,14 +48,13 @@ public class StreakRecoveryEvent {
     public static StreakRecoveryEvent create(
             Member member,
             LocalDate missedDate,
-            Integer streakBeforePenalty,
-            StreakRecoveryStatus status
+            Integer streakBeforePenalty
     ) {
         return StreakRecoveryEvent.builder()
                 .member(member)
                 .missedDate(missedDate)
                 .streakBeforePenalty(streakBeforePenalty)
-                .status(status)
+                .status(StreakRecoveryStatus.AVAILABLE)
                 .build();
     }
 }
