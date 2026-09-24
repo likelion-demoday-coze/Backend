@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Getter
 @Entity
@@ -51,17 +52,33 @@ public class DailyQuizAttempt {
             DailyQuizSessionQuestion sessionQuestion,
             QuizOption selectedOption,
             DailyQuizAttemptType attemptType,
-            Boolean correct,
             Integer stockIncreasePercent,
             LocalDateTime answeredAt
     ) {
+        validateSelectedOption(sessionQuestion, selectedOption);
+
         return DailyQuizAttempt.builder()
                 .sessionQuestion(sessionQuestion)
                 .selectedOption(selectedOption)
                 .attemptType(attemptType)
-                .correct(correct)
+                .correct(selectedOption.getCorrect())
                 .stockIncreasePercent(stockIncreasePercent)
                 .answeredAt(answeredAt)
                 .build();
+    }
+
+    private static void validateSelectedOption(
+            DailyQuizSessionQuestion sessionQuestion,
+            QuizOption selectedOption
+    ) {
+
+        Long sessionQuestionId = sessionQuestion.getQuestion().getQuestionId();
+        Long selectedOptionQuestionId = selectedOption.getQuestion().getQuestionId();
+
+        if (!Objects.equals(sessionQuestionId, selectedOptionQuestionId)) {
+            throw new IllegalArgumentException(
+                    "선택지가 세션 문제에 속하지 않습니다."
+            );
+        }
     }
 }

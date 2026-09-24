@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Getter
 @Entity
@@ -48,15 +49,31 @@ public class TimeAttackAnswer {
             TimeAttackSession timeAttackSession,
             QuizQuestion question,
             QuizOption selectedOption,
-            Boolean correct,
             LocalDateTime answeredAt
     ) {
+        validateSelectedOption(question, selectedOption);
+
         return TimeAttackAnswer.builder()
                 .timeAttackSession(timeAttackSession)
                 .question(question)
                 .selectedOption(selectedOption)
-                .correct(correct)
+                .correct(selectedOption.getCorrect())
                 .answeredAt(answeredAt)
                 .build();
+    }
+
+    private static void validateSelectedOption(
+            QuizQuestion question,
+            QuizOption selectedOption
+    ) {
+        Long questionId = question.getQuestionId();
+        Long selectedOptionQuestionId =
+                selectedOption.getQuestion().getQuestionId();
+
+        if (!Objects.equals(questionId, selectedOptionQuestionId)) {
+            throw new IllegalArgumentException(
+                    "선택지가 타임어택 문제에 속하지 않습니다."
+            );
+        }
     }
 }
