@@ -921,8 +921,11 @@ public class DailyQuizService {
                 );
 
         // 세션 상태 확인
-        if (session.getStatus() == DailyQuizSessionStatus.IN_PROGRESS) {
-            throw new ProjectException(DailyQuizErrorCode.INVALID_SESSION_STATE);
+        if (session.getStatus() != DailyQuizSessionStatus.ORIGINAL_COMPLETED
+                && session.getStatus() != DailyQuizSessionStatus.COMPLETED) {
+            throw new ProjectException(
+                    DailyQuizErrorCode.INVALID_SESSION_STATE
+            );
         }
 
         // 원본 답안 5개 확인
