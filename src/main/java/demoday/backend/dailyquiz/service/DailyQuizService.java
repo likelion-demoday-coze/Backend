@@ -912,7 +912,6 @@ public class DailyQuizService {
             Long memberId,
             Long sessionId
     ) {
-        LocalDateTime now = LocalDateTime.now(KST);
 
         // 본인 세션 조회
         DailyQuizSession session = dailyQuizSessionRepository
@@ -924,11 +923,6 @@ public class DailyQuizService {
         // 세션 상태 확인
         if (session.getStatus() == DailyQuizSessionStatus.IN_PROGRESS) {
             throw new ProjectException(DailyQuizErrorCode.INVALID_SESSION_STATE);
-        }
-
-        // 만료 검사
-        if (session.getStatus() != DailyQuizSessionStatus.COMPLETED) {
-            validateSessionNotExpired(session, now);
         }
 
         // 원본 답안 5개 확인
@@ -993,28 +987,47 @@ public class DailyQuizService {
             );
         }
 
-        // 문제별 결과 생성
+        // 문제별 주가 변화 및 결과 생성
         List<DailyQuizResultQuestionResponse> questionResponses =
-                originalAttempts.stream()
-                        .map(originalAttempt -> {
-                            Long sessionQuestionId = originalAttempt
-                                    .getSessionQuestion()
-                                    .getSessionQuestionId();
+                new ArrayList<>();
 
-                            Long questionId = originalAttempt
-                                    .getSessionQuestion()
-                                    .getQuestion()
-                                    .getQuestionId();
+        BigDecimal runningStock = session.getStartStock();
 
-                            return DailyQuizResultQuestionResponse.of(
-                                    originalAttempt,
-                                    correctOptionByQuestionId.get(questionId),
-                                    retryAttemptBySessionQuestionId.get(
-                                            sessionQuestionId
-                                    )
-                            );
-                        })
-                        .toList();
+        for (DailyQuizAttempt originalAttempt : originalAttempts) {
+            Long sessionQuestionId = originalAttempt
+                    .getSessionQuestion()
+                    .getSessionQuestionId();
+
+            Long questionId = originalAttempt
+                    .getSessionQuestion()
+                    .getQuestion()
+                    .getQuestionId();
+
+            Integer increasePercent =
+                    originalAttempt.getStockIncreasePercent();
+
+            if (increasePercent != null) {
+                BigDecimal rate = BigDecimal.ONE.add(
+                        BigDecimal.valueOf(increasePercent)
+                                .movePointLeft(2)
+                );
+
+                runningStock = runningStock
+                        .multiply(rate)
+                        .setScale(2, RoundingMode.HALF_UP);
+            }
+
+            questionResponses.add(
+                    DailyQuizResultQuestionResponse.of(
+                            originalAttempt,
+                            correctOptionByQuestionId.get(questionId),
+                            retryAttemptBySessionQuestionId.get(
+                                    sessionQuestionId
+                            ),
+                            runningStock
+                    )
+            );
+        }
 
         // 정답 및 오답 개수 계산
         int correctCount = (int) originalAttempts.stream()

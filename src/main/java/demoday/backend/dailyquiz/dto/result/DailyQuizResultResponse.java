@@ -18,6 +18,7 @@ public record DailyQuizResultResponse(
         BigDecimal endStock,
         BigDecimal totalProfit,
         BigDecimal totalReturnPercent,
+        Integer currentStreak,
         List<DailyQuizResultQuestionResponse> questions
 ) {
 
@@ -42,6 +43,7 @@ public record DailyQuizResultResponse(
                 endStock,
                 totalProfit,
                 totalReturnPercent,
+                session.getMember().getCurrentStreak(),
                 questions
         );
     }
