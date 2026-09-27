@@ -1,10 +1,13 @@
 package demoday.backend.member.domain;
 
+import demoday.backend.global.exception.ProjectException;
+import demoday.backend.member.code.MemberErrorCode;
 import demoday.backend.member.code.MemberStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -60,4 +63,32 @@ public class Member {
                 .status(MemberStatus.ACTIVE)
                 .build();
     }
+
+    // 회원의 생선 잔액 차감
+    public void deductFish(long amount) {
+        if (amount <= 0) {
+            throw new ProjectException(MemberErrorCode.INVALID_FISH_AMOUNT);
+        }
+
+        if (fishBalance < amount) {
+            throw new ProjectException(MemberErrorCode.INSUFFICIENT_FISH);
+        }
+
+        fishBalance -= amount;
+    }
+
+    // 정답 맞히고 주가 상승 기회 남아 있을 때 현재 주가 올림
+    public void increaseStock(int increasePercent) {
+        if (increasePercent < 1 || increasePercent > 10) {
+            throw new ProjectException(MemberErrorCode.INVALID_STOCK_INCREASE_PERCENT);
+        }
+
+        BigDecimal rate = BigDecimal.ONE.add(
+                BigDecimal.valueOf(increasePercent).movePointLeft(2)
+        );
+
+        currentStock = currentStock.multiply(rate)
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
 }

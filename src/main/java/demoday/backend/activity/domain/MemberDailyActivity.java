@@ -60,4 +60,31 @@ public class MemberDailyActivity {
                 .learningStatus(LearningStatus.NONE)
                 .build();
     }
+
+    // 원본 문제 최초 제출 시 그날의 활동 횟수 기록
+    public boolean recordOriginalAnswer(int maxStockOpportunityCount) {
+        originalAnswerCount++;
+
+        if (stockOpportunityUsedCount >= maxStockOpportunityCount) {
+            return false;
+        }
+
+        stockOpportunityUsedCount++;
+        return true;
+    }
+
+    // 원본 문제 5개 모두 제출 시 해당 날짜의 학습 완료를 기록
+    public boolean completeLearning(LocalDateTime learnedAt) {
+        if (learnedAt == null) {
+            throw new IllegalArgumentException("학습 완료 시각은 필수입니다.");
+        }
+
+        if (learningStatus != LearningStatus.NONE) {
+            return false;
+        }
+
+        learningStatus = LearningStatus.COMPLETED;
+        this.learnedAt = learnedAt;
+        return true;
+    }
 }
