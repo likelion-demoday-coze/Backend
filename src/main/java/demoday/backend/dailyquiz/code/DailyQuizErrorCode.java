@@ -83,6 +83,11 @@ public enum DailyQuizErrorCode implements BaseErrorCode {
             HttpStatus.INTERNAL_SERVER_ERROR,
             "DAILY_QUIZ_500_1",
             "세션 문제 구성이 올바르지 않습니다."
+    ),
+    CORRECT_OPTION_NOT_FOUND(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "DAILY_QUIZ_500_2",
+            "문제의 정답 선택지가 구성되지 않았습니다."
     );
 
     private final HttpStatus status;

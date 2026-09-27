@@ -1,5 +1,6 @@
 package demoday.backend.dailyquiz.service;
 
+import demoday.backend.activity.repository.MemberDailyActivityRepository;
 import demoday.backend.dailyquiz.dto.category.DailyQuizCategoryResponse;
 import demoday.backend.dailyquiz.repository.DailyQuizAttemptRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
@@ -8,6 +9,7 @@ import demoday.backend.fish.repository.FishTransactionRepository;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.repository.MemberPassRepository;
 import demoday.backend.quiz.code.QuizCategory;
+import demoday.backend.quiz.repository.MemberQuestionHistoryRepository;
 import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +49,12 @@ class DailyQuizServiceTest {
 
     @Mock
     private QuizOptionRepository quizOptionRepository;
+
+    @Mock
+    private MemberDailyActivityRepository memberDailyActivityRepository;
+
+    @Mock
+    private MemberQuestionHistoryRepository memberQuestionHistoryRepository;
 
     @InjectMocks
     private DailyQuizService dailyQuizService;

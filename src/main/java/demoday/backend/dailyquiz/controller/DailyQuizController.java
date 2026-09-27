@@ -1,5 +1,7 @@
 package demoday.backend.dailyquiz.controller;
 
+import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerRequest;
+import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerResponse;
 import demoday.backend.dailyquiz.dto.category.DailyQuizCategoryResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizActiveSessionResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
@@ -79,6 +81,24 @@ public class DailyQuizController {
                 dailyQuizService.getSessionDetail(
                         memberId,
                         sessionId
+                )
+        );
+    }
+
+    @PostMapping("/sessions/{sessionId}/questions/{sessionQuestionId}/answers")
+    public ApiResponse<DailyQuizAnswerResponse> submitOriginalAnswer(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long sessionId,
+            @PathVariable Long sessionQuestionId,
+            @Valid @RequestBody DailyQuizAnswerRequest request
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                dailyQuizService.submitOriginalAnswer(
+                        memberId,
+                        sessionId,
+                        sessionQuestionId,
+                        request
                 )
         );
     }
