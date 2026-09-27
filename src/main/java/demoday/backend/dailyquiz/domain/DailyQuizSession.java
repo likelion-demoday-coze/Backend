@@ -108,7 +108,7 @@ public class DailyQuizSession {
         status = DailyQuizSessionStatus.COMPLETED;
     }
 
-    // 24시간 지난 세션을 만료 상태로 변경
+    // 생성 다음 날 00:00 KST에 도달한 세션을 만료 상태로 변경
     public void expire(LocalDateTime now) {
         if (!isExpired(now)) {
             throw new ProjectException(DailyQuizErrorCode.SESSION_NOT_EXPIRED);
@@ -119,19 +119,5 @@ public class DailyQuizSession {
         }
 
         status = DailyQuizSessionStatus.EXPIRED;
-    }
-
-    // 세션 생성 시각의 내부 정합성 검사
-    private static void validatePeriod(
-            LocalDateTime startedAt,
-            LocalDateTime expiresAt
-    ) {
-        if (startedAt == null || expiresAt == null) {
-            throw new IllegalArgumentException("세션 시작 및 만료 시각은 필수입니다.");
-        }
-
-        if (!expiresAt.isAfter(startedAt)) {
-            throw new IllegalArgumentException("세션 만료 시각은 시작 시각 이후여야 합니다.");
-        }
     }
 }
