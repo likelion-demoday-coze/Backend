@@ -3,40 +3,33 @@ package demoday.backend.dailyquiz.dto.answer;
 import demoday.backend.dailyquiz.code.DailyQuizSessionStatus;
 import demoday.backend.dailyquiz.domain.DailyQuizAttempt;
 
-import java.math.BigDecimal;
-
-public record DailyQuizAnswerResponse(
+public record DailyQuizRetryAnswerResponse(
         Long sessionQuestionId,
         Long selectedOptionId,
         Boolean correct,
         Long correctOptionId,
         String explanation,
-        Integer stockIncreasePercent,
-        BigDecimal currentStock,
-        long answeredCount,
-        int totalQuestionCount,
+        long retryCompletedCount,
+        long retryRequiredCount,
         DailyQuizSessionStatus sessionStatus
 ) implements DailyQuizAnswerResult {
 
-    public static DailyQuizAnswerResponse of(
+    public static DailyQuizRetryAnswerResponse of(
             DailyQuizAttempt attempt,
             Long correctOptionId,
             String explanation,
-            BigDecimal currentStock,
-            long answeredCount,
-            int totalQuestionCount,
+            long retryCompletedCount,
+            long retryRequiredCount,
             DailyQuizSessionStatus sessionStatus
     ) {
-        return new DailyQuizAnswerResponse(
+        return new DailyQuizRetryAnswerResponse(
                 attempt.getSessionQuestion().getSessionQuestionId(),
                 attempt.getSelectedOption().getOptionId(),
                 attempt.getCorrect(),
                 correctOptionId,
                 explanation,
-                attempt.getStockIncreasePercent(),
-                currentStock,
-                answeredCount,
-                totalQuestionCount,
+                retryCompletedCount,
+                retryRequiredCount,
                 sessionStatus
         );
     }

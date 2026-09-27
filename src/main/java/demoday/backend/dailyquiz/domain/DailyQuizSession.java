@@ -86,25 +86,31 @@ public class DailyQuizSession {
         return !now.isBefore(expiresAt);
     }
 
-    public void completeOriginal() {
+    public void completeOriginal(BigDecimal endStock) {
         if (status != DailyQuizSessionStatus.IN_PROGRESS) {
-            throw new ProjectException(DailyQuizErrorCode.INVALID_SESSION_STATE);
+            throw new ProjectException(
+                    DailyQuizErrorCode.INVALID_SESSION_STATE
+            );
         }
 
+        if (endStock == null) {
+            throw new IllegalArgumentException(
+                    "종료 주가는 필수입니다."
+            );
+        }
+
+        this.endStock = endStock;
         status = DailyQuizSessionStatus.ORIGINAL_COMPLETED;
     }
 
     // 원본 문제 5개 모두 제출 시 세션 상태 변경
-    public void complete(BigDecimal endStock) {
+    public void complete() {
         if (status != DailyQuizSessionStatus.ORIGINAL_COMPLETED) {
-            throw new ProjectException(DailyQuizErrorCode.INVALID_SESSION_STATE);
+            throw new ProjectException(
+                    DailyQuizErrorCode.INVALID_SESSION_STATE
+            );
         }
 
-        if (endStock == null) {
-            throw new IllegalArgumentException("종료 주가는 필수입니다.");
-        }
-
-        this.endStock = endStock;
         status = DailyQuizSessionStatus.COMPLETED;
     }
 

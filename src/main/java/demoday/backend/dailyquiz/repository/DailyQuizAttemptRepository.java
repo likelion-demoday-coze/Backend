@@ -26,4 +26,9 @@ public interface DailyQuizAttemptRepository extends JpaRepository<DailyQuizAttem
             Long dailyQuizSessionId,
             DailyQuizAttemptType attemptType
     );
+
+    long countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptTypeAndCorrectFalse(
+            Long dailyQuizSessionId,
+            DailyQuizAttemptType attemptType
+    );
 }

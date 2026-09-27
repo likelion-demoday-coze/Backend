@@ -1,12 +1,13 @@
 package demoday.backend.dailyquiz.controller;
 
 import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerRequest;
-import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerResponse;
+import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerResult;
 import demoday.backend.dailyquiz.dto.category.DailyQuizCategoryResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizActiveSessionResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionDetailResponse;
+import demoday.backend.dailyquiz.dto.result.DailyQuizResultResponse;
 import demoday.backend.dailyquiz.service.DailyQuizService;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
@@ -86,7 +87,7 @@ public class DailyQuizController {
     }
 
     @PostMapping("/sessions/{sessionId}/questions/{sessionQuestionId}/answers")
-    public ApiResponse<DailyQuizAnswerResponse> submitOriginalAnswer(
+    public ApiResponse<DailyQuizAnswerResult> submitAnswer(
             @AuthenticationPrincipal Long memberId,
             @PathVariable Long sessionId,
             @PathVariable Long sessionQuestionId,
@@ -94,12 +95,34 @@ public class DailyQuizController {
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                dailyQuizService.submitOriginalAnswer(
+                dailyQuizService.submitAnswer(
                         memberId,
                         sessionId,
                         sessionQuestionId,
                         request
                 )
+        );
+    }
+
+    @GetMapping("/sessions/{sessionId}/result")
+    public ApiResponse<DailyQuizResultResponse> getResult(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long sessionId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                dailyQuizService.getResult(memberId, sessionId)
+        );
+    }
+
+    @PostMapping("/sessions/{sessionId}/complete")
+    public ApiResponse<DailyQuizResultResponse> completeSession(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long sessionId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                dailyQuizService.completeSession(memberId, sessionId)
         );
     }
 }

@@ -9,10 +9,14 @@ import demoday.backend.dailyquiz.domain.DailyQuizAttempt;
 import demoday.backend.dailyquiz.domain.DailyQuizSession;
 import demoday.backend.dailyquiz.domain.DailyQuizSessionQuestion;
 import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerRequest;
+import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerResult;
 import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerResponse;
+import demoday.backend.dailyquiz.dto.answer.DailyQuizRetryAnswerResponse;
 import demoday.backend.dailyquiz.dto.category.DailyQuizCategoryResponse;
 import demoday.backend.dailyquiz.dto.question.DailyQuizOptionResponse;
 import demoday.backend.dailyquiz.dto.question.DailyQuizQuestionResponse;
+import demoday.backend.dailyquiz.dto.result.DailyQuizResultQuestionResponse;
+import demoday.backend.dailyquiz.dto.result.DailyQuizResultResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizActiveSessionResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateResponse;
@@ -36,11 +40,16 @@ import demoday.backend.quiz.domain.QuizQuestion;
 import demoday.backend.quiz.repository.MemberQuestionHistoryRepository;
 import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
+import demoday.backend.stock.code.StockChangeType;
+import demoday.backend.stock.domain.StockChange;
+import demoday.backend.stock.repository.StockChangeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -75,6 +84,7 @@ public class DailyQuizService {
     private final QuizOptionRepository quizOptionRepository;
     private final MemberDailyActivityRepository memberDailyActivityRepository;
     private final MemberQuestionHistoryRepository memberQuestionHistoryRepository;
+    private final StockChangeRepository stockChangeRepository;
 
     @Transactional(readOnly = true)
     public List<DailyQuizCategoryResponse> getCategories() {
@@ -420,8 +430,31 @@ public class DailyQuizService {
         }
     }
 
-    // 원본 문제 답안을 최초 제출
+    // 답안 제출 요청이 원본인지 재풀이인지 구분
     @Transactional
+    public DailyQuizAnswerResult submitAnswer(
+            Long memberId,
+            Long sessionId,
+            Long sessionQuestionId,
+            DailyQuizAnswerRequest request
+    ) {
+        return switch (request.attemptType()) {
+            case ORIGINAL -> submitOriginalAnswer(
+                    memberId,
+                    sessionId,
+                    sessionQuestionId,
+                    request
+            );
+            case RETRY -> submitRetryAnswer(
+                    memberId,
+                    sessionId,
+                    sessionQuestionId,
+                    request
+            );
+        };
+    }
+
+    // 원본 문제 답안을 최초 제출
     public DailyQuizAnswerResponse submitOriginalAnswer(
             Long memberId,
             Long sessionId,
@@ -437,28 +470,16 @@ public class DailyQuizService {
                         new ProjectException(GeneralErrorCode.NOT_FOUND)
                 );
 
-        // 세션 비관적 락 조회
-        DailyQuizSession session = dailyQuizSessionRepository
-                .findByIdAndMemberIdForUpdate(sessionId, memberId)
-                .orElseThrow(() ->
-                        new ProjectException(DailyQuizErrorCode.SESSION_NOT_FOUND)
-                );
+        DailyQuizSession session = findSessionForUpdate(sessionId, memberId);
 
         // 세션 만료 확인
         validateSessionNotExpired(session, now);
 
         // 세션 문제 조회
-        DailyQuizSessionQuestion sessionQuestion =
-                sessionQuestionRepository
-                        .findBySessionQuestionIdAndDailyQuizSessionDailyQuizSessionId(
-                                sessionQuestionId,
-                                sessionId
-                        )
-                        .orElseThrow(() ->
-                                new ProjectException(
-                                        DailyQuizErrorCode.SESSION_QUESTION_NOT_FOUND
-                                )
-                        );
+        DailyQuizSessionQuestion sessionQuestion = findSessionQuestion(
+                sessionQuestionId,
+                sessionId
+        );
 
         // 기존 원본 답안 확인
         Optional<DailyQuizAttempt> existingAttempt =
@@ -485,19 +506,10 @@ public class DailyQuizService {
         }
 
         // 선택지 조회
-        QuizOption selectedOption = quizOptionRepository
-                .findById(request.selectedOptionId())
-                .orElseThrow(() ->
-                        new ProjectException(DailyQuizErrorCode.OPTION_NOT_FOUND)
-                );
-
-        // 선택지 소속 문제 검증
-        if (!Objects.equals(
-                selectedOption.getQuestion().getQuestionId(),
-                sessionQuestion.getQuestion().getQuestionId()
-        )) {
-            throw new ProjectException(DailyQuizErrorCode.INVALID_OPTION);
-        }
+        QuizOption selectedOption = findAndValidateSelectedOption(
+                request.selectedOptionId(),
+                sessionQuestion
+        );
 
         // 오늘의 활동 조회 또는 생성
         MemberDailyActivity dailyActivity =
@@ -523,10 +535,13 @@ public class DailyQuizService {
                 dailyActivity.recordOriginalAnswer(stockOpportunityLimit);
 
         Integer stockIncreasePercent = null;
+        BigDecimal stockBefore = null;
 
         // 정답이면 주가 상승
         if (Boolean.TRUE.equals(selectedOption.getCorrect())
                 && stockOpportunityAvailable) {
+            stockBefore = member.getCurrentStock();
+
             stockIncreasePercent = ThreadLocalRandom.current().nextInt(
                     MIN_STOCK_INCREASE_PERCENT,
                     MAX_STOCK_INCREASE_PERCENT + 1
@@ -546,6 +561,22 @@ public class DailyQuizService {
 
         dailyQuizAttemptRepository.save(attempt);
 
+        // 실제 주가가 상승한 경우 변동 이력 저장
+        if (stockBefore != null) {
+            stockChangeRepository.save(
+                    StockChange.create(
+                            member,
+                            StockChangeType.QUIZ_CORRECT,
+                            stockBefore,
+                            member.getCurrentStock(),
+                            attempt.getDailyQuizAttemptId(),
+                            "DAILY_QUIZ_ATTEMPT:"
+                                    + attempt.getDailyQuizAttemptId(),
+                            now
+                    )
+            );
+        }
+
         // 활동과 문제 풀이 이력 저장
         memberDailyActivityRepository.save(dailyActivity);
         memberQuestionHistoryRepository.save(
@@ -564,18 +595,30 @@ public class DailyQuizService {
 
         // 5문제 완료 처리
         if (answeredCount == DAILY_QUIZ_QUESTION_COUNT) {
-            session.completeOriginal();
+            session.completeOriginal(
+                    member.getCurrentStock()
+            );
+
             dailyActivity.completeLearning(now);
+
+            // 원본 오답 개수 확인
+            long incorrectCount =
+                    dailyQuizAttemptRepository
+                            .countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptTypeAndCorrectFalse(
+                                    sessionId,
+                                    DailyQuizAttemptType.ORIGINAL
+                            );
+
+            // 오답 없다면 바로 완료
+            if (incorrectCount == 0) {
+                session.complete();
+            }
         }
 
         // 정답 선택지 조회
-        QuizOption correctOption = quizOptionRepository
-                .findByQuestionQuestionIdAndCorrectTrue(
-                        sessionQuestion.getQuestion().getQuestionId()
-                )
-                .orElseThrow(() ->
-                        new ProjectException(DailyQuizErrorCode.CORRECT_OPTION_NOT_FOUND)
-                );
+        QuizOption correctOption = findCorrectOption(
+                sessionQuestion.getQuestion().getQuestionId()
+        );
 
         // 응답 반환
         return DailyQuizAnswerResponse.of(
@@ -610,11 +653,7 @@ public class DailyQuizService {
                 .getQuestion()
                 .getQuestionId();
 
-        QuizOption correctOption = quizOptionRepository
-                .findByQuestionQuestionIdAndCorrectTrue(questionId)
-                .orElseThrow(() ->
-                        new ProjectException(DailyQuizErrorCode.CORRECT_OPTION_NOT_FOUND)
-                );
+        QuizOption correctOption = findCorrectOption(questionId);
 
         long answeredCount = dailyQuizAttemptRepository
                 .countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptType(
@@ -633,5 +672,390 @@ public class DailyQuizService {
                 DAILY_QUIZ_QUESTION_COUNT,
                 session.getStatus()
         );
+    }
+
+    // 원본에서 틀린 문제 한번 더 제출
+    private DailyQuizRetryAnswerResponse submitRetryAnswer(
+            Long memberId,
+            Long sessionId,
+            Long sessionQuestionId,
+            DailyQuizAnswerRequest request
+    ) {
+        LocalDateTime now = LocalDateTime.now(KST);
+
+        DailyQuizSession session = findSessionForUpdate(sessionId, memberId);
+
+        // 만료 검사
+        validateSessionNotExpired(session, now);
+
+        // 세션 문제 확인
+        DailyQuizSessionQuestion sessionQuestion = findSessionQuestion(
+                sessionQuestionId,
+                sessionId
+        );
+
+        // 기존 재풀이 답안 확인
+        Optional<DailyQuizAttempt> existingRetryAttempt =
+                dailyQuizAttemptRepository
+                        .findBySessionQuestionSessionQuestionIdAndAttemptType(
+                                sessionQuestionId,
+                                DailyQuizAttemptType.RETRY
+                        );
+
+        if (existingRetryAttempt.isPresent()) {
+            return handleExistingRetryAttempt(
+                    existingRetryAttempt.get(),
+                    request.selectedOptionId(),
+                    session
+            );
+        }
+
+        // 재풀이 가능한 세션 상태 확인
+        if (session.getStatus() != DailyQuizSessionStatus.ORIGINAL_COMPLETED) {
+            throw new ProjectException(DailyQuizErrorCode.RETRY_NOT_ALLOWED);
+        }
+
+        // 원본 답안 확인
+        DailyQuizAttempt originalAttempt = dailyQuizAttemptRepository
+                .findBySessionQuestionSessionQuestionIdAndAttemptType(
+                        sessionQuestionId,
+                        DailyQuizAttemptType.ORIGINAL
+                )
+                .orElseThrow(() ->
+                        new ProjectException(DailyQuizErrorCode.RETRY_NOT_ALLOWED)
+                );
+
+        // 원본에서 틀린 문제인지 확인
+        if (Boolean.TRUE.equals(originalAttempt.getCorrect())) {
+            throw new ProjectException(DailyQuizErrorCode.RETRY_NOT_ALLOWED);
+        }
+
+        // 선택지 검증
+        QuizOption selectedOption = findAndValidateSelectedOption(
+                request.selectedOptionId(),
+                sessionQuestion
+        );
+
+        // 재풀이 답안 저장
+        DailyQuizAttempt retryAttempt = DailyQuizAttempt.create(
+                sessionQuestion,
+                selectedOption,
+                DailyQuizAttemptType.RETRY,
+                null,
+                now
+        );
+
+        dailyQuizAttemptRepository.save(retryAttempt);
+
+        // 재풀이 진행도 계산
+        long retryRequiredCount = dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptTypeAndCorrectFalse(
+                        sessionId,
+                        DailyQuizAttemptType.ORIGINAL
+                );
+
+        long retryCompletedCount = dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptType(
+                        sessionId,
+                        DailyQuizAttemptType.RETRY
+                );
+
+        // 모든 오답 재풀이 완료 시 세션 완료
+        if (retryCompletedCount == retryRequiredCount) {
+            session.complete();
+        }
+
+        QuizOption correctOption = findCorrectOption(
+                sessionQuestion.getQuestion().getQuestionId()
+        );
+
+        // 재풀이 결과 반환
+        return DailyQuizRetryAnswerResponse.of(
+                retryAttempt,
+                correctOption.getOptionId(),
+                sessionQuestion.getQuestion().getExplanation(),
+                retryCompletedCount,
+                retryRequiredCount,
+                session.getStatus()
+        );
+    }
+
+    // 같은 재풀이 요청이 중복으로 들어왔을 때
+    private DailyQuizRetryAnswerResponse handleExistingRetryAttempt(
+            DailyQuizAttempt existingAttempt,
+            Long selectedOptionId,
+            DailyQuizSession session
+    ) {
+        if (!Objects.equals(
+                existingAttempt.getSelectedOption().getOptionId(),
+                selectedOptionId
+        )) {
+            throw new ProjectException(
+                    DailyQuizErrorCode.ANSWER_ALREADY_SUBMITTED
+            );
+        }
+
+        Long questionId = existingAttempt
+                .getSessionQuestion()
+                .getQuestion()
+                .getQuestionId();
+
+        QuizOption correctOption = findCorrectOption(questionId);
+
+        long retryRequiredCount = dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptTypeAndCorrectFalse(
+                        session.getDailyQuizSessionId(),
+                        DailyQuizAttemptType.ORIGINAL
+                );
+
+        long retryCompletedCount = dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptType(
+                        session.getDailyQuizSessionId(),
+                        DailyQuizAttemptType.RETRY
+                );
+
+        return DailyQuizRetryAnswerResponse.of(
+                existingAttempt,
+                correctOption.getOptionId(),
+                existingAttempt.getSessionQuestion()
+                        .getQuestion()
+                        .getExplanation(),
+                retryCompletedCount,
+                retryRequiredCount,
+                session.getStatus()
+        );
+    }
+
+    private DailyQuizSession findSessionForUpdate(
+            Long sessionId,
+            Long memberId
+    ) {
+        return dailyQuizSessionRepository
+                .findByIdAndMemberIdForUpdate(sessionId, memberId)
+                .orElseThrow(() ->
+                        new ProjectException(
+                                DailyQuizErrorCode.SESSION_NOT_FOUND
+                        )
+                );
+    }
+
+    private DailyQuizSessionQuestion findSessionQuestion(
+            Long sessionQuestionId,
+            Long sessionId
+    ) {
+        return sessionQuestionRepository
+                .findBySessionQuestionIdAndDailyQuizSessionDailyQuizSessionId(
+                        sessionQuestionId,
+                        sessionId
+                )
+                .orElseThrow(() ->
+                        new ProjectException(
+                                DailyQuizErrorCode.SESSION_QUESTION_NOT_FOUND
+                        )
+                );
+    }
+
+    private QuizOption findAndValidateSelectedOption(
+            Long selectedOptionId,
+            DailyQuizSessionQuestion sessionQuestion
+    ) {
+        QuizOption selectedOption = quizOptionRepository
+                .findById(selectedOptionId)
+                .orElseThrow(() ->
+                        new ProjectException(
+                                DailyQuizErrorCode.OPTION_NOT_FOUND
+                        )
+                );
+
+        if (!Objects.equals(
+                selectedOption.getQuestion().getQuestionId(),
+                sessionQuestion.getQuestion().getQuestionId()
+        )) {
+            throw new ProjectException(DailyQuizErrorCode.INVALID_OPTION);
+        }
+
+        return selectedOption;
+    }
+
+    private QuizOption findCorrectOption(Long questionId) {
+        return quizOptionRepository
+                .findByQuestionQuestionIdAndCorrectTrue(questionId)
+                .orElseThrow(() ->
+                        new ProjectException(
+                                DailyQuizErrorCode.CORRECT_OPTION_NOT_FOUND
+                        )
+                );
+    }
+
+    // 원본 풀이 결과 팝업과 최종 총정리 화면에 필요한 데이터 조회
+    @Transactional(readOnly = true)
+    public DailyQuizResultResponse getResult(
+            Long memberId,
+            Long sessionId
+    ) {
+        LocalDateTime now = LocalDateTime.now(KST);
+
+        // 본인 세션 조회
+        DailyQuizSession session = dailyQuizSessionRepository
+                .findByDailyQuizSessionIdAndMemberMemberId(sessionId, memberId)
+                .orElseThrow(() ->
+                        new ProjectException(DailyQuizErrorCode.SESSION_NOT_FOUND)
+                );
+
+        // 세션 상태 확인
+        if (session.getStatus() == DailyQuizSessionStatus.IN_PROGRESS) {
+            throw new ProjectException(DailyQuizErrorCode.INVALID_SESSION_STATE);
+        }
+
+        // 만료 검사
+        if (session.getStatus() != DailyQuizSessionStatus.COMPLETED) {
+            validateSessionNotExpired(session, now);
+        }
+
+        // 원본 답안 5개 확인
+        List<DailyQuizAttempt> originalAttempts = dailyQuizAttemptRepository
+                .findAllBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptTypeOrderBySessionQuestionQuestionQuestionIdAsc(
+                        sessionId,
+                        DailyQuizAttemptType.ORIGINAL
+                );
+
+        if (originalAttempts.size() != DAILY_QUIZ_QUESTION_COUNT) {
+            throw new ProjectException(
+                    DailyQuizErrorCode.INVALID_SESSION_QUESTION_COUNT
+            );
+        }
+
+        // 재풀이 답안 조회
+        List<DailyQuizAttempt> retryAttempts = dailyQuizAttemptRepository
+                .findAllBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptTypeOrderBySessionQuestionQuestionQuestionIdAsc(
+                        sessionId,
+                        DailyQuizAttemptType.RETRY
+                );
+
+        Map<Long, DailyQuizAttempt> retryAttemptBySessionQuestionId =
+                retryAttempts.stream()
+                        .collect(Collectors.toMap(
+                                attempt -> attempt.getSessionQuestion()
+                                        .getSessionQuestionId(),
+                                attempt -> attempt
+                        ));
+
+        List<Long> questionIds = originalAttempts.stream()
+                .map(attempt -> attempt.getSessionQuestion()
+                        .getQuestion()
+                        .getQuestionId())
+                .toList();
+
+        // 정답 선택지 일괄 조회
+        Map<Long, QuizOption> correctOptionByQuestionId =
+                quizOptionRepository
+                        .findAllByQuestionQuestionIdInOrderByQuestionQuestionIdAscOptionNumberAsc(
+                                questionIds
+                        )
+                        .stream()
+                        .filter(option ->
+                                Boolean.TRUE.equals(
+                                        option.getCorrect()
+                                )
+                        )
+                        .collect(
+                                Collectors.toMap(
+                                        option ->
+                                                option.getQuestion()
+                                                        .getQuestionId(),
+                                        option -> option
+                                )
+                        );
+
+        if (correctOptionByQuestionId.size()
+                != DAILY_QUIZ_QUESTION_COUNT) {
+            throw new ProjectException(
+                    DailyQuizErrorCode.CORRECT_OPTION_NOT_FOUND
+            );
+        }
+
+        // 문제별 결과 생성
+        List<DailyQuizResultQuestionResponse> questionResponses =
+                originalAttempts.stream()
+                        .map(originalAttempt -> {
+                            Long sessionQuestionId = originalAttempt
+                                    .getSessionQuestion()
+                                    .getSessionQuestionId();
+
+                            Long questionId = originalAttempt
+                                    .getSessionQuestion()
+                                    .getQuestion()
+                                    .getQuestionId();
+
+                            return DailyQuizResultQuestionResponse.of(
+                                    originalAttempt,
+                                    correctOptionByQuestionId.get(questionId),
+                                    retryAttemptBySessionQuestionId.get(
+                                            sessionQuestionId
+                                    )
+                            );
+                        })
+                        .toList();
+
+        // 정답 및 오답 개수 계산
+        int correctCount = (int) originalAttempts.stream()
+                .filter(attempt -> Boolean.TRUE.equals(attempt.getCorrect()))
+                .count();
+
+        int incorrectCount = DAILY_QUIZ_QUESTION_COUNT - correctCount;
+
+        BigDecimal endStock = session.getEndStock();
+
+        // 주가 결과 계산
+        BigDecimal totalProfit = endStock
+                .subtract(session.getStartStock())
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal totalReturnPercent = totalProfit
+                .divide(session.getStartStock(), 6, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP);
+
+        return DailyQuizResultResponse.of(
+                session,
+                correctCount,
+                incorrectCount,
+                retryAttempts.size(),
+                endStock,
+                totalProfit,
+                totalReturnPercent,
+                questionResponses
+        );
+    }
+
+    // 사용자가 재풀이하지 않고 NEXT 눌렀을 때
+    @Transactional
+    public DailyQuizResultResponse completeSession(
+            Long memberId,
+            Long sessionId
+    ) {
+        LocalDateTime now = LocalDateTime.now(KST);
+
+        // 세션 락 조회
+        DailyQuizSession session = findSessionForUpdate(sessionId, memberId);
+
+        // 이미 완료된 세션 처리
+        if (session.getStatus() == DailyQuizSessionStatus.COMPLETED) {
+            return getResult(memberId, sessionId);
+        }
+
+        // 만료 검사
+        validateSessionNotExpired(session, now);
+
+        // 원본 완료 상태 확인
+        if (session.getStatus() != DailyQuizSessionStatus.ORIGINAL_COMPLETED) {
+            throw new ProjectException(DailyQuizErrorCode.INVALID_SESSION_STATE);
+        }
+
+        // 종료 주가 확정
+        session.complete();
+
+        // 최종 결과 반환
+        return getResult(memberId, sessionId);
     }
 }

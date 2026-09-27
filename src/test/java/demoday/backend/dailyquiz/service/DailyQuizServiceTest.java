@@ -12,6 +12,7 @@ import demoday.backend.quiz.code.QuizCategory;
 import demoday.backend.quiz.repository.MemberQuestionHistoryRepository;
 import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
+import demoday.backend.stock.repository.StockChangeRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +56,9 @@ class DailyQuizServiceTest {
 
     @Mock
     private MemberQuestionHistoryRepository memberQuestionHistoryRepository;
+
+    @Mock
+    private StockChangeRepository stockChangeRepository;
 
     @InjectMocks
     private DailyQuizService dailyQuizService;
