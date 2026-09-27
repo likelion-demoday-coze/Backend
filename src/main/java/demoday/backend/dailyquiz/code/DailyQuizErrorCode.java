@@ -78,6 +78,11 @@ public enum DailyQuizErrorCode implements BaseErrorCode {
             HttpStatus.CONFLICT,
             "DAILY_QUIZ_409_9",
             "아직 만료되지 않은 데일리 퀴즈 세션입니다."
+    ),
+    INVALID_SESSION_QUESTION_COUNT(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "DAILY_QUIZ_500_1",
+            "세션 문제 구성이 올바르지 않습니다."
     );
 
     private final HttpStatus status;

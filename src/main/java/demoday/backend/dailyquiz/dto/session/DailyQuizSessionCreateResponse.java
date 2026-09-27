@@ -1,4 +1,4 @@
-package demoday.backend.dailyquiz.dto;
+package demoday.backend.dailyquiz.dto.session;
 
 import demoday.backend.dailyquiz.code.DailyQuizSessionStatus;
 import demoday.backend.dailyquiz.domain.DailyQuizSession;

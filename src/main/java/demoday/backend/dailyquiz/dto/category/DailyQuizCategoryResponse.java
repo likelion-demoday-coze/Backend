@@ -1,4 +1,4 @@
-package demoday.backend.dailyquiz.dto;
+package demoday.backend.dailyquiz.dto.category;
 
 import demoday.backend.quiz.code.QuizCategory;
 

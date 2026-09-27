@@ -1,8 +1,10 @@
 package demoday.backend.dailyquiz.controller;
 
-import demoday.backend.dailyquiz.dto.DailyQuizCategoryResponse;
-import demoday.backend.dailyquiz.dto.DailyQuizSessionCreateRequest;
-import demoday.backend.dailyquiz.dto.DailyQuizSessionCreateResponse;
+import demoday.backend.dailyquiz.dto.category.DailyQuizCategoryResponse;
+import demoday.backend.dailyquiz.dto.session.DailyQuizActiveSessionResponse;
+import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
+import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateResponse;
+import demoday.backend.dailyquiz.dto.session.DailyQuizSessionDetailResponse;
 import demoday.backend.dailyquiz.service.DailyQuizService;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
@@ -53,5 +55,31 @@ public class DailyQuizController {
                                 response
                         )
                 );
+    }
+
+    @GetMapping("/sessions/active")
+    public ApiResponse<DailyQuizActiveSessionResponse>
+    getActiveSession(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                dailyQuizService.getActiveSession(memberId)
+        );
+    }
+
+    @GetMapping("/sessions/{sessionId}")
+    public ApiResponse<DailyQuizSessionDetailResponse>
+    getSessionDetail(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long sessionId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                dailyQuizService.getSessionDetail(
+                        memberId,
+                        sessionId
+                )
+        );
     }
 }
