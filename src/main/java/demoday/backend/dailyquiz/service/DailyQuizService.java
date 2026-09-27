@@ -1,5 +1,6 @@
 package demoday.backend.dailyquiz.service;
 
+import demoday.backend.activity.code.LearningStatus;
 import demoday.backend.activity.domain.MemberDailyActivity;
 import demoday.backend.activity.repository.MemberDailyActivityRepository;
 import demoday.backend.dailyquiz.code.DailyQuizAttemptType;
@@ -593,13 +594,31 @@ public class DailyQuizService {
                         DailyQuizAttemptType.ORIGINAL
                 );
 
-        // 5문제 완료 처리
+        // 원본 문제 5개를 모두 제출한 경우
         if (answeredCount == DAILY_QUIZ_QUESTION_COUNT) {
             session.completeOriginal(
                     member.getCurrentStock()
             );
 
-            dailyActivity.completeLearning(now);
+            // 오늘 최초 학습 완료인지 확인
+            boolean learningCompleted =
+                    dailyActivity.completeLearning(now);
+
+            // 같은 날 최초 학습 완료일 때만 연속 학습일 갱신
+            if (learningCompleted) {
+                boolean learnedYesterday =
+                        memberDailyActivityRepository
+                                .existsByMemberMemberIdAndActivityDateAndLearningStatusIn(
+                                        memberId,
+                                        now.toLocalDate().minusDays(1),
+                                        List.of(
+                                                LearningStatus.COMPLETED,
+                                                LearningStatus.RECOVERED
+                                        )
+                                );
+
+                member.completeLearning(learnedYesterday);
+            }
 
             // 원본 오답 개수 확인
             long incorrectCount =
@@ -609,7 +628,7 @@ public class DailyQuizService {
                                     DailyQuizAttemptType.ORIGINAL
                             );
 
-            // 오답 없다면 바로 완료
+            // 원본 문제를 모두 맞혔다면 재풀이 없이 세션 완료
             if (incorrectCount == 0) {
                 session.complete();
             }

@@ -91,4 +91,13 @@ public class Member {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
+    // 연속 학습일 변경
+    public void completeLearning(boolean continuedFromYesterday) {
+        if (continuedFromYesterday) {
+            currentStreak++;
+            return;
+        }
+
+        currentStreak = 1;
+    }
 }
