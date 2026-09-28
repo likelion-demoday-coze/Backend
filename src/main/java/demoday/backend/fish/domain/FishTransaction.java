@@ -9,7 +9,10 @@ import java.time.LocalDateTime;
 
 @Getter
 @Entity
-@Table(name = "fish_transaction")
+@Table(name = "fish_transaction", indexes = @Index(
+        name = "idx_fish_transaction_member_created",
+        columnList = "member_id, created_at, fish_transaction_id"
+))
 @Builder(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
