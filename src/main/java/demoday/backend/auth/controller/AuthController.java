@@ -1,5 +1,6 @@
 package demoday.backend.auth.controller;
 
+import demoday.backend.auth.dto.CsrfTokenResponse;
 import demoday.backend.auth.dto.SignupRequest;
 import demoday.backend.auth.service.KakaoAuthService;
 import demoday.backend.global.api.ApiResponse;
@@ -32,7 +33,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 @Tag(name = "Auth", description = "인증 API")
 @RestController
@@ -52,15 +52,12 @@ public class AuthController {
                     """
     )
     @GetMapping("/csrf")
-    public ApiResponse<Map<String, String>> csrf(
+    public ApiResponse<CsrfTokenResponse> csrf(
             @Parameter(hidden = true) CsrfToken csrfToken
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                Map.of(
-                        "headerName", csrfToken.getHeaderName(),
-                        "token", csrfToken.getToken()
-                )
+                CsrfTokenResponse.from(csrfToken)
         );
     }
 
