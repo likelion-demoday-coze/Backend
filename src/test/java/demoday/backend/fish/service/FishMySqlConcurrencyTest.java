@@ -3,19 +3,21 @@ package demoday.backend.fish.service;
 import demoday.backend.fish.code.FishErrorCode;
 import demoday.backend.fish.dto.FishTransactionResponse;
 import demoday.backend.fish.repository.FishTransactionRepository;
+import demoday.backend.fish.support.FishTransactionReadHook;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.global.transaction.TransactionRetryExecutor;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
@@ -29,13 +31,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static demoday.backend.fish.code.FishTransactionType.ATTENDANCE_REWARD;
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
 
 /** Docker가 있는 환경에서만 실제 InnoDB의 gap lock을 재현한다. 기존 개발 DB는 사용하지 않는다. */
 @Testcontainers(disabledWithoutDocker = true)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(properties = {
         "spring.jpa.open-in-view=false",
+        // 전용 컨테이너 삭제로 정리하므로 컨테이너 종료 후 DROP 연결을 시도하지 않는다.
+        "spring.jpa.hibernate.ddl-auto=create",
         "spring.datasource.hikari.transaction-isolation=TRANSACTION_REPEATABLE_READ"
 })
 class FishMySqlConcurrencyTest {
@@ -55,7 +58,8 @@ class FishMySqlConcurrencyTest {
     @Autowired private TransactionRetryExecutor retryExecutor;
     @Autowired private MemberRepository memberRepository;
     @Autowired private JdbcTemplate jdbc;
-    @MockitoSpyBean private FishTransactionRepository transactionRepository;
+    @Autowired private FishTransactionRepository transactionRepository;
+    private FishTransactionReadHook readHook;
     private Long firstMember;
     private Long secondMember;
 
@@ -69,6 +73,14 @@ class FishMySqlConcurrencyTest {
         firstMember = memberRepository.saveAndFlush(Member.create(1L, "first")).getMemberId();
         secondMember = memberRepository.saveAndFlush(Member.create(2L, "second")).getMemberId();
         assertThat(jdbc.queryForObject("select @@transaction_isolation", String.class)).isEqualTo("REPEATABLE-READ");
+    }
+
+    @AfterEach
+    void removeReadHook() {
+        if (readHook != null) {
+            readHook.close();
+            readHook = null;
+        }
     }
 
     @Test
@@ -103,7 +115,7 @@ class FishMySqlConcurrencyTest {
     @Test
     void mysqlUniqueViolationIsConvertedToIdempotencyConflict() {
         fishService.credit(firstMember, 100, ATTENDANCE_REWARD, null, "duplicate");
-        doReturn(Optional.empty()).when(transactionRepository).findByIdempotencyKey("duplicate");
+        readHook = FishTransactionReadHook.install(transactionRepository, result -> Optional.empty());
 
         assertThatThrownBy(() -> retryExecutor.execute(() ->
                 fishService.credit(secondMember, 100, ATTENDANCE_REWARD, null, "duplicate")))
@@ -116,14 +128,13 @@ class FishMySqlConcurrencyTest {
     private void forceFirstTwoMissingKeyReadsToOverlap() {
         CyclicBarrier bothReadGap = new CyclicBarrier(2);
         AtomicInteger reads = new AtomicInteger();
-        doAnswer(invocation -> {
-            Object result = invocation.callRealMethod();
+        readHook = FishTransactionReadHook.install(transactionRepository, result -> {
             if (reads.incrementAndGet() <= 2) {
-                assertThat((Optional<?>) result).isEmpty();
+                assertThat(result).isEmpty();
                 bothReadGap.await(10, TimeUnit.SECONDS);
             }
             return result;
-        }).when(transactionRepository).findByIdempotencyKey(anyString());
+        });
     }
 
     private List<Object> runPair(String firstKey, String secondKey, AtomicInteger attempts) throws Exception {

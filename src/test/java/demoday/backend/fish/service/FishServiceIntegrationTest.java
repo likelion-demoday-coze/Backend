@@ -4,6 +4,8 @@ import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
 import demoday.backend.dailyquiz.service.DailyQuizService;
 import demoday.backend.fish.code.FishErrorCode;
 import demoday.backend.fish.dto.FishTransactionResponse;
+import demoday.backend.fish.repository.FishTransactionRepository;
+import demoday.backend.fish.support.FishTransactionReadHook;
 import demoday.backend.global.api.code.BaseErrorCode;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
@@ -71,6 +73,7 @@ class FishServiceIntegrationTest {
     private static final AtomicLong MEMBER_SEQUENCE = new AtomicLong();
 
     @Autowired private FishService fishService;
+    @Autowired private FishTransactionRepository fishTransactionRepository;
     @Autowired private MemberRepository memberRepository;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -90,6 +93,25 @@ class FishServiceIntegrationTest {
     void emptyWallet() {
         assertThat(fishService.getBalance(memberId).balance()).isZero();
         assertThat(fishService.getTransactions(memberId, 0, 20).content()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("MySQL 테스트의 조회 훅은 실제 Repository 조회를 실행하고 종료 후 제거된다")
+    void readHookDelegatesToRealRepositoryAndIsRemoved() {
+        List<Boolean> observed = new ArrayList<>();
+        FishTransactionResponse original;
+        try (var hook = FishTransactionReadHook.install(fishTransactionRepository, result -> {
+            observed.add(result.isPresent());
+            return result;
+        })) {
+            original = credit(100, "hook");
+            assertThat(credit(100, "hook")).isEqualTo(original);
+            assertThat(observed).containsExactly(false, true);
+        }
+
+        assertThat(credit(100, "hook")).isEqualTo(original);
+        assertThat(observed).containsExactly(false, true);
+        assertThat(fishService.getBalance(memberId).balance()).isEqualTo(100);
     }
 
     @Test
