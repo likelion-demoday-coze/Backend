@@ -62,4 +62,11 @@ public class MemberPass {
                 .expiresAt(expiresAt)
                 .build();
     }
+
+    // 특정 서버 시간 기준 패스가 실제 사용 가능한지 확인
+    public boolean isActiveAt(LocalDateTime now) {
+        return status == PassStatus.ACTIVE
+                && !now.isBefore(startedAt)
+                && now.isBefore(expiresAt);
+    }
 }

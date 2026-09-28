@@ -1,6 +1,8 @@
 package demoday.backend.dailyquiz.domain;
 
+import demoday.backend.dailyquiz.code.DailyQuizErrorCode;
 import demoday.backend.dailyquiz.code.DailyQuizSessionStatus;
+import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
 import demoday.backend.quiz.code.QuizCategory;
 import jakarta.persistence.*;
@@ -52,20 +54,76 @@ public class DailyQuizSession {
     public static DailyQuizSession create(
             Member member,
             QuizCategory category,
-            DailyQuizSessionStatus status,
             BigDecimal startStock,
             LocalDateTime startedAt,
-            LocalDateTime expiresAt,
             Boolean passApplied
     ) {
+        if (startStock == null) {
+            throw new IllegalArgumentException("시작 주가는 필수입니다.");
+        }
+
+        if (startedAt == null) {
+            throw new IllegalArgumentException("세션 시작 시각은 필수입니다.");
+        }
+
+        LocalDateTime expiresAt = startedAt.toLocalDate()
+                .plusDays(1)
+                .atStartOfDay();
+
         return DailyQuizSession.builder()
                 .member(member)
                 .category(category)
-                .status(status)
+                .status(DailyQuizSessionStatus.IN_PROGRESS)
                 .startStock(startStock)
                 .startedAt(startedAt)
                 .expiresAt(expiresAt)
                 .passApplied(passApplied)
                 .build();
+    }
+
+    // 전달 받은 서버 시각 세션 만료 시각에 도달했는지 확인
+    public boolean isExpired(LocalDateTime now) {
+        return !now.isBefore(expiresAt);
+    }
+
+    public void completeOriginal(BigDecimal endStock) {
+        if (status != DailyQuizSessionStatus.IN_PROGRESS) {
+            throw new ProjectException(
+                    DailyQuizErrorCode.INVALID_SESSION_STATE
+            );
+        }
+
+        if (endStock == null) {
+            throw new IllegalArgumentException(
+                    "종료 주가는 필수입니다."
+            );
+        }
+
+        this.endStock = endStock;
+        status = DailyQuizSessionStatus.ORIGINAL_COMPLETED;
+    }
+
+    // 원본 문제 5개 모두 제출 시 세션 상태 변경
+    public void complete() {
+        if (status != DailyQuizSessionStatus.ORIGINAL_COMPLETED) {
+            throw new ProjectException(
+                    DailyQuizErrorCode.INVALID_SESSION_STATE
+            );
+        }
+
+        status = DailyQuizSessionStatus.COMPLETED;
+    }
+
+    // 생성 다음 날 00:00 KST에 도달한 세션을 만료 상태로 변경
+    public void expire(LocalDateTime now) {
+        if (!isExpired(now)) {
+            throw new ProjectException(DailyQuizErrorCode.SESSION_NOT_EXPIRED);
+        }
+
+        if (status == DailyQuizSessionStatus.COMPLETED) {
+            throw new ProjectException(DailyQuizErrorCode.INVALID_SESSION_STATE);
+        }
+
+        status = DailyQuizSessionStatus.EXPIRED;
     }
 }

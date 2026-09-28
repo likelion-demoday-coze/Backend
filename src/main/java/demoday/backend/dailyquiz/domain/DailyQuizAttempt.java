@@ -5,6 +5,7 @@ import demoday.backend.quiz.domain.QuizOption;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -45,6 +46,13 @@ public class DailyQuizAttempt {
     @Column(name = "stock_increase_percent")
     private Integer stockIncreasePercent;
 
+    @Column(
+            name = "stock_after",
+            precision = 30,
+            scale = 2
+    )
+    private BigDecimal stockAfter;
+
     @Column(name = "answered_at", nullable = false)
     private LocalDateTime answeredAt;
 
@@ -53,9 +61,13 @@ public class DailyQuizAttempt {
             QuizOption selectedOption,
             DailyQuizAttemptType attemptType,
             Integer stockIncreasePercent,
+            BigDecimal stockAfter,
             LocalDateTime answeredAt
     ) {
-        validateSelectedOption(sessionQuestion, selectedOption);
+        validateSelectedOption(
+                sessionQuestion,
+                selectedOption
+        );
 
         return DailyQuizAttempt.builder()
                 .sessionQuestion(sessionQuestion)
@@ -63,6 +75,7 @@ public class DailyQuizAttempt {
                 .attemptType(attemptType)
                 .correct(selectedOption.getCorrect())
                 .stockIncreasePercent(stockIncreasePercent)
+                .stockAfter(stockAfter)
                 .answeredAt(answeredAt)
                 .build();
     }
