@@ -10,6 +10,7 @@ import demoday.backend.member.domain.Member;
 import demoday.backend.member.dto.MemberResponse;
 import demoday.backend.member.service.MemberService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -42,9 +43,18 @@ public class AuthController {
     private final MemberService memberService;
     private final HttpSessionSecurityContextRepository contextRepository;
 
-    @Operation(summary = "CSRF 토큰 조회")
+    @Operation(
+            summary = "CSRF 토큰 조회",
+            description = """
+                    세션에 연결된 CSRF 토큰을 조회합니다.
+                    POST, PATCH, DELETE 요청 시 응답받은 token을
+                    headerName에 해당하는 요청 헤더로 전송해야 합니다.
+                    """
+    )
     @GetMapping("/csrf")
-    public ApiResponse<Map<String, String>> csrf(CsrfToken csrfToken) {
+    public ApiResponse<Map<String, String>> csrf(
+            @Parameter(hidden = true) CsrfToken csrfToken
+    ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
                 Map.of(
