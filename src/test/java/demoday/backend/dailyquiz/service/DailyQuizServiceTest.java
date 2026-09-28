@@ -9,6 +9,7 @@ import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionRepository;
 import demoday.backend.fish.service.FishService;
 import demoday.backend.fish.code.FishTransactionType;
+import demoday.backend.global.transaction.TransactionRetryExecutor;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.repository.MemberPassRepository;
@@ -33,6 +34,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -58,6 +60,9 @@ class DailyQuizServiceTest {
 
     @Mock
     private FishService fishService;
+
+    @Mock
+    private TransactionRetryExecutor transactionRetryExecutor;
 
     @Mock
     private DailyQuizAttemptRepository dailyQuizAttemptRepository;
@@ -93,6 +98,8 @@ class DailyQuizServiceTest {
     @ValueSource(booleans = {false, true})
     @DisplayName("일반 회원만 공통 서비스를 통해 입장료를 차감하고 패스 회원은 잔액을 유지한다")
     void delegatesFishDebitUnlessPassApplied(boolean passApplied) {
+        when(transactionRetryExecutor.execute(any())).thenAnswer(invocation ->
+                ((Supplier<?>) invocation.getArgument(0)).get());
         Member member = Member.create(1L, "회원");
         member.addFish(100);
         when(memberRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member));

@@ -29,6 +29,7 @@ import demoday.backend.fish.code.FishTransactionType;
 import demoday.backend.fish.service.FishService;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
+import demoday.backend.global.transaction.TransactionRetryExecutor;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.code.PassStatus;
@@ -80,6 +81,7 @@ public class DailyQuizService {
     private final DailyQuizSessionRepository dailyQuizSessionRepository;
     private final DailyQuizSessionQuestionRepository sessionQuestionRepository;
     private final FishService fishService;
+    private final TransactionRetryExecutor transactionRetryExecutor;
     private final DailyQuizAttemptRepository dailyQuizAttemptRepository;
     private final QuizOptionRepository quizOptionRepository;
     private final MemberDailyActivityRepository memberDailyActivityRepository;
@@ -93,8 +95,14 @@ public class DailyQuizService {
                 .toList();
     }
 
-    @Transactional
     public DailyQuizSessionCreateResponse createSession(
+            Long memberId,
+            DailyQuizSessionCreateRequest request
+    ) {
+        return transactionRetryExecutor.execute(() -> createSessionInTransaction(memberId, request));
+    }
+
+    private DailyQuizSessionCreateResponse createSessionInTransaction(
             Long memberId,
             DailyQuizSessionCreateRequest request
     ) {

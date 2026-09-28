@@ -5,6 +5,8 @@ import demoday.backend.global.api.code.BaseErrorCode;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -57,6 +59,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleInvalidRequest() {
         return ResponseEntity.status(GeneralErrorCode.BAD_REQUEST.getStatus())
                 .body(ApiResponse.onFailure(GeneralErrorCode.BAD_REQUEST, null));
+    }
+
+    @ExceptionHandler({CannotAcquireLockException.class, DeadlockLoserDataAccessException.class})
+    public ResponseEntity<ApiResponse<Void>> handleLockFailure() {
+        BaseErrorCode errorCode = GeneralErrorCode.TRANSACTION_BUSY;
+        return ResponseEntity.status(errorCode.getStatus())
+                .header("Retry-After", "1")
+                .body(ApiResponse.onFailure(errorCode, null));
     }
 
     @ExceptionHandler(Exception.class)

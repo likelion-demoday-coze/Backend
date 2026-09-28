@@ -14,6 +14,8 @@ import demoday.backend.member.code.MemberStatus;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Objects;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 @Service
@@ -108,7 +111,28 @@ public class FishService {
                 member, type, signedAmount, member.getFishBalance(), referenceId,
                 idempotencyKey, LocalDateTime.now(clock.withZone(KST))
         );
-        return FishTransactionResponse.from(fishTransactionRepository.save(transaction));
+        try {
+            // IDENTITY 전략은 save 시 INSERT를 실행한다. 전체 영속성 컨텍스트를 flush하지 않는다.
+            return FishTransactionResponse.from(fishTransactionRepository.save(transaction));
+        } catch (DataIntegrityViolationException exception) {
+            if (isFishUniqueViolation(exception)) {
+                // 실패한 트랜잭션에서는 다시 조회/재시도하지 않고 호출자까지 롤백시킨다.
+                throw new ProjectException(FishErrorCode.IDEMPOTENCY_CONFLICT);
+            }
+            throw exception;
+        }
+    }
+
+    private boolean isFishUniqueViolation(DataIntegrityViolationException exception) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation
+                    && violation.getKind() == ConstraintViolationException.ConstraintKind.UNIQUE
+                    && violation.getSQL() != null
+                    && violation.getSQL().toLowerCase(Locale.ROOT).contains("insert into fish_transaction")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Member findActiveMember(Long memberId, boolean forUpdate) {
