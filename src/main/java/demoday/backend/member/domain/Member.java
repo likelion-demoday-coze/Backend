@@ -64,6 +64,19 @@ public class Member {
                 .build();
     }
 
+    // 잔액 변경은 거래 이력을 함께 남기는 FishService를 통해 호출한다.
+    public void addFish(long amount) {
+        if (amount <= 0) {
+            throw new ProjectException(MemberErrorCode.INVALID_FISH_AMOUNT);
+        }
+
+        if (fishBalance > Long.MAX_VALUE - amount) {
+            throw new ProjectException(MemberErrorCode.FISH_BALANCE_OVERFLOW);
+        }
+
+        fishBalance += amount;
+    }
+
     // 회원의 생선 잔액 차감
     public void deductFish(long amount) {
         if (amount <= 0) {
