@@ -26,8 +26,7 @@ import demoday.backend.dailyquiz.repository.DailyQuizAttemptRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionRepository;
 import demoday.backend.fish.code.FishTransactionType;
-import demoday.backend.fish.domain.FishTransaction;
-import demoday.backend.fish.repository.FishTransactionRepository;
+import demoday.backend.fish.service.FishService;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
@@ -80,7 +79,7 @@ public class DailyQuizService {
     private final QuizQuestionRepository quizQuestionRepository;
     private final DailyQuizSessionRepository dailyQuizSessionRepository;
     private final DailyQuizSessionQuestionRepository sessionQuestionRepository;
-    private final FishTransactionRepository fishTransactionRepository;
+    private final FishService fishService;
     private final DailyQuizAttemptRepository dailyQuizAttemptRepository;
     private final QuizOptionRepository quizOptionRepository;
     private final MemberDailyActivityRepository memberDailyActivityRepository;
@@ -169,10 +168,12 @@ public class DailyQuizService {
 
         // 패스가 없다면 생선 50개 차감 후 기록
         if (!passApplied) {
-            deductFishAndRecordTransaction(
-                    member,
-                    session,
-                    now
+            fishService.debit(
+                    memberId,
+                    DAILY_QUIZ_FISH_COST,
+                    FishTransactionType.DAILY_QUIZ_COST,
+                    session.getDailyQuizSessionId(),
+                    "DAILY_QUIZ_SESSION:" + session.getDailyQuizSessionId()
             );
         }
 
@@ -195,28 +196,6 @@ public class DailyQuizService {
                             DailyQuizErrorCode.ACTIVE_SESSION_ALREADY_EXISTS
                     );
                 });
-    }
-
-    private void deductFishAndRecordTransaction(
-            Member member,
-            DailyQuizSession session,
-            LocalDateTime now
-    ) {
-        member.deductFish(DAILY_QUIZ_FISH_COST);
-
-        FishTransaction transaction =
-                FishTransaction.create(
-                        member,
-                        FishTransactionType.DAILY_QUIZ_COST,
-                        -DAILY_QUIZ_FISH_COST,
-                        member.getFishBalance(),
-                        session.getDailyQuizSessionId(),
-                        "DAILY_QUIZ_SESSION:"
-                                + session.getDailyQuizSessionId(),
-                        now
-                );
-
-        fishTransactionRepository.save(transaction);
     }
 
     // 사용자가 이어서 풀 수 있는 세션 있는지 조회
