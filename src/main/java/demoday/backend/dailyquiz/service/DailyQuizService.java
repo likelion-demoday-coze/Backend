@@ -494,7 +494,6 @@ public class DailyQuizService {
             return handleExistingOriginalAttempt(
                     existingAttempt.get(),
                     request.selectedOptionId(),
-                    member,
                     session
             );
         }
@@ -557,6 +556,7 @@ public class DailyQuizService {
                 selectedOption,
                 DailyQuizAttemptType.ORIGINAL,
                 stockIncreasePercent,
+                member.getCurrentStock(),
                 now
         );
 
@@ -655,7 +655,6 @@ public class DailyQuizService {
     private DailyQuizAnswerResponse handleExistingOriginalAttempt(
             DailyQuizAttempt existingAttempt,
             Long selectedOptionId,
-            Member member,
             DailyQuizSession session
     ) {
         if (!Objects.equals(
@@ -686,7 +685,7 @@ public class DailyQuizService {
                 existingAttempt.getSessionQuestion()
                         .getQuestion()
                         .getExplanation(),
-                member.getCurrentStock(),
+                existingAttempt.getStockAfter(),
                 answeredCount,
                 DAILY_QUIZ_QUESTION_COUNT,
                 session.getStatus()
@@ -760,6 +759,7 @@ public class DailyQuizService {
                 sessionQuestion,
                 selectedOption,
                 DailyQuizAttemptType.RETRY,
+                null,
                 null,
                 now
         );
@@ -994,8 +994,6 @@ public class DailyQuizService {
         List<DailyQuizResultQuestionResponse> questionResponses =
                 new ArrayList<>();
 
-        BigDecimal runningStock = session.getStartStock();
-
         for (DailyQuizAttempt originalAttempt : originalAttempts) {
             Long sessionQuestionId = originalAttempt
                     .getSessionQuestion()
@@ -1006,20 +1004,6 @@ public class DailyQuizService {
                     .getQuestion()
                     .getQuestionId();
 
-            Integer increasePercent =
-                    originalAttempt.getStockIncreasePercent();
-
-            if (increasePercent != null) {
-                BigDecimal rate = BigDecimal.ONE.add(
-                        BigDecimal.valueOf(increasePercent)
-                                .movePointLeft(2)
-                );
-
-                runningStock = runningStock
-                        .multiply(rate)
-                        .setScale(2, RoundingMode.HALF_UP);
-            }
-
             questionResponses.add(
                     DailyQuizResultQuestionResponse.of(
                             originalAttempt,
@@ -1027,7 +1011,7 @@ public class DailyQuizService {
                             retryAttemptBySessionQuestionId.get(
                                     sessionQuestionId
                             ),
-                            runningStock
+                            originalAttempt.getStockAfter()
                     )
             );
         }
