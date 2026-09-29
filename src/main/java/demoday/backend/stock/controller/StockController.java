@@ -3,6 +3,9 @@ package demoday.backend.stock.controller;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
 import demoday.backend.stock.dto.StockResponse;
+import demoday.backend.stock.dto.StockHistoryResponse;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDate;
 import demoday.backend.stock.dto.StockChangePageResponse;
 import org.springframework.web.bind.annotation.RequestParam;
 import demoday.backend.stock.service.StockService;
@@ -22,6 +25,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class StockController {
 
     private final StockService stockService;
+
+    @Operation(summary = "내 일별 주가 그래프 조회",
+            description = "저장된 일별 스냅샷을 날짜 오름차순으로 반환합니다. from/to는 yyyy-MM-dd 형식으로 함께 지정하며 양 끝 날짜를 포함해 최대 366일입니다. 둘 다 생략하면 KST 오늘을 포함한 최근 30일입니다. 저장되지 않은 날짜는 제외하며 실시간 주가를 덧붙이지 않습니다.")
+    @GetMapping("/me/history")
+    public ApiResponse<StockHistoryResponse> getHistory(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long memberId,
+            @Parameter(description = "조회 시작일 (종료일과 함께 지정)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @Parameter(description = "조회 종료일 (시작일과 함께 지정)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, stockService.getHistory(memberId, from, to));
+    }
 
     @Operation(summary = "내 주가 변동 내역 조회",
             description = "본인의 변동 내역을 발생 시각 내림차순으로 반환합니다. 같은 시각이면 변동 ID 내림차순입니다. 내역이 없으면 빈 목록을 반환합니다.")

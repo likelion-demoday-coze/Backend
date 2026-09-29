@@ -7,6 +7,16 @@ import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.stock.code.StockChangeType;
 import demoday.backend.stock.domain.StockChange;
 import demoday.backend.stock.repository.StockChangeRepository;
+import demoday.backend.stock.domain.StockDailySnapshot;
+import demoday.backend.stock.repository.StockDailySnapshotRepository;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -42,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.jpa.open-in-view=false"
 })
 @AutoConfigureMockMvc
+@Import(StockServiceIntegrationTest.FixedClockConfig.class)
 class StockServiceIntegrationTest {
 
     private static final AtomicLong MEMBER_SEQUENCE = new AtomicLong();
@@ -51,6 +62,7 @@ class StockServiceIntegrationTest {
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
     @Autowired private StockChangeRepository stockChangeRepository;
+    @Autowired private StockDailySnapshotRepository stockDailySnapshotRepository;
 
     private Long memberId;
 
@@ -99,7 +111,7 @@ class StockServiceIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes"})
+    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes", "/api/v1/stocks/me/history"})
     @DisplayName("탈퇴 회원의 조회는 거절한다")
     void withdrawnMember(String path) throws Exception {
         jdbcTemplate.update("update member set status = 'WITHDRAWN' where member_id = ?", memberId);
@@ -110,7 +122,7 @@ class StockServiceIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes"})
+    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes", "/api/v1/stocks/me/history"})
     @DisplayName("인증 정보의 회원이 DB에 없으면 404를 반환한다")
     void missingMember(String path) throws Exception {
         mockMvc.perform(get(path).with(memberAuthentication(Long.MAX_VALUE)))
@@ -119,7 +131,7 @@ class StockServiceIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes"})
+    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes", "/api/v1/stocks/me/history"})
     @DisplayName("비로그인 요청은 기존 카카오 로그인 경로로 이동한다")
     void anonymousRequest(String path) throws Exception {
         mockMvc.perform(get(path))
@@ -128,7 +140,7 @@ class StockServiceIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes"})
+    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes", "/api/v1/stocks/me/history"})
     @DisplayName("MEMBER 권한이 없는 인증 사용자는 조회할 수 없다")
     void requiresMemberRole(String path) throws Exception {
         mockMvc.perform(get(path).with(authentication(
@@ -152,6 +164,8 @@ class StockServiceIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/stocks/me'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/stocks/me/changes'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/stocks/me/history'].get").exists())
+                .andExpect(jsonPath("$.components.schemas.StockHistoryResponse.properties.points").exists())
                 .andExpect(jsonPath("$.components.schemas.StockChangeResponse.properties.stockBefore").exists())
                 .andExpect(jsonPath("$.components.schemas.StockResponse.properties.currentStock").exists());
     }
@@ -232,6 +246,109 @@ class StockServiceIntegrationTest {
                 member, type, new BigDecimal("110.25"), new BigDecimal("88.20"),
                 7L, "stock-test:" + UUID.randomUUID(), time
         ));
+    }
+
+    @Test
+    @DisplayName("기간 생략 시 UTC와 날짜가 다른 KST 오늘을 포함한 최근 30일을 조회한다")
+    void defaultHistoryPeriod() throws Exception {
+        Member member = memberRepository.findById(memberId).orElseThrow();
+        saveSnapshot(member, "2026-08-30", "99.00");
+        saveSnapshot(member, "2026-08-31", "100.00");
+        saveSnapshot(member, "2026-09-29", "110.25");
+        saveSnapshot(member, "2026-09-30", "120.00");
+        mockMvc.perform(get("/api/v1/stocks/me/history").with(memberAuthentication(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.from").value("2026-08-31"))
+                .andExpect(jsonPath("$.result.to").value("2026-09-29"))
+                .andExpect(jsonPath("$.result.points.length()").value(2))
+                .andExpect(jsonPath("$.result.points[0].date").value("2026-08-31"))
+                .andExpect(jsonPath("$.result.points[1].date").value("2026-09-29"));
+    }
+
+    @Test
+    @DisplayName("본인의 스냅샷만 양 끝 날짜를 포함해 오름차순 조회하고 누락 날짜를 채우지 않는다")
+    void historyPoints() throws Exception {
+        Member member = memberRepository.findById(memberId).orElseThrow();
+        saveSnapshot(member, "2026-09-29", "110.25");
+        saveSnapshot(member, "2026-09-27", "105.50");
+        saveSnapshot(member, "2026-09-26", "100.00");
+        saveSnapshot(member, "2026-09-30", "115.00");
+        Member other = newMember();
+        saveSnapshot(other, "2026-09-28", "999.00");
+        mockMvc.perform(get("/api/v1/stocks/me/history")
+                        .param("from", "2026-09-27").param("to", "2026-09-29")
+                        .param("memberId", other.getMemberId().toString())
+                        .with(memberAuthentication(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.points.length()").value(2))
+                .andExpect(jsonPath("$.result.points[0].date").value("2026-09-27"))
+                .andExpect(jsonPath("$.result.points[0].stockValue").value(105.50))
+                .andExpect(jsonPath("$.result.points[1].date").value("2026-09-29"))
+                .andExpect(jsonPath("$.result.points[1].stockValue").value(110.25));
+    }
+
+    @Test
+    @DisplayName("신규 회원은 실시간 주가를 그래프에 추가하지 않고 빈 목록을 반환한다")
+    void emptyHistory() throws Exception {
+        mockMvc.perform(get("/api/v1/stocks/me/history").with(memberAuthentication(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.points").isEmpty());
+    }
+
+    @Test
+    @DisplayName("시작일과 종료일이 같으면 해당 날짜의 스냅샷을 조회한다")
+    void singleDayHistory() {
+        Member member = memberRepository.findById(memberId).orElseThrow();
+        saveSnapshot(member, "2026-09-29", "110.25");
+        LocalDate date = LocalDate.of(2026, 9, 29);
+        assertThat(stockService.getHistory(memberId, date, date).points()).hasSize(1);
+    }
+
+    @ParameterizedTest
+    @CsvSource({",2026-09-29", "2026-09-01,", "2026-09-29,2026-09-01", "2024-01-01,2025-01-01"})
+    @DisplayName("기간 일부 누락, 역전, 366일 초과는 거절한다")
+    void invalidHistoryPeriod(String from, String to) throws Exception {
+        var request = get("/api/v1/stocks/me/history").with(memberAuthentication(memberId));
+        if (from != null) request.param("from", from);
+        if (to != null) request.param("to", to);
+        mockMvc.perform(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("STOCK_400_2"));
+    }
+
+    @Test
+    @DisplayName("윤년의 366일 조회를 허용한다")
+    void maximumHistoryPeriod() throws Exception {
+        mockMvc.perform(get("/api/v1/stocks/me/history")
+                        .param("from", "2024-01-01").param("to", "2024-12-31")
+                        .with(memberAuthentication(memberId)))
+                .andExpect(status().isOk());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"not-a-date", "2026-02-30"})
+    @DisplayName("날짜 형식 오류와 존재하지 않는 날짜를 거절한다")
+    void invalidHistoryDate(String date) throws Exception {
+        mockMvc.perform(get("/api/v1/stocks/me/history")
+                        .param("from", date).param("to", "2026-09-29")
+                        .with(memberAuthentication(memberId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_400"));
+    }
+
+    private void saveSnapshot(Member member, String date, String value) {
+        stockDailySnapshotRepository.saveAndFlush(StockDailySnapshot.create(
+                member, LocalDate.parse(date), new BigDecimal(value)
+        ));
+    }
+
+    @TestConfiguration
+    static class FixedClockConfig {
+        @Bean
+        @Primary
+        Clock fixedClock() {
+            return Clock.fixed(Instant.parse("2026-09-28T15:00:00Z"), ZoneOffset.UTC);
+        }
     }
 
     private Member newMember() {

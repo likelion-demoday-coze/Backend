@@ -9,6 +9,12 @@ import demoday.backend.stock.code.StockErrorCode;
 import demoday.backend.stock.dto.StockResponse;
 import demoday.backend.stock.dto.StockChangePageResponse;
 import demoday.backend.stock.repository.StockChangeRepository;
+import demoday.backend.stock.repository.StockDailySnapshotRepository;
+import demoday.backend.stock.dto.StockHistoryResponse;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import lombok.RequiredArgsConstructor;
@@ -20,12 +26,35 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class StockService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final int DEFAULT_HISTORY_DAYS = 30;
+    private static final int MAX_HISTORY_DAYS = 366;
+
     private static final Sort CHANGE_SORT = Sort.by(
             Sort.Order.desc("createdAt"), Sort.Order.desc("stockChangeId")
     );
 
     private final MemberRepository memberRepository;
     private final StockChangeRepository stockChangeRepository;
+    private final StockDailySnapshotRepository stockDailySnapshotRepository;
+    private final Clock clock;
+
+    public StockHistoryResponse getHistory(Long memberId, LocalDate from, LocalDate to) {
+        findActiveMember(memberId);
+        if (from == null && to == null) {
+            to = LocalDate.now(clock.withZone(KST));
+            from = to.minusDays(DEFAULT_HISTORY_DAYS - 1);
+        } else if (from == null || to == null) {
+            throw new ProjectException(StockErrorCode.INVALID_HISTORY_PERIOD);
+        }
+        if (from.isAfter(to) || ChronoUnit.DAYS.between(from, to) >= MAX_HISTORY_DAYS) {
+            throw new ProjectException(StockErrorCode.INVALID_HISTORY_PERIOD);
+        }
+        return StockHistoryResponse.from(from, to,
+                stockDailySnapshotRepository.findAllByMemberMemberIdAndSnapshotDateBetweenOrderBySnapshotDateAsc(
+                        memberId, from, to
+                ));
+    }
 
     public StockResponse getCurrentStock(Long memberId) {
         return new StockResponse(findActiveMember(memberId).getCurrentStock());
