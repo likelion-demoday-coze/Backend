@@ -1,9 +1,9 @@
 package demoday.backend.global.security;
 
 import demoday.backend.auth.service.KakaoAuthService;
+import demoday.backend.auth.service.FrontendRedirectService;
 import demoday.backend.member.domain.Member;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,7 +28,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             KakaoAuthService kakaoAuthService,
-            @Value("${app.frontend-base-url}") String frontendBaseUrl,
+            FrontendRedirectService frontendRedirectService,
             HttpSessionSecurityContextRepository contextRepository
     ) throws Exception {
 
@@ -45,6 +45,7 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/api/v1/members/nickname-availability",
                                 "/api/v1/auth/csrf",
+                                "/api/v1/auth/login/kakao",
                                 "/api/v1/auth/signup"
                         ).permitAll()
                         .anyRequest().hasRole("MEMBER"))
@@ -74,7 +75,10 @@ public class SecurityConfig {
                                         kakaoUserId
                                 );
 
-                                response.sendRedirect(frontendBaseUrl + "/signup");
+                                String frontendUrl = frontendRedirectService.consume(
+                                        request.getSession()
+                                );
+                                response.sendRedirect(frontendUrl + "/signup");
                                 return;
                             }
 
@@ -95,7 +99,10 @@ public class SecurityConfig {
                             SecurityContextHolder.setContext(context);
                             contextRepository.saveContext(context, request, response);
 
-                            response.sendRedirect(frontendBaseUrl + "/");
+                            String frontendUrl = frontendRedirectService.consume(
+                                    request.getSession()
+                            );
+                            response.sendRedirect(frontendUrl + "/");
                         }))
                 .csrf(csrf -> csrf.csrfTokenRequestHandler(
                         new CsrfTokenRequestAttributeHandler()
@@ -120,10 +127,10 @@ public class SecurityConfig {
 
     @Bean
     public UrlBasedCorsConfigurationSource corsConfigurationSource(
-            @Value("${app.frontend-base-url}") String frontendBaseUrl
+            FrontendRedirectService frontendRedirectService
     ) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(frontendBaseUrl,"http://localhost:3000"));
+        config.setAllowedOrigins(frontendRedirectService.getAllowedUrls());
         config.setAllowedMethods(List.of(
                 "GET",
                 "POST",

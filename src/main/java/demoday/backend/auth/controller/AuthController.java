@@ -3,6 +3,7 @@ package demoday.backend.auth.controller;
 import demoday.backend.auth.dto.CsrfTokenResponse;
 import demoday.backend.auth.dto.SignupRequest;
 import demoday.backend.auth.service.KakaoAuthService;
+import demoday.backend.auth.service.FrontendRedirectService;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.api.code.GeneralSuccessCode;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -42,6 +44,18 @@ public class AuthController {
 
     private final MemberService memberService;
     private final HttpSessionSecurityContextRepository contextRepository;
+    private final FrontendRedirectService frontendRedirectService;
+
+    @Operation(summary = "카카오 로그인 시작")
+    @GetMapping("/login/kakao")
+    public void loginWithKakao(
+            @RequestParam(required = false) String redirectUrl,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) throws java.io.IOException {
+        frontendRedirectService.save(request.getSession(true), redirectUrl);
+        response.sendRedirect("/api/v1/auth/oauth2/authorization/kakao");
+    }
 
     @Operation(
             summary = "CSRF 토큰 조회",
