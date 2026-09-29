@@ -48,5 +48,5 @@ server:
     session:
       cookie:
         http-only: true
-        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
-        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: ${SESSION_COOKIE_SAME_SITE:none}
+        secure: ${SESSION_COOKIE_SECURE:true}
