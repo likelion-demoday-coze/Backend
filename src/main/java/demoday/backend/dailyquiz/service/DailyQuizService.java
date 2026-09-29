@@ -42,8 +42,7 @@ import demoday.backend.quiz.repository.MemberQuestionHistoryRepository;
 import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
 import demoday.backend.stock.code.StockChangeType;
-import demoday.backend.stock.domain.StockChange;
-import demoday.backend.stock.repository.StockChangeRepository;
+import demoday.backend.stock.service.StockService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -86,7 +85,7 @@ public class DailyQuizService {
     private final QuizOptionRepository quizOptionRepository;
     private final MemberDailyActivityRepository memberDailyActivityRepository;
     private final MemberQuestionHistoryRepository memberQuestionHistoryRepository;
-    private final StockChangeRepository stockChangeRepository;
+    private final StockService stockService;
 
     @Transactional(readOnly = true)
     public List<DailyQuizCategoryResponse> getCategories() {
@@ -419,14 +418,13 @@ public class DailyQuizService {
     }
 
     // 답안 제출 요청이 원본인지 재풀이인지 구분
-    @Transactional
     public DailyQuizAnswerResult submitAnswer(
             Long memberId,
             Long sessionId,
             Long sessionQuestionId,
             DailyQuizAnswerRequest request
     ) {
-        return switch (request.attemptType()) {
+        return transactionRetryExecutor.execute(() -> switch (request.attemptType()) {
             case ORIGINAL -> submitOriginalAnswer(
                     memberId,
                     sessionId,
@@ -439,11 +437,11 @@ public class DailyQuizService {
                     sessionQuestionId,
                     request
             );
-        };
+        });
     }
 
     // 원본 문제 답안을 최초 제출
-    public DailyQuizAnswerResponse submitOriginalAnswer(
+    private DailyQuizAnswerResponse submitOriginalAnswer(
             Long memberId,
             Long sessionId,
             Long sessionQuestionId,
@@ -523,6 +521,7 @@ public class DailyQuizService {
 
         Integer stockIncreasePercent = null;
         BigDecimal stockBefore = null;
+        BigDecimal stockAfter = member.getCurrentStock();
 
         // 정답이면 주가 상승
         if (Boolean.TRUE.equals(selectedOption.getCorrect())
@@ -534,7 +533,9 @@ public class DailyQuizService {
                     MAX_STOCK_INCREASE_PERCENT + 1
             );
 
-            member.increaseStock(stockIncreasePercent);
+            stockAfter = stockBefore.multiply(BigDecimal.ONE.add(
+                    BigDecimal.valueOf(stockIncreasePercent).movePointLeft(2)
+            )).setScale(2, RoundingMode.HALF_UP);
         }
 
         // 원본 답안 저장
@@ -543,7 +544,7 @@ public class DailyQuizService {
                 selectedOption,
                 DailyQuizAttemptType.ORIGINAL,
                 stockIncreasePercent,
-                member.getCurrentStock(),
+                stockAfter,
                 now
         );
 
@@ -551,18 +552,9 @@ public class DailyQuizService {
 
         // 실제 주가가 상승한 경우 변동 이력 저장
         if (stockBefore != null) {
-            stockChangeRepository.save(
-                    StockChange.create(
-                            member,
-                            StockChangeType.QUIZ_CORRECT,
-                            stockBefore,
-                            member.getCurrentStock(),
-                            attempt.getDailyQuizAttemptId(),
-                            "DAILY_QUIZ_ATTEMPT:"
-                                    + attempt.getDailyQuizAttemptId(),
-                            now
-                    )
-            );
+            stockService.changeStock(memberId, stockBefore, stockAfter,
+                    StockChangeType.QUIZ_CORRECT, attempt.getDailyQuizAttemptId(),
+                    "DAILY_QUIZ_ATTEMPT:" + attempt.getDailyQuizAttemptId());
         }
 
         // 활동과 문제 풀이 이력 저장
