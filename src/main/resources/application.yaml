@@ -41,3 +41,12 @@ springdoc:
 
 app:
   frontend-base-url: ${FRONTEND_BASE_URL}
+  frontend-allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
+
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
+        secure: ${SESSION_COOKIE_SECURE:false}
