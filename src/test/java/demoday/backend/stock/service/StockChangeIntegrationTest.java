@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -53,11 +54,12 @@ class StockChangeIntegrationTest {
 
     @Test
     void increasePenaltyRecoveryAndReplay() {
-        var first = change("100", "110.25", StockChangeType.QUIZ_CORRECT, "quiz");
-        change("110.25", "88.20", StockChangeType.STREAK_PENALTY, "penalty");
-        change("88.20", "110.25", StockChangeType.STREAK_RECOVERY, "recovery");
-        change("110.25", "120", StockChangeType.ADMIN_ADJUSTMENT, "admin");
-        assertThat(change("100.00", "110.250", StockChangeType.QUIZ_CORRECT, "quiz")).isEqualTo(first);
+        var first = change("100", "110", StockChangeType.QUIZ_CORRECT, "quiz");
+        var penalty = change("110", "88", StockChangeType.STREAK_PENALTY, "penalty");
+        stockService.changeStock(memberId, new BigDecimal("88"), new BigDecimal("110"),
+                StockChangeType.STREAK_RECOVERY, penalty.stockChangeId(), key("recovery"));
+        change("110", "120", StockChangeType.ADMIN_ADJUSTMENT, "admin");
+        assertThat(change("100.00", "110.000", StockChangeType.QUIZ_CORRECT, "quiz")).isEqualTo(first);
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("120");
         assertThat(stockService.getChanges(memberId, 0, 20).totalElements()).isEqualTo(4);
     }
@@ -195,6 +197,76 @@ class StockChangeIntegrationTest {
             pool.shutdownNow();
             pool.awaitTermination(5, TimeUnit.SECONDS);
         }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "QUIZ_CORRECT,99", "QUIZ_CORRECT,100", "QUIZ_CORRECT,100.50",
+            "QUIZ_CORRECT,110.25", "QUIZ_CORRECT,111",
+            "STREAK_PENALTY,101", "STREAK_PENALTY,100", "STREAK_PENALTY,90", "STREAK_PENALTY,79.99"
+    })
+    void rejectsValuesInconsistentWithReason(StockChangeType type, String after) {
+        assertRuleError(() -> change("100", after, type, "invalid-rule"));
+        assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("100");
+        assertThat(stockService.getChanges(memberId, 0, 20).content()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+    void acceptsEveryIntegerQuizPercentWithRounding(int percent) {
+        change("100", "100.05", StockChangeType.ADMIN_ADJUSTMENT, "setup");
+        BigDecimal expected = new BigDecimal("100.05")
+                .multiply(BigDecimal.ONE.add(BigDecimal.valueOf(percent).movePointLeft(2)))
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+        var result = change("100.05", expected.toPlainString(), StockChangeType.QUIZ_CORRECT, "quiz-rule");
+        assertThat(result.stockAfter()).isEqualByComparingTo(expected);
+    }
+
+    @Test
+    void roundedSmallValuesMayRemainUnchanged() {
+        change("100", "0.01", StockChangeType.ADMIN_ADJUSTMENT, "setup");
+        change("0.01", "0.01", StockChangeType.QUIZ_CORRECT, "quiz-rule");
+        change("0.01", "0.01", StockChangeType.STREAK_PENALTY, "penalty-rule");
+        assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("0.01");
+    }
+
+    @Test
+    void penaltyUsesHalfUpToTwoDecimalPlaces() {
+        change("100", "100.02", StockChangeType.ADMIN_ADJUSTMENT, "setup");
+        change("100.02", "80.02", StockChangeType.STREAK_PENALTY, "rounded-penalty");
+        assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("80.02");
+    }
+
+    @Test
+    void recoveryRequiresOwnPenaltyAndExactOriginalValue() {
+        var penalty = change("100", "80", StockChangeType.STREAK_PENALTY, "penalty-rule");
+        assertRuleError(() -> recover("80", "99.99", penalty.stockChangeId(), "wrong-target"));
+        assertRuleError(() -> recover("80", "120", penalty.stockChangeId(), "too-high"));
+        assertRuleError(() -> recover("80", "100", null, "no-reference"));
+        assertRuleError(() -> recover("80", "100", Long.MAX_VALUE, "missing-reference"));
+        var adjustment = change("80", "81", StockChangeType.ADMIN_ADJUSTMENT, "adjustment");
+        assertRuleError(() -> recover("81", "80", adjustment.stockChangeId(), "wrong-type"));
+        long sequence = SEQUENCE.incrementAndGet();
+        Long otherId = members.saveAndFlush(Member.create(sequence, "write" + sequence)).getMemberId();
+        var otherPenalty = stockService.changeStock(otherId, BigDecimal.valueOf(100), BigDecimal.valueOf(80),
+                StockChangeType.STREAK_PENALTY, null, "other-penalty:" + otherId);
+        assertRuleError(() -> recover("81", "100", otherPenalty.stockChangeId(), "wrong-member"));
+        assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("81");
+        assertThat(stockService.getChanges(memberId, 0, 20).totalElements()).isEqualTo(2);
+        var original = recover("81", "100", penalty.stockChangeId(), "correct-recovery");
+        change("100", "110", StockChangeType.QUIZ_CORRECT, "later");
+        assertThat(recover("81", "100", penalty.stockChangeId(), "correct-recovery")).isEqualTo(original);
+        assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("110");
+    }
+
+    private StockChangeResponse recover(String before, String after, Long penaltyId, String key) {
+        return stockService.changeStock(memberId, new BigDecimal(before), new BigDecimal(after),
+                StockChangeType.STREAK_RECOVERY, penaltyId, key(key));
+    }
+
+    private void assertRuleError(Runnable operation) {
+        assertThatThrownBy(operation::run).isInstanceOfSatisfying(ProjectException.class,
+                ex -> assertThat(ex.getErrorCode()).isEqualTo(StockErrorCode.INVALID_CHANGE_VALUE));
     }
 
     private StockChangeResponse change(String before, String after, StockChangeType type, String key) {

@@ -87,6 +87,7 @@ public class StockService {
         if (member.getCurrentStock().compareTo(before) != 0) {
             throw new ProjectException(StockErrorCode.STALE_STOCK);
         }
+        validateChangeRule(memberId, before, after, type, referenceId);
         member.changeStock(after);
         try {
             return StockChangeResponse.from(stockChangeRepository.save(StockChange.create(
@@ -103,6 +104,42 @@ public class StockService {
                 }
             }
             throw exception;
+        }
+    }
+
+    /** 멱등 재요청은 기존 결과를 먼저 반환하며, 신규 변경만 업무별 수치 규칙을 검사한다. */
+    private void validateChangeRule(
+            Long memberId, BigDecimal before, BigDecimal after, StockChangeType type, Long referenceId
+    ) {
+        boolean valid = switch (type) {
+            case QUIZ_CORRECT -> {
+                boolean matches = false;
+                for (int percent = 1; percent <= 10; percent++) {
+                    BigDecimal expected = before.multiply(BigDecimal.ONE.add(
+                            BigDecimal.valueOf(percent).movePointLeft(2)
+                    )).setScale(2, RoundingMode.HALF_UP);
+                    if (expected.compareTo(after) == 0) {
+                        matches = true;
+                        break;
+                    }
+                }
+                yield matches;
+            }
+            case STREAK_PENALTY -> before.multiply(new BigDecimal("0.80"))
+                    .setScale(2, RoundingMode.HALF_UP).compareTo(after) == 0;
+            case STREAK_RECOVERY -> {
+                // 복구 referenceId는 복원 대상인 STREAK_PENALTY 변동 이력의 ID다.
+                StockChange penalty = referenceId == null ? null
+                        : stockChangeRepository.findById(referenceId).orElse(null);
+                yield penalty != null
+                        && penalty.getChangeType() == StockChangeType.STREAK_PENALTY
+                        && Objects.equals(penalty.getMember().getMemberId(), memberId)
+                        && penalty.getStockBefore().compareTo(after) == 0;
+            }
+            case ADMIN_ADJUSTMENT -> true;
+        };
+        if (!valid) {
+            throw new ProjectException(StockErrorCode.INVALID_CHANGE_VALUE);
         }
     }
 

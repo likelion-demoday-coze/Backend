@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum StockErrorCode implements BaseErrorCode {
 
+    INVALID_CHANGE_VALUE(HttpStatus.BAD_REQUEST, "STOCK_400_5", "변경 사유에 맞는 주가 또는 복구 대상 페널티 이력이 아닙니다."),
+
     INVALID_CHANGE(HttpStatus.BAD_REQUEST, "STOCK_400_3", "주가 변경 사유 또는 참조 ID가 올바르지 않습니다."),
     INVALID_IDEMPOTENCY_KEY(HttpStatus.BAD_REQUEST, "STOCK_400_4", "작업 식별 키는 1~100자의 영문, 숫자, 콜론, 밑줄, 하이픈이어야 합니다."),
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "STOCK_409_1", "이미 다른 주가 변경에 사용된 작업 식별 키입니다."),
