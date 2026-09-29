@@ -123,7 +123,7 @@ public class SecurityConfig {
             @Value("${app.frontend-base-url}") String frontendBaseUrl
     ) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(frontendBaseUrl));
+        config.setAllowedOrigins(List.of(frontendBaseUrl,"http://localhost:3000"));
         config.setAllowedMethods(List.of(
                 "GET",
                 "POST",
