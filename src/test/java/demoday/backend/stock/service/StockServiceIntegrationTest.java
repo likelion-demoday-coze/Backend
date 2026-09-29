@@ -4,6 +4,12 @@ import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
+import demoday.backend.stock.code.StockChangeType;
+import demoday.backend.stock.domain.StockChange;
+import demoday.backend.stock.repository.StockChangeRepository;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +23,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.List;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +50,7 @@ class StockServiceIntegrationTest {
     @Autowired private MemberRepository memberRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
+    @Autowired private StockChangeRepository stockChangeRepository;
 
     private Long memberId;
 
@@ -88,36 +98,40 @@ class StockServiceIntegrationTest {
                 .andExpect(jsonPath("$.result.currentStock").value(100.00));
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes"})
     @DisplayName("탈퇴 회원의 조회는 거절한다")
-    void withdrawnMember() throws Exception {
+    void withdrawnMember(String path) throws Exception {
         jdbcTemplate.update("update member set status = 'WITHDRAWN' where member_id = ?", memberId);
 
-        mockMvc.perform(get("/api/v1/stocks/me").with(memberAuthentication(memberId)))
+        mockMvc.perform(get(path).with(memberAuthentication(memberId)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("STOCK_403_1"));
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes"})
     @DisplayName("인증 정보의 회원이 DB에 없으면 404를 반환한다")
-    void missingMember() throws Exception {
-        mockMvc.perform(get("/api/v1/stocks/me").with(memberAuthentication(Long.MAX_VALUE)))
+    void missingMember(String path) throws Exception {
+        mockMvc.perform(get(path).with(memberAuthentication(Long.MAX_VALUE)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COMMON_404"));
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes"})
     @DisplayName("비로그인 요청은 기존 카카오 로그인 경로로 이동한다")
-    void anonymousRequest() throws Exception {
-        mockMvc.perform(get("/api/v1/stocks/me"))
+    void anonymousRequest(String path) throws Exception {
+        mockMvc.perform(get(path))
                 .andExpect(status().isFound())
                 .andExpect(redirectedUrl("/api/v1/auth/oauth2/authorization/kakao"));
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes"})
     @DisplayName("MEMBER 권한이 없는 인증 사용자는 조회할 수 없다")
-    void requiresMemberRole() throws Exception {
-        mockMvc.perform(get("/api/v1/stocks/me").with(authentication(
+    void requiresMemberRole(String path) throws Exception {
+        mockMvc.perform(get(path).with(authentication(
                         new UsernamePasswordAuthenticationToken(memberId, null,
                                 List.of(new SimpleGrantedAuthority("ROLE_GUEST"))))))
                 .andExpect(status().isForbidden());
@@ -137,7 +151,87 @@ class StockServiceIntegrationTest {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/stocks/me'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/stocks/me/changes'].get").exists())
+                .andExpect(jsonPath("$.components.schemas.StockChangeResponse.properties.stockBefore").exists())
                 .andExpect(jsonPath("$.components.schemas.StockResponse.properties.currentStock").exists());
+    }
+
+    @Test
+    @DisplayName("변동 내역이 없으면 기본 페이지 정보와 빈 목록을 반환한다")
+    void emptyChanges() throws Exception {
+        mockMvc.perform(get("/api/v1/stocks/me/changes").with(memberAuthentication(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.content").isEmpty())
+                .andExpect(jsonPath("$.result.page").value(0))
+                .andExpect(jsonPath("$.result.size").value(20))
+                .andExpect(jsonPath("$.result.totalElements").value(0))
+                .andExpect(jsonPath("$.result.totalPages").value(0))
+                .andExpect(jsonPath("$.result.hasNext").value(false));
+    }
+
+    @Test
+    @DisplayName("본인의 내역만 시각과 ID 내림차순으로 페이징한다")
+    void changesAreScopedAndOrdered() throws Exception {
+        Member member = memberRepository.findById(memberId).orElseThrow();
+        LocalDateTime time = LocalDateTime.of(2026, 9, 29, 12, 0);
+        StockChange olderId = saveChange(member, time, StockChangeType.QUIZ_CORRECT);
+        StockChange newerId = saveChange(member, time, StockChangeType.STREAK_PENALTY);
+        StockChange oldestTime = saveChange(member, time.minusDays(1), StockChangeType.STREAK_RECOVERY);
+        Member other = newMember();
+        saveChange(other, time.plusDays(1), StockChangeType.ADMIN_ADJUSTMENT);
+
+        mockMvc.perform(get("/api/v1/stocks/me/changes")
+                        .param("memberId", other.getMemberId().toString())
+                        .param("size", "2").with(memberAuthentication(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.content.length()").value(2))
+                .andExpect(jsonPath("$.result.content[0].stockChangeId").value(newerId.getStockChangeId()))
+                .andExpect(jsonPath("$.result.content[1].stockChangeId").value(olderId.getStockChangeId()))
+                .andExpect(jsonPath("$.result.content[0].changeType").value("STREAK_PENALTY"))
+                .andExpect(jsonPath("$.result.content[0].stockBefore").value(110.25))
+                .andExpect(jsonPath("$.result.content[0].stockAfter").value(88.20))
+                .andExpect(jsonPath("$.result.content[0].referenceId").value(7))
+                .andExpect(jsonPath("$.result.content[0].createdAt").value("2026-09-29T12:00:00"))
+                .andExpect(jsonPath("$.result.content[0].idempotencyKey").doesNotExist())
+                .andExpect(jsonPath("$.result.totalElements").value(3))
+                .andExpect(jsonPath("$.result.totalPages").value(2))
+                .andExpect(jsonPath("$.result.hasNext").value(true));
+
+        var lastPage = stockService.getChanges(memberId, 1, 2);
+        assertThat(lastPage.content()).extracting(change -> change.stockChangeId())
+                .containsExactly(oldestTime.getStockChangeId());
+        assertThat(lastPage.page()).isEqualTo(1);
+        assertThat(lastPage.hasNext()).isFalse();
+        var beyondLastPage = stockService.getChanges(memberId, 2, 2);
+        assertThat(beyondLastPage.content()).isEmpty();
+        assertThat(beyondLastPage.totalElements()).isEqualTo(3);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-1,20", "0,0", "0,-1", "0,101"})
+    @DisplayName("잘못된 페이지 범위는 400으로 거절한다")
+    void invalidChangePage(int page, int size) throws Exception {
+        mockMvc.perform(get("/api/v1/stocks/me/changes")
+                        .param("page", String.valueOf(page)).param("size", String.valueOf(size))
+                        .with(memberAuthentication(memberId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("STOCK_400_1"));
+    }
+
+    @Test
+    @DisplayName("최대 페이지 크기 100을 허용한다")
+    void maximumChangePageSize() throws Exception {
+        mockMvc.perform(get("/api/v1/stocks/me/changes").param("size", "100")
+                        .with(memberAuthentication(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.size").value(100));
+    }
+
+    private StockChange saveChange(Member member, LocalDateTime time, StockChangeType type) {
+        return stockChangeRepository.saveAndFlush(StockChange.create(
+                member, type, new BigDecimal("110.25"), new BigDecimal("88.20"),
+                7L, "stock-test:" + UUID.randomUUID(), time
+        ));
     }
 
     private Member newMember() {
