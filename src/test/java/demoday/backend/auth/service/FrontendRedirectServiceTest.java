@@ -12,16 +12,16 @@ class FrontendRedirectServiceTest {
 
     private final FrontendRedirectService service = new FrontendRedirectService(
             "https://www.coze.kids/",
-            "https://www.coze.kids,http://localhost:5173/"
+            "https://www.coze.kids,http://localhost:3000/"
     );
 
     @Test
     void savesAndConsumesAllowedRedirectUrl() {
         MockHttpSession session = new MockHttpSession();
 
-        service.save(session, "http://localhost:5173/");
+        service.save(session, "http://localhost:3000/");
 
-        assertThat(service.consume(session)).isEqualTo("http://localhost:5173");
+        assertThat(service.consume(session)).isEqualTo("http://localhost:3000");
         assertThat(service.consume(session)).isEqualTo("https://www.coze.kids");
     }
 
