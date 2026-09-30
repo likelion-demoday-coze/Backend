@@ -1,5 +1,3 @@
-// PreviewQuizAnswerResponse.java
-
 package demoday.backend.previewquiz.dto;
 
 import demoday.backend.quiz.domain.QuizOption;

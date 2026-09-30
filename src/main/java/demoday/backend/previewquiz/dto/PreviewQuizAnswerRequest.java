@@ -1,5 +1,3 @@
-// PreviewQuizAnswerRequest.java
-
 package demoday.backend.previewquiz.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
