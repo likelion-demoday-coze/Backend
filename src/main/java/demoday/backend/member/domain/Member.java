@@ -1,5 +1,6 @@
 package demoday.backend.member.domain;
 
+import demoday.backend.attendance.code.AttendanceErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.code.MemberErrorCode;
 import demoday.backend.member.code.MemberStatus;
@@ -130,7 +131,7 @@ public class Member {
     /** 지급과 같은 트랜잭션 안에서 AttendanceRewardService가 호출한다. */
     public void recordAttendanceReward(LocalDate rewardDate) {
         if (rewardDate == null || (lastAttendanceRewardDate != null && !lastAttendanceRewardDate.isBefore(rewardDate))) {
-            throw new IllegalStateException("출석 보상 수령일은 기존 수령일 이후여야 합니다.");
+            throw new ProjectException(AttendanceErrorCode.INVALID_REWARD_DATE);
         }
         lastAttendanceRewardDate = rewardDate;
     }
