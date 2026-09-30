@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 
 @Getter
 @Entity
-@Table(name = "stock_change")
+@Table(name = "stock_change", indexes = @Index(
+        name = "idx_stock_change_member_created_id", columnList = "member_id,created_at,stock_change_id"
+))
 @Builder(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)

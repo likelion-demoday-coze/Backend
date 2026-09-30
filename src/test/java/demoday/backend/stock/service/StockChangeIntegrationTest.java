@@ -61,7 +61,7 @@ class StockChangeIntegrationTest {
         change("110", "120", StockChangeType.ADMIN_ADJUSTMENT, "admin");
         assertThat(change("100.00", "110.000", StockChangeType.QUIZ_CORRECT, "quiz")).isEqualTo(first);
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("120");
-        assertThat(stockService.getChanges(memberId, 0, 20).totalElements()).isEqualTo(4);
+        assertThat(changeCount()).isEqualTo(4);
     }
 
     @Test
@@ -86,7 +86,7 @@ class StockChangeIntegrationTest {
                 .isInstanceOfSatisfying(ProjectException.class,
                         ex -> assertThat(ex.getErrorCode()).isEqualTo(StockErrorCode.STALE_STOCK));
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("110");
-        assertThat(stockService.getChanges(memberId, 0, 20).totalElements()).isEqualTo(1);
+        assertThat(changeCount()).isEqualTo(1);
     }
 
     @ParameterizedTest
@@ -96,7 +96,7 @@ class StockChangeIntegrationTest {
                 .isInstanceOfSatisfying(ProjectException.class,
                         ex -> assertThat(ex.getErrorCode()).isEqualTo(MemberErrorCode.INVALID_STOCK_VALUE));
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("100");
-        assertThat(stockService.getChanges(memberId, 0, 20).content()).isEmpty();
+        assertThat(changeCount()).isZero();
     }
 
     @Test
@@ -125,7 +125,7 @@ class StockChangeIntegrationTest {
                 StockChangeType.ADMIN_ADJUSTMENT, 0L, key("bad-reference")))
                 .isInstanceOfSatisfying(ProjectException.class,
                         ex -> assertThat(ex.getErrorCode()).isEqualTo(StockErrorCode.INVALID_CHANGE));
-        assertThat(stockService.getChanges(memberId, 0, 20).content()).isEmpty();
+        assertThat(changeCount()).isZero();
     }
 
     @Test
@@ -157,7 +157,7 @@ class StockChangeIntegrationTest {
             throw new IllegalStateException("후속 업무 실패");
         })).isInstanceOf(IllegalStateException.class);
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("100");
-        assertThat(stockService.getChanges(memberId, 0, 20).content()).isEmpty();
+        assertThat(changeCount()).isZero();
     }
 
     @Test
@@ -167,7 +167,7 @@ class StockChangeIntegrationTest {
         assertThatThrownBy(() -> readOnly.execute(status ->
                 change("100", "110", StockChangeType.QUIZ_CORRECT, "read-only")))
                 .isInstanceOf(IllegalStateException.class);
-        assertThat(stockService.getChanges(memberId, 0, 20).content()).isEmpty();
+        assertThat(changeCount()).isZero();
     }
 
     @Test
@@ -192,7 +192,7 @@ class StockChangeIntegrationTest {
             var second = pool.submit(operation);
             assertThat(first.get(15, TimeUnit.SECONDS)).isEqualTo(second.get(15, TimeUnit.SECONDS));
             assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("110");
-            assertThat(stockService.getChanges(memberId, 0, 20).totalElements()).isEqualTo(1);
+            assertThat(changeCount()).isEqualTo(1);
         } finally {
             pool.shutdownNow();
             pool.awaitTermination(5, TimeUnit.SECONDS);
@@ -208,7 +208,7 @@ class StockChangeIntegrationTest {
     void rejectsValuesInconsistentWithReason(StockChangeType type, String after) {
         assertRuleError(() -> change("100", after, type, "invalid-rule"));
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("100");
-        assertThat(stockService.getChanges(memberId, 0, 20).content()).isEmpty();
+        assertThat(changeCount()).isZero();
     }
 
     @ParameterizedTest
@@ -252,7 +252,7 @@ class StockChangeIntegrationTest {
                 StockChangeType.STREAK_PENALTY, null, "other-penalty:" + otherId);
         assertRuleError(() -> recover("81", "100", otherPenalty.stockChangeId(), "wrong-member"));
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("81");
-        assertThat(stockService.getChanges(memberId, 0, 20).totalElements()).isEqualTo(2);
+        assertThat(changeCount()).isEqualTo(2);
         var original = recover("81", "100", penalty.stockChangeId(), "correct-recovery");
         change("100", "110", StockChangeType.QUIZ_CORRECT, "later");
         assertThat(recover("81", "100", penalty.stockChangeId(), "correct-recovery")).isEqualTo(original);
@@ -271,6 +271,10 @@ class StockChangeIntegrationTest {
 
     private StockChangeResponse change(String before, String after, StockChangeType type, String key) {
         return stockService.changeStock(memberId, new BigDecimal(before), new BigDecimal(after), type, 1L, key(key));
+    }
+
+    private long changeCount() {
+        return jdbc.queryForObject("select count(*) from stock_change where member_id=?", Long.class, memberId);
     }
 
     private String key(String value) { return "stock:" + memberId + ":" + value; }

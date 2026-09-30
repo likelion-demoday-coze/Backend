@@ -9,17 +9,17 @@ import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.stock.code.StockChangeType;
 import demoday.backend.stock.code.StockErrorCode;
 import demoday.backend.stock.domain.StockChange;
-import demoday.backend.stock.dto.StockChangePageResponse;
 import demoday.backend.stock.dto.StockChangeResponse;
 import demoday.backend.stock.dto.StockHistoryResponse;
 import demoday.backend.stock.dto.StockResponse;
+import demoday.backend.stock.dto.StockGraphResponse;
+import demoday.backend.stock.code.StockGraphPeriod;
+import org.springframework.transaction.annotation.Isolation;
 import demoday.backend.stock.repository.StockChangeRepository;
 import demoday.backend.stock.repository.StockDailySnapshotRepository;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -32,6 +32,8 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.ZoneId;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -45,14 +47,74 @@ public class StockService {
     private static final int MAX_HISTORY_DAYS = 366;
     private static final Pattern IDEMPOTENCY_KEY = Pattern.compile("[A-Za-z0-9:_-]{1,100}");
 
-    private static final Sort CHANGE_SORT = Sort.by(
-            Sort.Order.desc("createdAt"), Sort.Order.desc("stockChangeId")
-    );
-
     private final MemberRepository memberRepository;
     private final StockChangeRepository stockChangeRepository;
     private final StockDailySnapshotRepository stockDailySnapshotRepository;
     private final Clock clock;
+
+    /** 같은 DB 스냅샷에서 현재 주가와 그래프를 읽어 동시 변경 중에도 응답 기준을 맞춘다. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public StockGraphResponse getGraph(Long memberId, StockGraphPeriod period) {
+        if (period == null) {
+            throw new ProjectException(GeneralErrorCode.BAD_REQUEST);
+        }
+        Member member = findActiveMember(memberId);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST)).truncatedTo(ChronoUnit.MICROS);
+        LocalDateTime joinedAt = member.getCreatedAt();
+        boolean estimatedStart = joinedAt == null;
+        BigDecimal initialStock = new BigDecimal("100.00");
+        if (estimatedStart) {
+            // 가입일을 최초 활동일로 단정하지 않는다. 확인 가능한 가장 이른 기록을 표시한다.
+            var firstChange = stockChangeRepository.findFirstByMemberMemberIdOrderByCreatedAtAscStockChangeIdAsc(memberId);
+            var firstSnapshot = stockDailySnapshotRepository.findFirstByMemberMemberIdOrderBySnapshotDateAsc(memberId);
+            joinedAt = now;
+            initialStock = member.getCurrentStock();
+            if (firstChange.isPresent() && !firstChange.get().getCreatedAt().isAfter(now)) {
+                joinedAt = firstChange.get().getCreatedAt();
+                initialStock = firstChange.get().getStockBefore();
+            }
+            if (firstSnapshot.isPresent() && firstSnapshot.get().getSnapshotDate().atStartOfDay().isBefore(joinedAt)) {
+                joinedAt = firstSnapshot.get().getSnapshotDate().atStartOfDay();
+                initialStock = firstSnapshot.get().getStockValue();
+            }
+        }
+        LocalDateTime from = switch (period) {
+            case DAY -> now.toLocalDate().atStartOfDay();
+            case WEEK -> now.toLocalDate().minusDays(6).atStartOfDay();
+            case ALL -> joinedAt;
+        };
+        if (from.isBefore(joinedAt)) from = joinedAt;
+        List<StockGraphResponse.Point> points = new ArrayList<>();
+        BigDecimal startStock;
+        if (period == StockGraphPeriod.ALL) {
+            startStock = initialStock;
+            points.add(new StockGraphResponse.Point(from, startStock));
+            var snapshots = stockDailySnapshotRepository.findAllByMemberMemberIdAndSnapshotDateBetweenOrderBySnapshotDateAsc(
+                    memberId, from.toLocalDate(), now.toLocalDate());
+            for (var snapshot : snapshots) {
+                LocalDateTime time = snapshot.getSnapshotDate().atStartOfDay();
+                if (!time.isBefore(from) && !time.isAfter(now)) {
+                    points.add(new StockGraphResponse.Point(time, snapshot.getStockValue()));
+                }
+            }
+        } else {
+            var changes = stockChangeRepository
+                    .findAllByMemberMemberIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanEqualOrderByCreatedAtAscStockChangeIdAsc(
+                            memberId, from, now);
+            startStock = changes.isEmpty() ? member.getCurrentStock() : changes.get(0).getStockBefore();
+            points.add(new StockGraphResponse.Point(from, startStock));
+            for (var change : changes) {
+                points.add(new StockGraphResponse.Point(change.getCreatedAt(), change.getStockAfter()));
+            }
+        }
+        var currentPoint = new StockGraphResponse.Point(now, member.getCurrentStock());
+        if (!points.get(points.size() - 1).equals(currentPoint)) points.add(currentPoint);
+        BigDecimal amount = member.getCurrentStock().subtract(startStock);
+        BigDecimal rate = startStock.signum() == 0 ? null
+                : amount.multiply(BigDecimal.valueOf(100)).divide(startStock, 2, RoundingMode.HALF_UP);
+        return new StockGraphResponse(period, from, now, estimatedStart, startStock,
+                member.getCurrentStock(), amount, rate, List.copyOf(points));
+    }
 
     /** 호출자의 쓰기 트랜잭션에 참여한다. 재시도는 상위 업무 전체를 감싸야 한다. */
     @Transactional
@@ -173,16 +235,6 @@ public class StockService {
 
     public StockResponse getCurrentStock(Long memberId) {
         return new StockResponse(findActiveMember(memberId).getCurrentStock());
-    }
-
-    public StockChangePageResponse getChanges(Long memberId, int page, int size) {
-        if (page < 0 || size < 1 || size > 100) {
-            throw new ProjectException(StockErrorCode.INVALID_PAGE);
-        }
-        findActiveMember(memberId);
-        return StockChangePageResponse.from(stockChangeRepository.findAllByMemberMemberId(
-                memberId, PageRequest.of(page, size, CHANGE_SORT)
-        ));
     }
 
     private Member findActiveMember(Long memberId) {

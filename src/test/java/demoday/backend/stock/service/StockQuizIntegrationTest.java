@@ -76,10 +76,11 @@ class StockQuizIntegrationTest {
         assertThat(first.stockIncreasePercent()).isBetween(1, 10);
         assertThat(first.currentStock()).isEqualByComparingTo(BigDecimal.valueOf(100 + first.stockIncreasePercent()));
         assertThat(submit(correctOptionId)).isEqualTo(first);
-        var history = stocks.getChanges(memberId, 0, 20);
-        assertThat(history.totalElements()).isEqualTo(1);
-        assertThat(history.content().get(0).stockAfter()).isEqualByComparingTo(first.currentStock());
-        assertThat(history.content().get(0).referenceId()).isEqualTo(jdbc.queryForObject(
+        assertThat(changeCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select stock_after from stock_change where member_id=?", BigDecimal.class, memberId))
+                .isEqualByComparingTo(first.currentStock());
+        assertThat(jdbc.queryForObject("select reference_id from stock_change where member_id=?", Long.class, memberId))
+                .isEqualTo(jdbc.queryForObject(
                 "select daily_quiz_attempt_id from daily_quiz_attempt where session_question_id=?", Long.class, sessionQuestionId));
         assertAnswerCount(1);
     }
@@ -89,7 +90,7 @@ class StockQuizIntegrationTest {
         var result = submit(wrongOptionId);
         assertThat(result.stockIncreasePercent()).isNull();
         assertThat(result.currentStock()).isEqualByComparingTo("100");
-        assertThat(stocks.getChanges(memberId, 0, 20).content()).isEmpty();
+        assertThat(changeCount()).isZero();
     }
 
     @Test
@@ -104,7 +105,7 @@ class StockQuizIntegrationTest {
             assertThat(stocks.getCurrentStock(memberId).currentStock()).isEqualByComparingTo(result.currentStock());
         }
         assertAnswerCount(1);
-        assertThat(stocks.getChanges(memberId, 0, 20).totalElements()).isEqualTo(1);
+        assertThat(changeCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("select original_answer_count from member_daily_activity where member_id=?",
                 Integer.class, memberId)).isEqualTo(1);
     }
@@ -121,7 +122,7 @@ class StockQuizIntegrationTest {
         assertThat(attempts.get()).isEqualTo(3);
         assertAnswerCount(0);
         assertThat(stocks.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("100");
-        assertThat(stocks.getChanges(memberId, 0, 20).content()).isEmpty();
+        assertThat(changeCount()).isZero();
     }
 
     private DailyQuizAnswerResponse submit(Long optionId) {
@@ -132,5 +133,9 @@ class StockQuizIntegrationTest {
     private void assertAnswerCount(int expected) {
         assertThat(jdbc.queryForObject("select count(*) from daily_quiz_attempt where session_question_id=?",
                 Integer.class, sessionQuestionId)).isEqualTo(expected);
+    }
+
+    private long changeCount() {
+        return jdbc.queryForObject("select count(*) from stock_change where member_id=?", Long.class, memberId);
     }
 }
