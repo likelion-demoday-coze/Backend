@@ -144,7 +144,10 @@ class StockGraphIntegrationTest {
                 .andExpect(status().isBadRequest());
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", member.getMemberId());
         mvc.perform(get("/api/v1/stocks/me/graph").with(auth)).andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/stocks/me/graph")).andExpect(status().isFound());
+        mvc.perform(get("/api/v1/stocks/me/graph"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.code").value("COMMON_401"));
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/stocks/me/graph'].get").exists());
     }
