@@ -1,9 +1,11 @@
 package demoday.backend.global.security;
 
 import demoday.backend.auth.service.KakaoAuthService;
+import demoday.backend.auth.service.FrontendRedirectService;
+import demoday.backend.global.api.ApiResponse;
+import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.member.domain.Member;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -17,6 +19,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Optional;
@@ -28,8 +31,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             KakaoAuthService kakaoAuthService,
-            @Value("${app.frontend-base-url}") String frontendBaseUrl,
-            HttpSessionSecurityContextRepository contextRepository
+            FrontendRedirectService frontendRedirectService,
+            HttpSessionSecurityContextRepository contextRepository,
+            ObjectMapper objectMapper
     ) throws Exception {
 
         return http
@@ -37,6 +41,18 @@ public class SecurityConfig {
                         .securityContextRepository(contextRepository))
                 .formLogin(formLogin -> formLogin.disable())
                 .httpBasic(httpBasic -> httpBasic.disable())
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            objectMapper.writeValue(
+                                    response.getWriter(),
+                                    ApiResponse.onFailure(
+                                            GeneralErrorCode.UNAUTHORIZED,
+                                            null
+                                    )
+                            );
+                        }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/actuator/health",
@@ -45,6 +61,7 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/api/v1/members/nickname-availability",
                                 "/api/v1/auth/csrf",
+                                "/api/v1/auth/login/kakao",
                                 "/api/v1/auth/signup"
                         ).permitAll()
                         .anyRequest().hasRole("MEMBER"))
@@ -74,7 +91,10 @@ public class SecurityConfig {
                                         kakaoUserId
                                 );
 
-                                response.sendRedirect(frontendBaseUrl + "/signup");
+                                String frontendUrl = frontendRedirectService.consume(
+                                        request.getSession()
+                                );
+                                response.sendRedirect(frontendUrl + "/signup");
                                 return;
                             }
 
@@ -95,7 +115,10 @@ public class SecurityConfig {
                             SecurityContextHolder.setContext(context);
                             contextRepository.saveContext(context, request, response);
 
-                            response.sendRedirect(frontendBaseUrl + "/");
+                            String frontendUrl = frontendRedirectService.consume(
+                                    request.getSession()
+                            );
+                            response.sendRedirect(frontendUrl + "/");
                         }))
                 .csrf(csrf -> csrf.csrfTokenRequestHandler(
                         new CsrfTokenRequestAttributeHandler()
@@ -120,10 +143,10 @@ public class SecurityConfig {
 
     @Bean
     public UrlBasedCorsConfigurationSource corsConfigurationSource(
-            @Value("${app.frontend-base-url}") String frontendBaseUrl
+            FrontendRedirectService frontendRedirectService
     ) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(frontendBaseUrl));
+        config.setAllowedOrigins(frontendRedirectService.getAllowedUrls());
         config.setAllowedMethods(List.of(
                 "GET",
                 "POST",
