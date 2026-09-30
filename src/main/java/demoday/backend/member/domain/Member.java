@@ -52,6 +52,18 @@ public class Member {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    // 기존 회원의 실제 가입 시각은 알 수 없으므로 null을 허용한다.
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    private void recordCreatedAt() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"))
+                    .truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        }
+    }
+
     public static Member create(Long kakaoUserId, String nickname) {
         return Member.builder()
                 .kakaoUserId(kakaoUserId)
