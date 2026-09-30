@@ -40,9 +40,11 @@ public class AttendanceRewardService {
         Member member = findMember(memberId, false);
         LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
         validateRewardDate(member, now.toLocalDate());
-        AttendanceRewardStatus status = now.toLocalDate().equals(member.getLastAttendanceRewardDate())
-                ? AttendanceRewardStatus.CLAIMED
-                : hasActivePass(memberId, now) ? AttendanceRewardStatus.PASS_ACTIVE : AttendanceRewardStatus.AVAILABLE;
+        AttendanceRewardStatus status = hasActivePass(memberId, now)
+                ? AttendanceRewardStatus.PASS_ACTIVE
+                : now.toLocalDate().equals(member.getLastAttendanceRewardDate())
+                        ? AttendanceRewardStatus.CLAIMED
+                        : AttendanceRewardStatus.AVAILABLE;
         return new AttendanceRewardStatusResponse(now.toLocalDate(), status, REWARD_AMOUNT);
     }
 

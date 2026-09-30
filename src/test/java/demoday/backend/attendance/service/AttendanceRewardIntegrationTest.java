@@ -130,7 +130,7 @@ class AttendanceRewardIntegrationTest {
     void rewardBeforePassIsNotRevokedAndDuplicateRemainsNoOp() {
         service.claim(memberId);
         createPass(member, 0, 168, PassStatus.ACTIVE);
-        assertThat(service.getToday(memberId).status()).isEqualTo(AttendanceRewardStatus.CLAIMED);
+        assertThat(service.getToday(memberId).status()).isEqualTo(AttendanceRewardStatus.PASS_ACTIVE);
         assertThat(service.claim(memberId).newlyClaimed()).isFalse();
         assertThat(fish.getBalance(memberId).balance()).isEqualTo(100);
         assertThat(rewardCount()).isEqualTo(1);
