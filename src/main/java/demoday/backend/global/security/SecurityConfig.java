@@ -63,8 +63,6 @@ public class SecurityConfig {
                                 "/api/v1/auth/csrf",
                                 "/api/v1/auth/login/kakao",
                                 "/api/v1/auth/signup",
-                                "/api/v1/preview-quizzes",
-                                "/api/v1/preview-quizzes/*/answers",
                                 "/api/v1/preview-quizzes/**"
                         ).permitAll()
                         .anyRequest().hasRole("MEMBER"))
