@@ -90,6 +90,7 @@ public class DailyQuizService {
     @Transactional(readOnly = true)
     public List<DailyQuizCategoryResponse> getCategories() {
         return Arrays.stream(QuizCategory.values())
+                .filter(category -> !category.isPreview())
                 .map(DailyQuizCategoryResponse::from)
                 .toList();
     }
@@ -98,7 +99,11 @@ public class DailyQuizService {
             Long memberId,
             DailyQuizSessionCreateRequest request
     ) {
-        return transactionRetryExecutor.execute(() -> createSessionInTransaction(memberId, request));
+        validateDailyQuizCategory(request.category());
+
+        return transactionRetryExecutor.execute(
+                () -> createSessionInTransaction(memberId, request)
+        );
     }
 
     private DailyQuizSessionCreateResponse createSessionInTransaction(
@@ -1055,5 +1060,12 @@ public class DailyQuizService {
 
         // 최종 결과 반환
         return getResult(memberId, sessionId);
+    }
+
+    // 퀴즈 카테고리 검증 메서드
+    private void validateDailyQuizCategory(QuizCategory category) {
+        if (category.isPreview()) {
+            throw new ProjectException(DailyQuizErrorCode.INVALID_CATEGORY);
+        }
     }
 }
