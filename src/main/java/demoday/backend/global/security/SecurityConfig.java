@@ -2,6 +2,8 @@ package demoday.backend.global.security;
 
 import demoday.backend.auth.service.KakaoAuthService;
 import demoday.backend.auth.service.FrontendRedirectService;
+import demoday.backend.global.api.ApiResponse;
+import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.member.domain.Member;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +19,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,7 +32,8 @@ public class SecurityConfig {
             HttpSecurity http,
             KakaoAuthService kakaoAuthService,
             FrontendRedirectService frontendRedirectService,
-            HttpSessionSecurityContextRepository contextRepository
+            HttpSessionSecurityContextRepository contextRepository,
+            ObjectMapper objectMapper
     ) throws Exception {
 
         return http
@@ -37,6 +41,18 @@ public class SecurityConfig {
                         .securityContextRepository(contextRepository))
                 .formLogin(formLogin -> formLogin.disable())
                 .httpBasic(httpBasic -> httpBasic.disable())
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            objectMapper.writeValue(
+                                    response.getWriter(),
+                                    ApiResponse.onFailure(
+                                            GeneralErrorCode.UNAUTHORIZED,
+                                            null
+                                    )
+                            );
+                        }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/actuator/health",

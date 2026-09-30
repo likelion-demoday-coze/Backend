@@ -132,11 +132,12 @@ class StockServiceIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/changes", "/api/v1/stocks/me/history"})
-    @DisplayName("비로그인 요청은 기존 카카오 로그인 경로로 이동한다")
+    @DisplayName("비로그인 API 요청은 401을 반환한다")
     void anonymousRequest(String path) throws Exception {
         mockMvc.perform(get(path))
-                .andExpect(status().isFound())
-                .andExpect(redirectedUrl("/api/v1/auth/oauth2/authorization/kakao"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.code").value("COMMON_401"));
     }
 
     @ParameterizedTest

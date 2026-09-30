@@ -353,13 +353,17 @@ class FishServiceIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/fish/me/balance", "/api/v1/fish/me/transactions"})
-    @DisplayName("인증되지 않은 사용자는 생선 API에 접근할 수 없다")
+    @ValueSource(strings = {
+            "/api/v1/members/me",
+            "/api/v1/fish/me/balance",
+            "/api/v1/fish/me/transactions"
+    })
+    @DisplayName("인증되지 않은 사용자의 API 요청은 카카오 리다이렉트 대신 401을 반환한다")
     void anonymousCannotRead(String path) throws Exception {
         mockMvc.perform(get(path))
-                .andExpect(status().isFound())
-                .andExpect(redirectedUrl("/api/v1/auth/oauth2/authorization/kakao"))
-                .andExpect(content().string(""));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.code").value("COMMON_401"));
     }
 
     @Test
