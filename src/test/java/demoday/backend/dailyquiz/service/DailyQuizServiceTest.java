@@ -94,7 +94,16 @@ class DailyQuizServiceTest {
         assertThat(result)
                 .hasSize(8)
                 .extracting(DailyQuizCategoryResponse::category)
-                .containsExactly(QuizCategory.values());
+                .containsExactly(
+                        QuizCategory.MACRO_ECONOMY,
+                        QuizCategory.FINANCIAL_MARKET,
+                        QuizCategory.STOCK_INVESTMENT,
+                        QuizCategory.INTEREST_BOND,
+                        QuizCategory.EXCHANGE_GLOBAL_ECONOMY,
+                        QuizCategory.REAL_ESTATE,
+                        QuizCategory.CORPORATE_FINANCE,
+                        QuizCategory.LIVING_ECONOMY
+                );
     }
 
     @ParameterizedTest

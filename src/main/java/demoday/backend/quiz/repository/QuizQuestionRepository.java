@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
 
@@ -28,5 +29,29 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
             @Param("memberId") Long memberId,
             @Param("category") QuizCategory category,
             Pageable pageable
+    );
+
+    @Query("""
+        SELECT q
+        FROM QuizQuestion q
+        WHERE q.category = :category
+          AND q.active = true
+        ORDER BY q.questionId ASC
+        """)
+    List<QuizQuestion> findActiveQuestionsByCategory(
+            @Param("category") QuizCategory category,
+            Pageable pageable
+    );
+
+    @Query("""
+        SELECT q
+        FROM QuizQuestion q
+        WHERE q.questionId = :questionId
+          AND q.category = :category
+          AND q.active = true
+        """)
+    Optional<QuizQuestion> findActiveQuestion(
+            @Param("questionId") Long questionId,
+            @Param("category") QuizCategory category
     );
 }
