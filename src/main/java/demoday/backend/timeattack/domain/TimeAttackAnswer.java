@@ -1,7 +1,9 @@
 package demoday.backend.timeattack.domain;
 
+import demoday.backend.global.exception.ProjectException;
 import demoday.backend.quiz.domain.QuizOption;
 import demoday.backend.quiz.domain.QuizQuestion;
+import demoday.backend.timeattack.code.TimeAttackErrorCode;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -71,8 +73,8 @@ public class TimeAttackAnswer {
                 selectedOption.getQuestion().getQuestionId();
 
         if (!Objects.equals(questionId, selectedOptionQuestionId)) {
-            throw new IllegalArgumentException(
-                    "선택지가 타임어택 문제에 속하지 않습니다."
+            throw new ProjectException(
+                    TimeAttackErrorCode.OPTION_NOT_BELONGS_TO_QUESTION
             );
         }
     }
