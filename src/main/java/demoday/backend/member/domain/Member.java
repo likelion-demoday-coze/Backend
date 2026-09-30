@@ -1,5 +1,6 @@
 package demoday.backend.member.domain;
 
+import demoday.backend.attendance.code.AttendanceErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.code.MemberErrorCode;
 import demoday.backend.member.code.MemberStatus;
@@ -125,6 +126,14 @@ public class Member {
         } catch (ArithmeticException exception) {
             throw new ProjectException(MemberErrorCode.INVALID_STOCK_VALUE);
         }
+    }
+
+    /** 지급과 같은 트랜잭션 안에서 AttendanceRewardService가 호출한다. */
+    public void recordAttendanceReward(LocalDate rewardDate) {
+        if (rewardDate == null || (lastAttendanceRewardDate != null && !lastAttendanceRewardDate.isBefore(rewardDate))) {
+            throw new ProjectException(AttendanceErrorCode.INVALID_REWARD_DATE);
+        }
+        lastAttendanceRewardDate = rewardDate;
     }
 
     // 연속 학습일 변경
