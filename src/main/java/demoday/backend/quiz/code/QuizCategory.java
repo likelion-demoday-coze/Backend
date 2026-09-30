@@ -8,5 +8,11 @@ public enum QuizCategory {
     EXCHANGE_GLOBAL_ECONOMY,
     REAL_ESTATE,
     CORPORATE_FINANCE,
-    LIVING_ECONOMY
+    LIVING_ECONOMY,
+
+    PREVIEW;
+
+    public boolean isPreview() {
+        return this == PREVIEW;
+    }
 }

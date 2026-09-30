@@ -9,6 +9,10 @@ import java.util.Optional;
 
 public interface QuizOptionRepository extends JpaRepository<QuizOption, Long> {
 
+    List<QuizOption> findAllByQuestionQuestionIdOrderByOptionNumberAsc(
+            Long questionId
+    );
+
     List<QuizOption> findAllByQuestionQuestionIdInOrderByQuestionQuestionIdAscOptionNumberAsc(
             Collection<Long> questionIds
     );

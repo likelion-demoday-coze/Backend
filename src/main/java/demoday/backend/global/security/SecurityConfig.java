@@ -8,12 +8,14 @@ import demoday.backend.member.domain.Member;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -62,7 +64,8 @@ public class SecurityConfig {
                                 "/api/v1/members/nickname-availability",
                                 "/api/v1/auth/csrf",
                                 "/api/v1/auth/login/kakao",
-                                "/api/v1/auth/signup"
+                                "/api/v1/auth/signup",
+                                "/api/v1/preview-quizzes/**"
                         ).permitAll()
                         .anyRequest().hasRole("MEMBER"))
                 .oauth2Login(oauth2 -> oauth2
@@ -120,9 +123,16 @@ public class SecurityConfig {
                             );
                             response.sendRedirect(frontendUrl + "/");
                         }))
-                .csrf(csrf -> csrf.csrfTokenRequestHandler(
-                        new CsrfTokenRequestAttributeHandler()
-                ))
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers(
+                                PathPatternRequestMatcher.pathPattern(
+                                        HttpMethod.POST,
+                                        "/api/v1/preview-quizzes/{questionId}/answers"
+                                )
+                        )
+                        .csrfTokenRequestHandler(
+                                new CsrfTokenRequestAttributeHandler()
+                        ))
                 .logout(logout -> logout
                         .logoutUrl("/api/v1/auth/logout")
                         .invalidateHttpSession(true)

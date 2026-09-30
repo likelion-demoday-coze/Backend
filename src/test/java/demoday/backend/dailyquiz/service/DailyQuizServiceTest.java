@@ -1,6 +1,7 @@
 package demoday.backend.dailyquiz.service;
 
 import demoday.backend.activity.repository.MemberDailyActivityRepository;
+import demoday.backend.dailyquiz.code.DailyQuizErrorCode;
 import demoday.backend.dailyquiz.dto.category.DailyQuizCategoryResponse;
 import demoday.backend.dailyquiz.domain.DailyQuizSession;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
@@ -9,6 +10,7 @@ import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionRepository;
 import demoday.backend.fish.service.FishService;
 import demoday.backend.fish.code.FishTransactionType;
+import demoday.backend.global.exception.ProjectException;
 import demoday.backend.global.transaction.TransactionRetryExecutor;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
@@ -37,6 +39,7 @@ import java.util.stream.IntStream;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -91,7 +94,16 @@ class DailyQuizServiceTest {
         assertThat(result)
                 .hasSize(8)
                 .extracting(DailyQuizCategoryResponse::category)
-                .containsExactly(QuizCategory.values());
+                .containsExactly(
+                        QuizCategory.MACRO_ECONOMY,
+                        QuizCategory.FINANCIAL_MARKET,
+                        QuizCategory.STOCK_INVESTMENT,
+                        QuizCategory.INTEREST_BOND,
+                        QuizCategory.EXCHANGE_GLOBAL_ECONOMY,
+                        QuizCategory.REAL_ESTATE,
+                        QuizCategory.CORPORATE_FINANCE,
+                        QuizCategory.LIVING_ECONOMY
+                );
     }
 
     @ParameterizedTest
@@ -126,5 +138,29 @@ class DailyQuizServiceTest {
             verify(fishService).debit(1L, 50L, FishTransactionType.DAILY_QUIZ_COST,
                     23L, "DAILY_QUIZ_SESSION:23");
         }
+    }
+
+    @Test
+    @DisplayName("PREVIEW 카테고리로 데일리 퀴즈 세션을 생성할 수 없다")
+    void createSessionRejectsPreviewCategory() {
+        DailyQuizSessionCreateRequest request =
+                new DailyQuizSessionCreateRequest(QuizCategory.PREVIEW);
+
+        assertThatThrownBy(() ->
+                dailyQuizService.createSession(1L, request)
+        )
+                .isInstanceOfSatisfying(
+                        ProjectException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(DailyQuizErrorCode.INVALID_CATEGORY)
+                );
+
+        verifyNoInteractions(
+                memberRepository,
+                memberPassRepository,
+                quizQuestionRepository,
+                dailyQuizSessionRepository,
+                sessionQuestionRepository
+        );
     }
 }

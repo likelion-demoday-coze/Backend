@@ -88,6 +88,11 @@ public enum DailyQuizErrorCode implements BaseErrorCode {
             HttpStatus.INTERNAL_SERVER_ERROR,
             "DAILY_QUIZ_500_2",
             "문제의 정답 선택지가 구성되지 않았습니다."
+    ),
+    INVALID_CATEGORY(
+            HttpStatus.BAD_REQUEST,
+            "DAILY_QUIZ_400_2",
+            "데일리 퀴즈에서 선택할 수 없는 카테고리입니다."
     );
 
     private final HttpStatus status;
