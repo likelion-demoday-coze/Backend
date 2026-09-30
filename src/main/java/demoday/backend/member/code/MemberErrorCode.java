@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum MemberErrorCode implements BaseErrorCode {
 
+    INVALID_STOCK_VALUE(HttpStatus.BAD_REQUEST, "MEMBER_400_3", "주가는 0 이상, 정수부 28자리 이하, 소수점 둘째 자리까지의 값이어야 합니다."),
+
     INVALID_FISH_AMOUNT(
             HttpStatus.BAD_REQUEST,
             "MEMBER_400_1",

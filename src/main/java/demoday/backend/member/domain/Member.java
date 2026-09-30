@@ -100,8 +100,19 @@ public class Member {
                 BigDecimal.valueOf(increasePercent).movePointLeft(2)
         );
 
-        currentStock = currentStock.multiply(rate)
-                .setScale(2, RoundingMode.HALF_UP);
+        changeStock(currentStock.multiply(rate).setScale(2, RoundingMode.HALF_UP));
+    }
+
+    // 업무에서는 주가와 이력을 함께 저장하는 StockService.changeStock을 사용한다.
+    public void changeStock(BigDecimal value) {
+        if (value == null || value.signum() < 0 || value.compareTo(BigDecimal.TEN.pow(28)) >= 0) {
+            throw new ProjectException(MemberErrorCode.INVALID_STOCK_VALUE);
+        }
+        try {
+            currentStock = value.setScale(2, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException exception) {
+            throw new ProjectException(MemberErrorCode.INVALID_STOCK_VALUE);
+        }
     }
 
     // 연속 학습일 변경
