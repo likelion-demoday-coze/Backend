@@ -2,6 +2,8 @@ package demoday.backend.previewquiz.service;
 
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.previewquiz.code.PreviewQuizErrorCode;
+import demoday.backend.previewquiz.dto.PreviewQuizAnswerRequest;
+import demoday.backend.previewquiz.dto.PreviewQuizAnswerResponse;
 import demoday.backend.previewquiz.dto.PreviewQuizQuestionResponse;
 import demoday.backend.quiz.code.QuizCategory;
 import demoday.backend.quiz.domain.QuizOption;
@@ -69,5 +71,53 @@ public class PreviewQuizService {
                         )
                 ))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PreviewQuizAnswerResponse submitAnswer(
+            Long questionId,
+            PreviewQuizAnswerRequest request
+    ) {
+        // 제출 대상 문제 검증
+        QuizQuestion question =
+                quizQuestionRepository.findActiveQuestion(
+                                questionId,
+                                QuizCategory.PREVIEW
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        PreviewQuizErrorCode.QUESTION_NOT_FOUND
+                                )
+                        );
+
+        // 제출한 선택지 검증
+        QuizOption selectedOption =
+                quizOptionRepository.findByOptionIdAndQuestionQuestionId(
+                                request.selectedOptionId(),
+                                questionId
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        PreviewQuizErrorCode.OPTION_NOT_FOUND
+                                )
+                        );
+
+        // 문제의 정답 조회
+        QuizOption correctOption =
+                quizOptionRepository.findByQuestionQuestionIdAndCorrectTrue(
+                                questionId
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        PreviewQuizErrorCode.CORRECT_OPTION_NOT_FOUND
+                                )
+                        );
+
+        // 결과 생성
+        return PreviewQuizAnswerResponse.of(
+                question,
+                selectedOption,
+                correctOption
+        );
     }
 }
