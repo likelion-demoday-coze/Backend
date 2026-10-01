@@ -36,6 +36,17 @@ public enum TimeAttackErrorCode implements BaseErrorCode {
             HttpStatus.CONFLICT,
             "TIME_ATTACK_409_4",
             "오늘의 타임어택 참여 가능 횟수를 모두 사용했습니다."
+    ),
+    SESSION_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "TIME_ATTACK_404_1",
+            "타임어택 세션을 찾을 수 없습니다."
+    ),
+
+    NO_AVAILABLE_QUESTION(
+            HttpStatus.NOT_FOUND,
+            "TIME_ATTACK_404_2",
+            "출제할 수 있는 타임어택 문제가 없습니다."
     );
 
     private final HttpStatus status;

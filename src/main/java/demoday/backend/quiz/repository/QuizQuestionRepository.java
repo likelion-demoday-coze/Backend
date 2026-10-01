@@ -66,7 +66,11 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
                 WHERE a.timeAttackSession.timeAttackSessionId = :sessionId
                     AND a.question = q
             )
-        ORDER BY q.questionId ASC
+        ORDER BY MOD(
+                q.questionId * 1103515245 + :sessionId * 12345,
+                2147483647
+        ),
+        q.questionId
         """)
     List<QuizQuestion> findNextTimeAttackQuestion(
             @Param("sessionId") Long sessionId,

@@ -11,18 +11,27 @@ import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.code.PassStatus;
 import demoday.backend.payment.repository.MemberPassRepository;
+import demoday.backend.quiz.code.QuizCategory;
+import demoday.backend.quiz.domain.QuizOption;
+import demoday.backend.quiz.domain.QuizQuestion;
+import demoday.backend.quiz.repository.QuizOptionRepository;
+import demoday.backend.quiz.repository.QuizQuestionRepository;
 import demoday.backend.timeattack.code.TimeAttackErrorCode;
 import demoday.backend.timeattack.domain.TimeAttackSession;
+import demoday.backend.timeattack.dto.TimeAttackQuestionResponse;
 import demoday.backend.timeattack.dto.TimeAttackSessionCreateResponse;
 import demoday.backend.timeattack.dto.TimeAttackTodayResponse;
+import demoday.backend.timeattack.repository.TimeAttackAnswerRepository;
 import demoday.backend.timeattack.repository.TimeAttackSessionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -36,10 +45,12 @@ public class TimeAttackService {
     private final MemberRepository memberRepository;
     private final MemberDailyActivityRepository memberDailyActivityRepository;
     private final MemberPassRepository memberPassRepository;
-    private final MemberDailyActivityRepository dailyActivityRepository;
     private final TimeAttackSessionRepository timeAttackSessionRepository;
     private final FishService fishService;
     private final TransactionRetryExecutor transactionRetryExecutor;
+    private final QuizQuestionRepository quizQuestionRepository;
+    private final QuizOptionRepository quizOptionRepository;
+    private final TimeAttackAnswerRepository timeAttackAnswerRepository;
 
     @Transactional(readOnly = true)
     public TimeAttackTodayResponse getTodayAvailability(
@@ -137,5 +148,82 @@ public class TimeAttackService {
         }
 
         return TimeAttackSessionCreateResponse.from(session);
+    }
+
+    @Transactional(readOnly = true)
+    public TimeAttackQuestionResponse getNextQuestion(
+            Long memberId,
+            Long sessionId
+    ) {
+        LocalDateTime now = LocalDateTime.now(KST);
+
+        TimeAttackSession session =
+                timeAttackSessionRepository
+                        .findByTimeAttackSessionIdAndMemberMemberId(
+                                sessionId,
+                                memberId
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        TimeAttackErrorCode
+                                                .SESSION_NOT_FOUND
+                                )
+                        );
+
+        session.validateAnswerable(now);
+
+        QuizQuestion question =
+                quizQuestionRepository
+                        .findNextTimeAttackQuestion(
+                                sessionId,
+                                QuizCategory.PREVIEW,
+                                PageRequest.of(0, 1)
+                        )
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        TimeAttackErrorCode
+                                                .NO_AVAILABLE_QUESTION
+                                )
+                        );
+
+        List<QuizOption> options =
+                quizOptionRepository
+                        .findAllByQuestionQuestionIdOrderByOptionNumberAsc(
+                                question.getQuestionId()
+                        );
+
+        int consecutiveCorrectCount =
+                calculateConsecutiveCorrectCount(sessionId);
+
+        return TimeAttackQuestionResponse.of(
+                session,
+                consecutiveCorrectCount,
+                question,
+                options
+        );
+    }
+
+    private int calculateConsecutiveCorrectCount(
+            Long sessionId
+    ) {
+        List<Boolean> correctResults =
+                timeAttackAnswerRepository
+                        .findCorrectResultsBySessionIdOrderByLatest(
+                                sessionId
+                        );
+
+        int consecutiveCorrectCount = 0;
+
+        for (Boolean correct : correctResults) {
+            if (!Boolean.TRUE.equals(correct)) {
+                break;
+            }
+
+            consecutiveCorrectCount++;
+        }
+
+        return consecutiveCorrectCount;
     }
 }
