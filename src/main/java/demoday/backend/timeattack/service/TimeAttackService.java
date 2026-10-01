@@ -100,20 +100,21 @@ public class TimeAttackService {
     private TimeAttackSessionCreateResponse createSessionInTransaction(
             Long memberId
     ) {
-        LocalDateTime now = LocalDateTime.now(KST);
-        LocalDate today = now.toLocalDate();
-
-        if (!TimeAttackSession.canCompleteOnSameDate(now)) {
-            throw new ProjectException(
-                    TimeAttackErrorCode.SESSION_START_CLOSED
-            );
-        }
-
         Member member = memberRepository
                 .findByIdForUpdate(memberId)
                 .orElseThrow(() ->
                         new ProjectException(GeneralErrorCode.NOT_FOUND)
                 );
+
+        // 회원 락 대기 시간은 세션 제한 시간에 포함하지 않는다.
+        LocalDateTime validationTime = LocalDateTime.now(KST);
+        LocalDate today = validationTime.toLocalDate();
+
+        if (!TimeAttackSession.canCompleteOnSameDate(validationTime)) {
+            throw new ProjectException(
+                    TimeAttackErrorCode.SESSION_START_CLOSED
+            );
+        }
 
         MemberDailyActivity activity =
                 memberDailyActivityRepository
@@ -140,15 +141,18 @@ public class TimeAttackService {
                 .findActivePass(
                         memberId,
                         PassStatus.ACTIVE,
-                        now
+                        validationTime
                 )
                 .isPresent();
+
+        // 락 획득과 생성 검증이 끝난 시점부터 60초를 계산한다.
+        LocalDateTime startedAt = LocalDateTime.now(KST);
 
         TimeAttackSession session =
                 TimeAttackSession.create(
                         member,
                         today,
-                        now,
+                        startedAt,
                         passApplied
                 );
 
