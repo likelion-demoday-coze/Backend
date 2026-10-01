@@ -59,16 +59,21 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
         SELECT q
         FROM QuizQuestion q
         WHERE q.active = true
-            AND q.category <> :excludedCategory
-            AND NOT EXISTS (
-                SELECT a.timeAttackAnswerId
-                FROM TimeAttackAnswer a
-                WHERE a.timeAttackSession.timeAttackSessionId = :sessionId
-                    AND a.question = q
-            )
+          AND q.category <> :excludedCategory
+          AND NOT EXISTS (
+              SELECT a.timeAttackAnswerId
+              FROM TimeAttackAnswer a
+              WHERE a.timeAttackSession.timeAttackSessionId = :sessionId
+                AND a.question = q
+          )
         ORDER BY MOD(
-                q.questionId * 1103515245 + :sessionId * 12345,
-                2147483647
+            q.questionId * (
+                MOD(
+                    :sessionId * 1103515245 + 12345,
+                    2147483646
+                ) + 1
+            ),
+            2147483647
         ),
         q.questionId
         """)
