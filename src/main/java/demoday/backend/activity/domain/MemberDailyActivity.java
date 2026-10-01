@@ -87,4 +87,14 @@ public class MemberDailyActivity {
         this.learnedAt = learnedAt;
         return true;
     }
+
+    // 타임어택 횟수 제한 검증 및 참여 횟수 증가
+    public boolean recordTimeAttackAttempt(int dailyLimit) {
+        if (timeAttackAttemptCount >= dailyLimit) {
+            return false;
+        }
+
+        timeAttackAttemptCount++;
+        return true;
+    }
 }

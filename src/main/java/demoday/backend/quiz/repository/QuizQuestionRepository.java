@@ -54,4 +54,32 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
             @Param("questionId") Long questionId,
             @Param("category") QuizCategory category
     );
+
+    @Query("""
+        SELECT q
+        FROM QuizQuestion q
+        WHERE q.active = true
+          AND q.category <> :excludedCategory
+          AND NOT EXISTS (
+              SELECT a.timeAttackAnswerId
+              FROM TimeAttackAnswer a
+              WHERE a.timeAttackSession.timeAttackSessionId = :sessionId
+                AND a.question = q
+          )
+        ORDER BY MOD(
+            q.questionId * (
+                MOD(
+                    :sessionId * 1103515245 + 12345,
+                    2147483646
+                ) + 1
+            ),
+            2147483647
+        ),
+        q.questionId
+        """)
+    List<QuizQuestion> findNextTimeAttackQuestion(
+            @Param("sessionId") Long sessionId,
+            @Param("excludedCategory") QuizCategory excludedCategory,
+            Pageable pageable
+    );
 }

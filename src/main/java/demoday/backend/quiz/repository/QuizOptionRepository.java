@@ -23,4 +23,8 @@ public interface QuizOptionRepository extends JpaRepository<QuizOption, Long> {
     );
 
     Optional<QuizOption> findByQuestionQuestionIdAndCorrectTrue(Long questionId);
+
+    List<QuizOption> findAllByQuestionQuestionIdInAndCorrectTrue(
+            Collection<Long> questionIds
+    );
 }
