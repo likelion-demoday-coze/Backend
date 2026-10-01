@@ -3,6 +3,8 @@ package demoday.backend.store.service;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.store.domain.StoreItem;
+import demoday.backend.store.domain.MemberItem;
+import demoday.backend.store.repository.MemberItemRepository;
 import demoday.backend.store.repository.StoreItemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,7 @@ class StoreCatalogIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private MemberRepository members;
     @Autowired private StoreItemRepository items;
+    @Autowired private MemberItemRepository inventory;
     @Autowired private JdbcTemplate jdbc;
     private Member member;
 
@@ -72,9 +75,10 @@ class StoreCatalogIntegrationTest {
 
     @Test
     void requiresMemberRole() throws Exception {
-        mvc.perform(get("/api/v1/store/items")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/v1/store/items").with(auth("ROLE_GUEST")))
-                .andExpect(status().isForbidden());
+        for (String route : List.of("/api/v1/store/items", "/api/v1/members/me/items")) {
+            mvc.perform(get(route)).andExpect(status().isUnauthorized());
+            mvc.perform(get(route).with(auth("ROLE_GUEST"))).andExpect(status().isForbidden());
+        }
     }
 
     @Test
@@ -83,12 +87,13 @@ class StoreCatalogIntegrationTest {
         members.flush();
         // SQL로 변경한 상태가 영속성 컨텍스트의 이전 값에 가려지지 않도록 비운다.
         entityManager.clear();
-        mvc.perform(get("/api/v1/store/items").with(auth("ROLE_MEMBER")))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("STORE_403_1"));
         var missing = new UsernamePasswordAuthenticationToken(Long.MAX_VALUE, null,
                 List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
-        mvc.perform(get("/api/v1/store/items").with(authentication(missing)))
-                .andExpect(status().isNotFound());
+        for (String route : List.of("/api/v1/store/items", "/api/v1/members/me/items")) {
+            mvc.perform(get(route).with(auth("ROLE_MEMBER")))
+                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("STORE_403_1"));
+            mvc.perform(get(route).with(authentication(missing))).andExpect(status().isNotFound());
+        }
     }
 
     @Autowired private jakarta.persistence.EntityManager entityManager;
@@ -97,7 +102,47 @@ class StoreCatalogIntegrationTest {
     void documentsCatalogRoute() throws Exception {
         mvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/v1/store/items'].get").exists());
+                .andExpect(jsonPath("$.paths['/api/v1/store/items'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/members/me/items'].get").exists());
+    }
+
+    @Test
+    void ownedItemsAreMemberScopedIncludeInactiveAndExcludeZeroQuantity() throws Exception {
+        StoreItem first = items.saveAndFlush(StoreItem.create("OWNED", "복구권", 200, true));
+        StoreItem zero = items.saveAndFlush(StoreItem.create("ZERO", "소진", 100, true));
+        StoreItem inactive = items.saveAndFlush(StoreItem.create("OLD", "판매 중지", 300, false));
+        StoreItem otherOnly = items.saveAndFlush(StoreItem.create("OTHER", "다른 회원 전용 보유", 100, true));
+        inventory.saveAndFlush(MemberItem.create(member, inactive, 3));
+        inventory.saveAndFlush(MemberItem.create(member, zero, 0));
+        inventory.saveAndFlush(MemberItem.create(member, first, 2));
+        Member other = members.saveAndFlush(Member.create(40002L, "othercat"));
+        inventory.saveAndFlush(MemberItem.create(other, otherOnly, 9));
+        entityManager.clear();
+
+        mvc.perform(get("/api/v1/members/me/items").param("memberId", other.getMemberId().toString())
+                        .with(auth("ROLE_MEMBER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.length()").value(2))
+                .andExpect(jsonPath("$.result[0].itemId").value(first.getItemId()))
+                .andExpect(jsonPath("$.result[0].itemCode").value("OWNED"))
+                .andExpect(jsonPath("$.result[0].name").value("복구권"))
+                .andExpect(jsonPath("$.result[0].quantity").value(2))
+                .andExpect(jsonPath("$.result[1].itemId").value(inactive.getItemId()))
+                .andExpect(jsonPath("$.result[1].quantity").value(3));
+        assertThat(jdbc.queryForObject("select quantity from member_item where member_id=? and item_id=?",
+                Integer.class, member.getMemberId(), first.getItemId())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from fish_transaction where member_id=?",
+                Long.class, member.getMemberId())).isZero();
+    }
+
+    @Test
+    void noOwnedItemsReturnsEmptyList() throws Exception {
+        StoreItem item = items.saveAndFlush(StoreItem.create("EMPTY", "소진된 복구권", 200, true));
+        mvc.perform(get("/api/v1/members/me/items").with(auth("ROLE_MEMBER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result").isEmpty());
+        inventory.saveAndFlush(MemberItem.create(member, item, 0));
+        mvc.perform(get("/api/v1/members/me/items").with(auth("ROLE_MEMBER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result").isEmpty());
     }
 
     private RequestPostProcessor auth(String role) {
