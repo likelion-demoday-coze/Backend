@@ -32,7 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -478,5 +480,121 @@ public class TimeAttackService {
         }
 
         return maxCount;
+    }
+
+    @Transactional(readOnly = true)
+    public TimeAttackResultResponse getResult(
+            Long memberId,
+            Long sessionId
+    ) {
+        TimeAttackSession session =
+                timeAttackSessionRepository
+                        .findByTimeAttackSessionIdAndMemberMemberId(
+                                sessionId,
+                                memberId
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        TimeAttackErrorCode
+                                                .SESSION_NOT_FOUND
+                                )
+                        );
+
+        if (session.getStatus()
+                != TimeAttackStatus.COMPLETED) {
+            throw new ProjectException(
+                    TimeAttackErrorCode.RESULT_NOT_AVAILABLE
+            );
+        }
+
+        List<TimeAttackAnswer> answers =
+                timeAttackAnswerRepository
+                        .findAllByTimeAttackSessionTimeAttackSessionIdOrderByAnsweredAtAscTimeAttackAnswerIdAsc(
+                                sessionId
+                        );
+
+        List<Long> questionIds = answers.stream()
+                .map(answer ->
+                        answer.getQuestion().getQuestionId()
+                )
+                .distinct()
+                .toList();
+
+        Map<Long, QuizOption> correctOptionByQuestionId =
+                findCorrectOptions(questionIds);
+
+        List<TimeAttackResultQuestionResponse>
+                questionResponses = answers.stream()
+                .map(answer -> {
+                    Long questionId =
+                            answer.getQuestion().getQuestionId();
+
+                    QuizOption correctOption =
+                            correctOptionByQuestionId.get(
+                                    questionId
+                            );
+
+                    if (correctOption == null) {
+                        throw new ProjectException(
+                                TimeAttackErrorCode
+                                        .CORRECT_OPTION_NOT_FOUND
+                        );
+                    }
+
+                    return TimeAttackResultQuestionResponse.of(
+                            answer,
+                            correctOption
+                    );
+                })
+                .toList();
+
+        List<Boolean> correctResults = answers.stream()
+                .map(TimeAttackAnswer::getCorrect)
+                .toList();
+
+        int maxConsecutiveCorrectCount =
+                calculateMaxConsecutiveCorrectCount(
+                        correctResults
+                );
+
+        return TimeAttackResultResponse.of(
+                session,
+                maxConsecutiveCorrectCount,
+                questionResponses
+        );
+    }
+
+    private Map<Long, QuizOption> findCorrectOptions(
+            List<Long> questionIds
+    ) {
+        if (questionIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<QuizOption> correctOptions =
+                quizOptionRepository
+                        .findAllByQuestionQuestionIdInAndCorrectTrue(
+                                questionIds
+                        );
+
+        Map<Long, QuizOption> correctOptionByQuestionId =
+                new LinkedHashMap<>();
+
+        for (QuizOption correctOption : correctOptions) {
+            Long questionId =
+                    correctOption.getQuestion().getQuestionId();
+
+            if (correctOptionByQuestionId.put(
+                    questionId,
+                    correctOption
+            ) != null) {
+                throw new ProjectException(
+                        TimeAttackErrorCode
+                                .CORRECT_OPTION_NOT_FOUND
+                );
+            }
+        }
+
+        return correctOptionByQuestionId;
     }
 }

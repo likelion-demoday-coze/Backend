@@ -70,6 +70,11 @@ public enum TimeAttackErrorCode implements BaseErrorCode {
             HttpStatus.INTERNAL_SERVER_ERROR,
             "TIME_ATTACK_500_1",
             "문제의 정답 선택지를 찾을 수 없습니다."
+    ),
+    RESULT_NOT_AVAILABLE(
+            HttpStatus.CONFLICT,
+            "TIME_ATTACK_409_7",
+            "정상 완료된 타임어택 세션만 결과를 조회할 수 있습니다."
     );
 
     private final HttpStatus status;
