@@ -1,4 +1,4 @@
-package demoday.backend.timeattack.dto;
+package demoday.backend.timeattack.dto.result;
 
 import demoday.backend.timeattack.code.TimeAttackStatus;
 import demoday.backend.timeattack.domain.TimeAttackSession;

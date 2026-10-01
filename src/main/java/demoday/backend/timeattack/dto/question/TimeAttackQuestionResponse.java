@@ -1,4 +1,4 @@
-package demoday.backend.timeattack.dto;
+package demoday.backend.timeattack.dto.question;
 
 import demoday.backend.quiz.domain.QuizOption;
 import demoday.backend.quiz.domain.QuizQuestion;
