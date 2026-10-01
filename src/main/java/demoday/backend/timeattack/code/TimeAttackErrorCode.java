@@ -47,6 +47,29 @@ public enum TimeAttackErrorCode implements BaseErrorCode {
             HttpStatus.NOT_FOUND,
             "TIME_ATTACK_404_2",
             "출제할 수 있는 타임어택 문제가 없습니다."
+    ),
+    QUESTION_NOT_CURRENT(
+            HttpStatus.CONFLICT,
+            "TIME_ATTACK_409_5",
+            "현재 출제된 타임어택 문제가 아닙니다."
+    ),
+
+    ANSWER_ALREADY_SUBMITTED(
+            HttpStatus.CONFLICT,
+            "TIME_ATTACK_409_6",
+            "이미 답안을 제출한 문제입니다."
+    ),
+
+    OPTION_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "TIME_ATTACK_404_3",
+            "선택지를 찾을 수 없습니다."
+    ),
+
+    CORRECT_OPTION_NOT_FOUND(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "TIME_ATTACK_500_1",
+            "문제의 정답 선택지를 찾을 수 없습니다."
     );
 
     private final HttpStatus status;

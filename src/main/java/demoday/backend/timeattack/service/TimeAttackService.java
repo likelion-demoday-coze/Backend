@@ -17,10 +17,9 @@ import demoday.backend.quiz.domain.QuizQuestion;
 import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
 import demoday.backend.timeattack.code.TimeAttackErrorCode;
+import demoday.backend.timeattack.domain.TimeAttackAnswer;
 import demoday.backend.timeattack.domain.TimeAttackSession;
-import demoday.backend.timeattack.dto.TimeAttackQuestionResponse;
-import demoday.backend.timeattack.dto.TimeAttackSessionCreateResponse;
-import demoday.backend.timeattack.dto.TimeAttackTodayResponse;
+import demoday.backend.timeattack.dto.*;
 import demoday.backend.timeattack.repository.TimeAttackAnswerRepository;
 import demoday.backend.timeattack.repository.TimeAttackSessionRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +31,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -225,5 +225,118 @@ public class TimeAttackService {
         }
 
         return consecutiveCorrectCount;
+    }
+
+    @Transactional
+    public TimeAttackAnswerResponse submitAnswer(
+            Long memberId,
+            Long sessionId,
+            TimeAttackAnswerRequest request
+    ) {
+        LocalDateTime now = LocalDateTime.now(KST);
+
+        // 동일 세션의 동시 답안 제출 직렬화
+        TimeAttackSession session =
+                timeAttackSessionRepository
+                        .findByIdAndMemberIdForUpdate(
+                                sessionId,
+                                memberId
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        TimeAttackErrorCode
+                                                .SESSION_NOT_FOUND
+                                )
+                        );
+
+        session.validateAnswerable(now);
+
+        // 동일 문제의 중복 제출 차단
+        if (timeAttackAnswerRepository
+                .existsByTimeAttackSessionTimeAttackSessionIdAndQuestionQuestionId(
+                        sessionId,
+                        request.questionId()
+                )) {
+            throw new ProjectException(
+                    TimeAttackErrorCode
+                            .ANSWER_ALREADY_SUBMITTED
+            );
+        }
+
+        // 서버가 계산한 현재 문제를 다시 조회
+        QuizQuestion currentQuestion =
+                quizQuestionRepository
+                        .findNextTimeAttackQuestion(
+                                sessionId,
+                                QuizCategory.PREVIEW,
+                                PageRequest.of(0, 1)
+                        )
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        TimeAttackErrorCode
+                                                .NO_AVAILABLE_QUESTION
+                                )
+                        );
+
+        // 임의의 문제 제출이나 문제 건너뛰기 차단
+        if (!Objects.equals(
+                currentQuestion.getQuestionId(),
+                request.questionId()
+        )) {
+            throw new ProjectException(
+                    TimeAttackErrorCode.QUESTION_NOT_CURRENT
+            );
+        }
+
+        QuizOption selectedOption =
+                quizOptionRepository
+                        .findByOptionIdAndQuestionQuestionId(
+                                request.selectedOptionId(),
+                                request.questionId()
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        TimeAttackErrorCode
+                                                .OPTION_NOT_FOUND
+                                )
+                        );
+
+        QuizOption correctOption =
+                quizOptionRepository
+                        .findByQuestionQuestionIdAndCorrectTrue(
+                                request.questionId()
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        TimeAttackErrorCode
+                                                .CORRECT_OPTION_NOT_FOUND
+                                )
+                        );
+
+        TimeAttackAnswer answer =
+                TimeAttackAnswer.create(
+                        session,
+                        currentQuestion,
+                        selectedOption,
+                        now
+                );
+
+        timeAttackAnswerRepository.save(answer);
+
+        if (Boolean.TRUE.equals(answer.getCorrect())) {
+            session.increaseCorrectCount();
+        }
+
+        int consecutiveCorrectCount =
+                calculateConsecutiveCorrectCount(sessionId);
+
+        return TimeAttackAnswerResponse.of(
+                session,
+                answer,
+                correctOption,
+                consecutiveCorrectCount
+        );
     }
 }
