@@ -1,5 +1,6 @@
 package demoday.backend.timeattack.service;
 
+import demoday.backend.activity.code.LearningStatus;
 import demoday.backend.activity.domain.MemberDailyActivity;
 import demoday.backend.activity.repository.MemberDailyActivityRepository;
 import demoday.backend.fish.code.FishTransactionType;
@@ -17,6 +18,7 @@ import demoday.backend.quiz.domain.QuizQuestion;
 import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
 import demoday.backend.timeattack.code.TimeAttackErrorCode;
+import demoday.backend.timeattack.code.TimeAttackStatus;
 import demoday.backend.timeattack.domain.TimeAttackAnswer;
 import demoday.backend.timeattack.domain.TimeAttackSession;
 import demoday.backend.timeattack.dto.*;
@@ -338,5 +340,143 @@ public class TimeAttackService {
                 correctOption,
                 consecutiveCorrectCount
         );
+    }
+
+    public TimeAttackCompleteResponse completeSession(
+            Long memberId,
+            Long sessionId
+    ) {
+        return transactionRetryExecutor.execute(
+                () -> completeSessionInTransaction(
+                        memberId,
+                        sessionId
+                )
+        );
+    }
+
+    private TimeAttackCompleteResponse
+    completeSessionInTransaction(
+            Long memberId,
+            Long sessionId
+    ) {
+        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDate completionDate = now.toLocalDate();
+
+        // 회원 -> 세션 순서로 잠금 획득
+        Member member = memberRepository
+                .findByIdForUpdate(memberId)
+                .orElseThrow(() ->
+                        new ProjectException(
+                                GeneralErrorCode.NOT_FOUND
+                        )
+                );
+
+        TimeAttackSession session =
+                timeAttackSessionRepository
+                        .findByIdAndMemberIdForUpdate(
+                                sessionId,
+                                memberId
+                        )
+                        .orElseThrow(() ->
+                                new ProjectException(
+                                        TimeAttackErrorCode
+                                                .SESSION_NOT_FOUND
+                                )
+                        );
+
+        List<Boolean> correctResults =
+                timeAttackAnswerRepository
+                        .findCorrectResultsBySessionIdOrderByLatest(
+                                sessionId
+                        );
+
+        // 동일 완료 요청은 학습 기록을 다시 반영하지 않고 기존 완료 결과를 반환
+        if (session.getStatus()
+                == TimeAttackStatus.COMPLETED) {
+            return createCompleteResponse(
+                    session,
+                    correctResults
+            );
+        }
+
+        // 60초가 지난 진행 중 세션만 정상 완료 가능
+        session.complete(now);
+
+        MemberDailyActivity activity =
+                memberDailyActivityRepository
+                        .findByMemberMemberIdAndActivityDate(
+                                memberId,
+                                completionDate
+                        )
+                        .orElseGet(() ->
+                                MemberDailyActivity.create(
+                                        member,
+                                        completionDate
+                                )
+                        );
+
+        // 같은 날 최초 학습 완료일 때만 연속 학습일을 갱신
+        boolean learningCompleted =
+                activity.completeLearning(now);
+
+        if (learningCompleted) {
+            boolean learnedYesterday =
+                    memberDailyActivityRepository
+                            .existsByMemberMemberIdAndActivityDateAndLearningStatusIn(
+                                    memberId,
+                                    completionDate.minusDays(1),
+                                    List.of(
+                                            LearningStatus.COMPLETED,
+                                            LearningStatus.RECOVERED
+                                    )
+                            );
+
+            member.completeLearning(learnedYesterday);
+        }
+
+        memberDailyActivityRepository.save(activity);
+
+        return createCompleteResponse(
+                session,
+                correctResults
+        );
+    }
+
+    private TimeAttackCompleteResponse createCompleteResponse(
+            TimeAttackSession session,
+            List<Boolean> correctResults
+    ) {
+        int maxConsecutiveCorrectCount =
+                calculateMaxConsecutiveCorrectCount(
+                        correctResults
+                );
+
+        return TimeAttackCompleteResponse.of(
+                session,
+                correctResults.size(),
+                maxConsecutiveCorrectCount
+        );
+    }
+
+    private int calculateMaxConsecutiveCorrectCount(
+            List<Boolean> correctResults
+    ) {
+        int currentCount = 0;
+        int maxCount = 0;
+
+        for (Boolean correct : correctResults) {
+            if (Boolean.TRUE.equals(correct)) {
+                currentCount++;
+                maxCount = Math.max(
+                        maxCount,
+                        currentCount
+                );
+                continue;
+            }
+
+            currentCount = 0;
+        }
+
+        return maxCount;
     }
 }
