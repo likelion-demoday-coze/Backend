@@ -91,7 +91,7 @@ class TimeAttackServiceTest {
         TimeAttackTodayResponse result = timeAttackService.getTodayAvailability(MEMBER_ID);
 
         assertThat(result.dailyAttemptLimit()).isEqualTo(3);
-        assertThat(result.usedAttemptLimit()).isEqualTo(1);
+        assertThat(result.usedAttemptCount()).isEqualTo(1);
         assertThat(result.remainingAttemptCount()).isEqualTo(2);
     }
 
