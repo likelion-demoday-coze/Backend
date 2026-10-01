@@ -31,6 +31,11 @@ public enum TimeAttackErrorCode implements BaseErrorCode {
             HttpStatus.BAD_REQUEST,
             "TIME_ATTACK_400_1",
             "선택지가 해당 타임어택 문제에 속하지 않습니다."
+    ),
+    DAILY_ATTEMPT_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "TIME_ATTACK_409_4",
+            "오늘의 타임어택 참여 가능 횟수를 모두 사용했습니다."
     );
 
     private final HttpStatus status;
