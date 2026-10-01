@@ -267,6 +267,76 @@ class TimeAttackServiceTest {
     }
 
     @Test
+    @DisplayName("완료 유예시간이 지나면 세션을 만료 처리한다")
+    void completeSessionExpiresAfterGracePeriod() {
+        Member member = member();
+        TimeAttackSession session = session(
+                member,
+                LocalDateTime.now(KST).minusSeconds(71)
+        );
+        when(memberRepository.findByIdForUpdate(MEMBER_ID))
+                .thenReturn(Optional.of(member));
+        when(timeAttackSessionRepository.findByIdAndMemberIdForUpdate(
+                SESSION_ID, MEMBER_ID
+        )).thenReturn(Optional.of(session));
+        when(timeAttackAnswerRepository.findCorrectResultsBySessionIdOrderByLatest(
+                SESSION_ID
+        )).thenReturn(List.of(true));
+
+        assertError(
+                () -> timeAttackService.completeSession(MEMBER_ID, SESSION_ID),
+                TimeAttackErrorCode.SESSION_COMPLETION_EXPIRED
+        );
+
+        assertThat(session.getStatus()).isEqualTo(TimeAttackStatus.EXPIRED);
+        verify(memberDailyActivityRepository, never())
+                .findByMemberMemberIdAndActivityDate(anyLong(), any(LocalDate.class));
+        verify(memberDailyActivityRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("답안을 제출하지 않은 세션은 완료해도 학습 기록에 반영하지 않는다")
+    void completeSessionWithoutAnswersDoesNotCompleteLearning() {
+        Member member = member();
+        TimeAttackSession session = session(
+                member,
+                LocalDateTime.now(KST).minusSeconds(61)
+        );
+        when(memberRepository.findByIdForUpdate(MEMBER_ID))
+                .thenReturn(Optional.of(member));
+        when(timeAttackSessionRepository.findByIdAndMemberIdForUpdate(
+                SESSION_ID, MEMBER_ID
+        )).thenReturn(Optional.of(session));
+        when(timeAttackAnswerRepository.findCorrectResultsBySessionIdOrderByLatest(
+                SESSION_ID
+        )).thenReturn(List.of());
+
+        TimeAttackCompleteResponse result =
+                timeAttackService.completeSession(MEMBER_ID, SESSION_ID);
+
+        assertThat(result.status()).isEqualTo(TimeAttackStatus.COMPLETED);
+        assertThat(result.totalAnsweredCount()).isZero();
+        assertThat(member.getCurrentStreak()).isZero();
+        verify(memberDailyActivityRepository, never())
+                .findByMemberMemberIdAndActivityDate(anyLong(), any(LocalDate.class));
+        verify(memberDailyActivityRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("정상 완료 기한이 다음 날이면 세션을 시작할 수 없다")
+    void cannotStartWhenCompletionDeadlineCrossesMidnight() {
+        LocalDateTime beforeMidnight =
+                LocalDate.of(2026, 10, 1).atTime(23, 59);
+        LocalDateTime safeStart =
+                LocalDate.of(2026, 10, 1).atTime(23, 58, 49);
+
+        assertThat(TimeAttackSession.canCompleteOnSameDate(beforeMidnight))
+                .isFalse();
+        assertThat(TimeAttackSession.canCompleteOnSameDate(safeStart))
+                .isTrue();
+    }
+
+    @Test
     @DisplayName("정상 종료하면 학습 완료와 최대 콤보를 반영한다")
     void completeSession() {
         Member member = member();

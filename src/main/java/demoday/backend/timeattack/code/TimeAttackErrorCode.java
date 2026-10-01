@@ -75,6 +75,17 @@ public enum TimeAttackErrorCode implements BaseErrorCode {
             HttpStatus.CONFLICT,
             "TIME_ATTACK_409_7",
             "정상 완료된 타임어택 세션만 결과를 조회할 수 있습니다."
+    ),
+    SESSION_COMPLETION_EXPIRED(
+            HttpStatus.CONFLICT,
+            "TIME_ATTACK_409_8",
+            "타임어택 정상 완료 가능 시간이 지났습니다."
+    ),
+
+    SESSION_START_CLOSED(
+            HttpStatus.CONFLICT,
+            "TIME_ATTACK_409_9",
+            "오늘 안에 종료할 수 없어 타임어택을 시작할 수 없습니다."
     );
 
     private final HttpStatus status;

@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 public class TimeAttackSession {
 
     private static final long TIME_LIMIT_SECONDS = 60L;
+    private static final long COMPLETION_GRACE_SECONDS = 10L;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,6 +67,25 @@ public class TimeAttackSession {
         return startedAt.plusSeconds(TIME_LIMIT_SECONDS);
     }
 
+    public LocalDateTime getCompletionDeadline() {
+        return getEndsAt().plusSeconds(COMPLETION_GRACE_SECONDS);
+    }
+
+    public boolean isCompletionExpired(LocalDateTime now) {
+        return now.isAfter(getCompletionDeadline());
+    }
+
+    public static boolean canCompleteOnSameDate(
+            LocalDateTime startedAt
+    ) {
+        return startedAt.toLocalDate().equals(
+                startedAt
+                        .plusSeconds(TIME_LIMIT_SECONDS)
+                        .plusSeconds(COMPLETION_GRACE_SECONDS)
+                        .toLocalDate()
+        );
+    }
+
     // 시간 만료 여부 확인
     public boolean isTimeOver(LocalDateTime now) {
         return !now.isBefore(getEndsAt());
@@ -98,16 +118,21 @@ public class TimeAttackSession {
             );
         }
 
+        if (isCompletionExpired(now)) {
+            throw new ProjectException(
+                    TimeAttackErrorCode.SESSION_COMPLETION_EXPIRED
+            );
+        }
+
         status = TimeAttackStatus.COMPLETED;
     }
 
-    // 만료 처리
-    public boolean expireIfTimedOut(LocalDateTime now) {
-        if (status != TimeAttackStatus.IN_PROGRESS) {
-            return false;
-        }
-
-        if (!isTimeOver(now)) {
+    // 정상 완료 가능 기한이 지난 세션의 만료 처리
+    public boolean expireIfCompletionDeadlinePassed(
+            LocalDateTime now
+    ) {
+        if (status != TimeAttackStatus.IN_PROGRESS
+                || !isCompletionExpired(now)) {
             return false;
         }
 

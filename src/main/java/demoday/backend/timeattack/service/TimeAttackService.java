@@ -103,6 +103,12 @@ public class TimeAttackService {
         LocalDateTime now = LocalDateTime.now(KST);
         LocalDate today = now.toLocalDate();
 
+        if (!TimeAttackSession.canCompleteOnSameDate(now)) {
+            throw new ProjectException(
+                    TimeAttackErrorCode.SESSION_START_CLOSED
+            );
+        }
+
         Member member = memberRepository
                 .findByIdForUpdate(memberId)
                 .orElseThrow(() ->
@@ -355,12 +361,22 @@ public class TimeAttackService {
             Long memberId,
             Long sessionId
     ) {
-        return transactionRetryExecutor.execute(
-                () -> completeSessionInTransaction(
-                        memberId,
-                        sessionId
-                )
-        );
+        TimeAttackCompleteResponse response =
+                transactionRetryExecutor.execute(
+                        () -> completeSessionInTransaction(
+                                memberId,
+                                sessionId
+                        )
+                );
+
+        if (response == null) {
+            throw new ProjectException(
+                    TimeAttackErrorCode
+                            .SESSION_COMPLETION_EXPIRED
+            );
+        }
+
+        return response;
     }
 
     private TimeAttackCompleteResponse
@@ -369,7 +385,6 @@ public class TimeAttackService {
             Long sessionId
     ) {
         LocalDateTime now = LocalDateTime.now(KST);
-        LocalDate completionDate = now.toLocalDate();
 
         // 회원 -> 세션 순서로 잠금 획득
         Member member = memberRepository
@@ -408,42 +423,60 @@ public class TimeAttackService {
             );
         }
 
+        if (session.getStatus()
+                == TimeAttackStatus.EXPIRED) {
+            throw new ProjectException(
+                    TimeAttackErrorCode
+                            .SESSION_COMPLETION_EXPIRED
+            );
+        }
+
+        // 만료 상태 변경을 커밋하기 위해 트랜잭션 안에서는 예외를 던지지 않는다.
+        if (session.expireIfCompletionDeadlinePassed(now)) {
+            return null;
+        }
+
         // 60초가 지난 진행 중 세션만 정상 완료 가능
         session.complete(now);
 
-        MemberDailyActivity activity =
-                memberDailyActivityRepository
-                        .findByMemberMemberIdAndActivityDate(
-                                memberId,
-                                completionDate
-                        )
-                        .orElseGet(() ->
-                                MemberDailyActivity.create(
-                                        member,
-                                        completionDate
-                                )
-                        );
+        if (!correctResults.isEmpty()) {
+            LocalDate learningDate =
+                    session.getAttemptDate();
 
-        // 같은 날 최초 학습 완료일 때만 연속 학습일을 갱신
-        boolean learningCompleted =
-                activity.completeLearning(now);
-
-        if (learningCompleted) {
-            boolean learnedYesterday =
+            MemberDailyActivity activity =
                     memberDailyActivityRepository
-                            .existsByMemberMemberIdAndActivityDateAndLearningStatusIn(
+                            .findByMemberMemberIdAndActivityDate(
                                     memberId,
-                                    completionDate.minusDays(1),
-                                    List.of(
-                                            LearningStatus.COMPLETED,
-                                            LearningStatus.RECOVERED
+                                    learningDate
+                            )
+                            .orElseGet(() ->
+                                    MemberDailyActivity.create(
+                                            member,
+                                            learningDate
                                     )
                             );
 
-            member.completeLearning(learnedYesterday);
-        }
+            // 같은 날 최초 학습 완료일 때만 연속 학습일을 갱신
+            boolean learningCompleted =
+                    activity.completeLearning(now);
 
-        memberDailyActivityRepository.save(activity);
+            if (learningCompleted) {
+                boolean learnedYesterday =
+                        memberDailyActivityRepository
+                                .existsByMemberMemberIdAndActivityDateAndLearningStatusIn(
+                                        memberId,
+                                        learningDate.minusDays(1),
+                                        List.of(
+                                                LearningStatus.COMPLETED,
+                                                LearningStatus.RECOVERED
+                                        )
+                                );
+
+                member.completeLearning(learnedYesterday);
+            }
+
+            memberDailyActivityRepository.save(activity);
+        }
 
         return createCompleteResponse(
                 session,
