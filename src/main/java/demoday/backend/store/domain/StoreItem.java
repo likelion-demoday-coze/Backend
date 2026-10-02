@@ -42,7 +42,8 @@ public class StoreItem {
             String itemCode,
             String name,
             Integer fishPrice,
-            Boolean active
+            Boolean active,
+            String description
     ) {
         validateFishPrice(fishPrice);
 
@@ -51,6 +52,7 @@ public class StoreItem {
                 .name(name)
                 .fishPrice(fishPrice)
                 .active(active)
+                .description(description)
                 .build();
     }
 

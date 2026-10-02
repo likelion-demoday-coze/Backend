@@ -65,7 +65,7 @@ class StorePurchaseIntegrationTest {
     void setUp() {
         long sequence = SEQUENCE.incrementAndGet();
         memberId = members.saveAndFlush(Member.create(50000L + sequence, "buy" + sequence)).getMemberId();
-        item = items.saveAndFlush(StoreItem.create("RECOVERY" + sequence, "복구권", 200, true));
+        item = items.saveAndFlush(StoreItem.create("RECOVERY" + sequence, "복구권", 200, true, "아이템 사용 안내"));
         fish.credit(memberId, 1000, FishTransactionType.ADMIN_ADJUSTMENT, null, "setup:" + memberId);
     }
 
@@ -99,7 +99,7 @@ class StorePurchaseIntegrationTest {
                 new StorePurchaseRequest(2, request.requestId())))
                 .isInstanceOfSatisfying(ProjectException.class,
                         ex -> assertThat(ex.getErrorCode()).isEqualTo(StoreErrorCode.PURCHASE_CONFLICT));
-        StoreItem another = items.saveAndFlush(StoreItem.create("OTHER" + memberId, "다른 상품", 200, true));
+        StoreItem another = items.saveAndFlush(StoreItem.create("OTHER" + memberId, "다른 상품", 200, true, "아이템 사용 안내"));
         assertThatThrownBy(() -> service.purchase(memberId, another.getItemId(), request))
                 .isInstanceOfSatisfying(ProjectException.class,
                         ex -> assertThat(ex.getErrorCode()).isEqualTo(StoreErrorCode.PURCHASE_CONFLICT));
@@ -154,7 +154,7 @@ class StorePurchaseIntegrationTest {
                         ex -> assertThat(ex.getErrorCode()).isEqualTo(StoreErrorCode.QUANTITY_OVERFLOW));
         assertThat(quantity()).isEqualTo(Integer.MAX_VALUE);
         assertThat(purchaseTransactionCount()).isZero();
-        StoreItem expensive = items.saveAndFlush(StoreItem.create("EXP" + memberId, "고가", Integer.MAX_VALUE, true));
+        StoreItem expensive = items.saveAndFlush(StoreItem.create("EXP" + memberId, "고가", Integer.MAX_VALUE, true, "아이템 사용 안내"));
         assertThatThrownBy(() -> service.purchase(memberId, expensive.getItemId(), request(Integer.MAX_VALUE)))
                 .isInstanceOfSatisfying(ProjectException.class,
                         ex -> assertThat(ex.getErrorCode()).isEqualTo(MemberErrorCode.INSUFFICIENT_FISH));

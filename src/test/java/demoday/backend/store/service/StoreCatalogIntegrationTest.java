@@ -47,9 +47,9 @@ class StoreCatalogIntegrationTest {
 
     @Test
     void returnsOnlyActiveItemsInIdOrderWithoutChangingBalanceOrInventory() throws Exception {
-        StoreItem first = items.saveAndFlush(StoreItem.create("RECOVERY", "연속 학습 복구권", 200, true));
-        items.saveAndFlush(StoreItem.create("INACTIVE", "판매 중지", 100, false));
-        StoreItem last = items.saveAndFlush(StoreItem.create("ANOTHER", "다른 아이템", 300, true));
+        StoreItem first = items.saveAndFlush(StoreItem.create("RECOVERY", "연속 학습 복구권", 200, true, "아이템 사용 안내"));
+        items.saveAndFlush(StoreItem.create("INACTIVE", "판매 중지", 100, false, "아이템 사용 안내"));
+        StoreItem last = items.saveAndFlush(StoreItem.create("ANOTHER", "다른 아이템", 300, true, "아이템 사용 안내"));
 
         mvc.perform(get("/api/v1/store/items").with(auth("ROLE_MEMBER")))
                 .andExpect(status().isOk())
@@ -57,6 +57,7 @@ class StoreCatalogIntegrationTest {
                 .andExpect(jsonPath("$.result[0].itemId").value(first.getItemId()))
                 .andExpect(jsonPath("$.result[0].itemCode").value("RECOVERY"))
                 .andExpect(jsonPath("$.result[0].name").value("연속 학습 복구권"))
+                .andExpect(jsonPath("$.result[0].description").value("아이템 사용 안내"))
                 .andExpect(jsonPath("$.result[0].fishPrice").value(200))
                 .andExpect(jsonPath("$.result[1].itemId").value(last.getItemId()));
         assertThat(member.getFishBalance()).isZero();
@@ -68,7 +69,7 @@ class StoreCatalogIntegrationTest {
 
     @Test
     void emptyCatalogReturnsEmptyList() throws Exception {
-        items.saveAndFlush(StoreItem.create("HIDDEN", "판매 중지", 200, false));
+        items.saveAndFlush(StoreItem.create("HIDDEN", "판매 중지", 200, false, "아이템 사용 안내"));
         mvc.perform(get("/api/v1/store/items").with(auth("ROLE_MEMBER")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result").isEmpty());
     }
@@ -108,10 +109,10 @@ class StoreCatalogIntegrationTest {
 
     @Test
     void ownedItemsAreMemberScopedIncludeInactiveAndExcludeZeroQuantity() throws Exception {
-        StoreItem first = items.saveAndFlush(StoreItem.create("OWNED", "복구권", 200, true));
-        StoreItem zero = items.saveAndFlush(StoreItem.create("ZERO", "소진", 100, true));
-        StoreItem inactive = items.saveAndFlush(StoreItem.create("OLD", "판매 중지", 300, false));
-        StoreItem otherOnly = items.saveAndFlush(StoreItem.create("OTHER", "다른 회원 전용 보유", 100, true));
+        StoreItem first = items.saveAndFlush(StoreItem.create("OWNED", "복구권", 200, true, "아이템 사용 안내"));
+        StoreItem zero = items.saveAndFlush(StoreItem.create("ZERO", "소진", 100, true, "아이템 사용 안내"));
+        StoreItem inactive = items.saveAndFlush(StoreItem.create("OLD", "판매 중지", 300, false, "아이템 사용 안내"));
+        StoreItem otherOnly = items.saveAndFlush(StoreItem.create("OTHER", "다른 회원 전용 보유", 100, true, "아이템 사용 안내"));
         inventory.saveAndFlush(MemberItem.create(member, inactive, 3));
         inventory.saveAndFlush(MemberItem.create(member, zero, 0));
         inventory.saveAndFlush(MemberItem.create(member, first, 2));
@@ -137,7 +138,7 @@ class StoreCatalogIntegrationTest {
 
     @Test
     void noOwnedItemsReturnsEmptyList() throws Exception {
-        StoreItem item = items.saveAndFlush(StoreItem.create("EMPTY", "소진된 복구권", 200, true));
+        StoreItem item = items.saveAndFlush(StoreItem.create("EMPTY", "소진된 복구권", 200, true, "아이템 사용 안내"));
         mvc.perform(get("/api/v1/members/me/items").with(auth("ROLE_MEMBER")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result").isEmpty());
         inventory.saveAndFlush(MemberItem.create(member, item, 0));
