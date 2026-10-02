@@ -35,11 +35,15 @@ public class StoreItem {
     @Column(nullable = false)
     private Boolean active;
 
+    @Column(nullable = false)
+    private String description;
+
     public static StoreItem create(
             String itemCode,
             String name,
             Integer fishPrice,
-            Boolean active
+            Boolean active,
+            String description
     ) {
         validateFishPrice(fishPrice);
 
@@ -48,6 +52,7 @@ public class StoreItem {
                 .name(name)
                 .fishPrice(fishPrice)
                 .active(active)
+                .description(description)
                 .build();
     }
 

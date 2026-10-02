@@ -3,6 +3,8 @@ package demoday.backend.store.domain;
 import demoday.backend.member.domain.Member;
 import jakarta.persistence.*;
 import lombok.*;
+import demoday.backend.global.exception.ProjectException;
+import demoday.backend.store.code.StoreErrorCode;
 
 @Getter
 @Entity
@@ -56,5 +58,11 @@ public class MemberItem {
                     "아이템 보유 수량은 0 이상이어야 합니다."
             );
         }
+    }
+
+    public void addQuantity(int amount) {
+        if (amount <= 0) throw new ProjectException(StoreErrorCode.INVALID_PURCHASE);
+        if (quantity > Integer.MAX_VALUE - amount) throw new ProjectException(StoreErrorCode.QUANTITY_OVERFLOW);
+        quantity += amount;
     }
 }
