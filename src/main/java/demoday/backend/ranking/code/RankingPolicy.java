@@ -6,6 +6,9 @@ public final class RankingPolicy {
 
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
+    public static final int DEFAULT_PAGE_SIZE = 20;
+    public static final int MAX_PAGE_SIZE = 100;
+
     public static final int REWARD_MAX_RANK = 3;
     public static final long REWARD_FISH_AMOUNT = 100L;
 

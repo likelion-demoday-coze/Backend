@@ -1,6 +1,4 @@
-package demoday.backend.ranking.repository;
-
-import java.math.BigDecimal;
+package demoday.backend.ranking.repository.projection;
 
 public interface TimeAttackRankingRow {
 
@@ -8,6 +6,4 @@ public interface TimeAttackRankingRow {
     String getNickname();
     Integer getCorrectCount();
     Long getRankingPosition();
-    Long getTotalMemberCount();
-    BigDecimal getAverageCorrectCount();
 }

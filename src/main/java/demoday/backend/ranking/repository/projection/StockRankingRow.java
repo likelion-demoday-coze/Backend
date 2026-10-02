@@ -1,4 +1,4 @@
-package demoday.backend.ranking.repository;
+package demoday.backend.ranking.repository.projection;
 
 import java.math.BigDecimal;
 
@@ -8,6 +8,4 @@ public interface StockRankingRow {
     String getNickname();
     BigDecimal getCurrentStock();
     Long getRankingPosition();
-    Long getTotalMemberCount();
-    BigDecimal getAverageStock();
 }
