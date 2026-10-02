@@ -35,6 +35,9 @@ public class StoreItem {
     @Column(nullable = false)
     private Boolean active;
 
+    @Column(nullable = false)
+    private String description;
+
     public static StoreItem create(
             String itemCode,
             String name,

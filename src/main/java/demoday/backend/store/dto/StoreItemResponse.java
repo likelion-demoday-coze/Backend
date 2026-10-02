@@ -8,9 +8,10 @@ public record StoreItemResponse(
         String itemCode,
         String name,
         @Schema(description = "아이템 1개 구매에 필요한 생선 수량", example = "200")
-        int fishPrice
+        int fishPrice,
+        String description
 ) {
     public static StoreItemResponse from(StoreItem item) {
-        return new StoreItemResponse(item.getItemId(), item.getItemCode(), item.getName(), item.getFishPrice());
+        return new StoreItemResponse(item.getItemId(), item.getItemCode(), item.getName(), item.getFishPrice(), item.getDescription());
     }
 }
