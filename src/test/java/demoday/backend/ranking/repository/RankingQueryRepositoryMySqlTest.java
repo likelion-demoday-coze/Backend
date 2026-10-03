@@ -7,6 +7,8 @@ import demoday.backend.ranking.repository.projection.StockRankingRow;
 import demoday.backend.ranking.repository.projection.StockRankingStatsRow;
 import demoday.backend.ranking.repository.projection.TimeAttackRankingRow;
 import demoday.backend.ranking.repository.projection.TimeAttackRankingStatsRow;
+import demoday.backend.stock.domain.StockDailySnapshot;
+import demoday.backend.stock.repository.StockDailySnapshotRepository;
 import demoday.backend.timeattack.domain.TimeAttackSession;
 import demoday.backend.timeattack.repository.TimeAttackSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +59,7 @@ class RankingQueryRepositoryMySqlTest {
     @Autowired RankingQueryRepository rankingQueryRepository;
     @Autowired MemberRepository memberRepository;
     @Autowired TimeAttackSessionRepository timeAttackSessionRepository;
+    @Autowired StockDailySnapshotRepository stockDailySnapshotRepository;
 
     private Member first;
     private Member second;
@@ -121,10 +124,17 @@ class RankingQueryRepositoryMySqlTest {
     }
 
     @Test
-    @DisplayName("주가 보상 대상은 순위 값이 1에서 3인 모든 회원이다")
+    @DisplayName("주가 보상 대상은 현재 주가가 아닌 정산일 스냅샷으로 결정한다")
     void findsStockRewardTargets() {
+        saveSnapshot(first, RANKING_DATE, "100.00");
+        saveSnapshot(second, RANKING_DATE, "500.00");
+        saveSnapshot(third, RANKING_DATE, "500.00");
+        saveSnapshot(fourth, RANKING_DATE, "200.00");
+
         List<RankingWinnerRow> winners =
-                rankingQueryRepository.findStockRewardTargets(3);
+                rankingQueryRepository.findStockRewardTargets(
+                        RANKING_DATE, 3
+                );
 
         assertThat(winners)
                 .extracting(
@@ -133,15 +143,32 @@ class RankingQueryRepositoryMySqlTest {
                 )
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
-                                first.getMemberId(), 1L
+                                second.getMemberId(), 1L
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                second.getMemberId(), 2L
+                                third.getMemberId(), 1L
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                third.getMemberId(), 2L
+                                fourth.getMemberId(), 3L
                         )
                 );
+    }
+
+    @Test
+    @DisplayName("다른 날짜의 주가 스냅샷은 보상 순위에 포함하지 않는다")
+    void stockRewardTargetsUseRequestedSnapshotDateOnly() {
+        saveSnapshot(first, RANKING_DATE.minusDays(1), "999.00");
+        saveSnapshot(second, RANKING_DATE, "300.00");
+        saveSnapshot(third, RANKING_DATE, "200.00");
+
+        List<RankingWinnerRow> winners =
+                rankingQueryRepository.findStockRewardTargets(
+                        RANKING_DATE, 3
+                );
+
+        assertThat(winners)
+                .extracting(RankingWinnerRow::getMemberId)
+                .containsExactly(second.getMemberId(), third.getMemberId());
     }
 
     @Test
@@ -233,6 +260,20 @@ class RankingQueryRepositoryMySqlTest {
         Member member = Member.create(kakaoUserId, nickname);
         member.changeStock(new BigDecimal(stock));
         return memberRepository.save(member);
+    }
+
+    private void saveSnapshot(
+            Member member,
+            LocalDate date,
+            String stock
+    ) {
+        stockDailySnapshotRepository.save(
+                StockDailySnapshot.create(
+                        member,
+                        date,
+                        new BigDecimal(stock)
+                )
+        );
     }
 
     private void saveCompletedSession(

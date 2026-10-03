@@ -13,6 +13,8 @@ import demoday.backend.ranking.domain.RankingReward;
 import demoday.backend.ranking.repository.RankingQueryRepository;
 import demoday.backend.ranking.repository.RankingRewardRepository;
 import demoday.backend.ranking.repository.projection.RankingWinnerRow;
+import demoday.backend.stock.domain.StockDailySnapshot;
+import demoday.backend.stock.repository.StockDailySnapshotRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +33,7 @@ public class RankingSettlementService {
     private final RankingQueryRepository rankingQueryRepository;
     private final RankingRewardRepository rankingRewardRepository;
     private final MemberRepository memberRepository;
+    private final StockDailySnapshotRepository stockDailySnapshotRepository;
     private final FishService fishService;
     private final TransactionRetryExecutor transactionRetryExecutor;
     private final Clock clock;
@@ -42,7 +45,46 @@ public class RankingSettlementService {
                         clock.withZone(KST)
                 ).minusDays(1);
 
+        captureStockSnapshots(rankingDate);
         settle(rankingDate);
+    }
+
+    // 보상 정산과 별도 트랜잭션으로 마감 주가를 먼저 확정해 정산 재시도에도 같은 값을 사용
+    private void captureStockSnapshots(
+            LocalDate rankingDate
+    ) {
+        transactionRetryExecutor.execute(
+                () -> {
+                    if (stockDailySnapshotRepository
+                            .existsBySnapshotDate(rankingDate)) {
+                        return null;
+                    }
+
+                    List<Member> members = memberRepository
+                            .findAllByStatusForUpdate(MemberStatus.ACTIVE);
+
+                    // 여러 서버가 동시에 실행된 경우 회원 잠금 획득 후 다시 확인
+                    if (stockDailySnapshotRepository
+                            .existsBySnapshotDate(rankingDate)) {
+                        return null;
+                    }
+
+                    if (!members.isEmpty()) {
+                        List<StockDailySnapshot> snapshots = members.stream()
+                                .map(member -> StockDailySnapshot.create(
+                                        member,
+                                        rankingDate,
+                                        member.getCurrentStock()
+                                ))
+                                .toList();
+
+                        stockDailySnapshotRepository.saveAll(snapshots);
+                        stockDailySnapshotRepository.flush();
+                    }
+
+                    return null;
+                }
+        );
     }
 
     // 주어진 날짜의 두 랭킹을 하나의 트랜잭션에서 정산
@@ -69,10 +111,10 @@ public class RankingSettlementService {
             LocalDate rankingDate
     ) {
         List<RankingWinnerRow> stockWinners =
-                rankingQueryRepository
-                        .findStockRewardTargets(
-                                REWARD_MAX_RANK
-                        );
+                rankingQueryRepository.findStockRewardTargets(
+                        rankingDate,
+                        REWARD_MAX_RANK
+                );
 
         List<RankingWinnerRow> timeAttackWinners =
                 rankingQueryRepository

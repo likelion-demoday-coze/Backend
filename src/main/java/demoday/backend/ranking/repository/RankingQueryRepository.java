@@ -224,12 +224,15 @@ public interface RankingQueryRepository
             value = /* language=MySQL */ """
                 WITH ranked AS (
                     SELECT
-                        m.member_id AS memberId,
+                        s.member_id AS memberId,
                         RANK() OVER (
-                            ORDER BY m.current_stock DESC
+                            ORDER BY s.stock_value DESC
                         ) AS rankingPosition
-                    FROM member m
-                    WHERE m.status = 'ACTIVE'
+                    FROM stock_daily_snapshot s
+                    JOIN member m
+                      ON m.member_id = s.member_id
+                    WHERE s.snapshot_date = :rankingDate
+                      AND m.status = 'ACTIVE'
                 )
                 SELECT
                     memberId,
@@ -243,8 +246,8 @@ public interface RankingQueryRepository
             nativeQuery = true
     )
     List<RankingWinnerRow> findStockRewardTargets(
-            @Param("maxRank")
-            int maxRank
+            @Param("rankingDate") LocalDate rankingDate,
+            @Param("maxRank") int maxRank
     );
 
     @Query(

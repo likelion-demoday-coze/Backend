@@ -13,6 +13,8 @@ import demoday.backend.ranking.domain.RankingReward;
 import demoday.backend.ranking.repository.RankingQueryRepository;
 import demoday.backend.ranking.repository.RankingRewardRepository;
 import demoday.backend.ranking.repository.projection.RankingWinnerRow;
+import demoday.backend.stock.domain.StockDailySnapshot;
+import demoday.backend.stock.repository.StockDailySnapshotRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,7 @@ class RankingSettlementServiceTest {
     @Mock RankingQueryRepository rankingQueryRepository;
     @Mock RankingRewardRepository rankingRewardRepository;
     @Mock MemberRepository memberRepository;
+    @Mock StockDailySnapshotRepository stockDailySnapshotRepository;
     @Mock FishService fishService;
     @Mock TransactionRetryExecutor transactionRetryExecutor;
 
@@ -63,6 +66,7 @@ class RankingSettlementServiceTest {
                 rankingQueryRepository,
                 rankingRewardRepository,
                 memberRepository,
+                stockDailySnapshotRepository,
                 fishService,
                 transactionRetryExecutor,
                 CLOCK
@@ -73,6 +77,10 @@ class RankingSettlementServiceTest {
                     Supplier<?> operation = invocation.getArgument(0);
                     return operation.get();
                 });
+
+        lenient().when(stockDailySnapshotRepository
+                .existsBySnapshotDate(YESTERDAY))
+                .thenReturn(true);
 
         lenient().when(rankingRewardRepository.save(any(RankingReward.class)))
                 .thenAnswer(invocation -> {
@@ -94,7 +102,9 @@ class RankingSettlementServiceTest {
         Member stockMember = activeMember(1L);
         Member timeAttackMember = activeMember(2L);
 
-        when(rankingQueryRepository.findStockRewardTargets(REWARD_MAX_RANK))
+        when(rankingQueryRepository.findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        ))
                 .thenReturn(List.of(stockWinner));
         when(rankingQueryRepository.findTimeAttackRewardTargets(
                 YESTERDAY, REWARD_MAX_RANK
@@ -147,6 +157,103 @@ class RankingSettlementServiceTest {
                 101L,
                 "RANKING_REWARD:TIME_ATTACK:2026-10-02:2"
         );
+        verify(transactionRetryExecutor, times(2)).execute(any());
+    }
+
+    @Test
+    @DisplayName("전날 정산 전에 활성 회원의 마감 주가 스냅샷을 별도 트랜잭션으로 저장한다")
+    void capturesStockSnapshotsBeforeSettlement() {
+        Member first = activeMemberWithStock(1L, "300.00");
+        Member second = activeMemberWithStock(2L, "200.00");
+
+        when(stockDailySnapshotRepository.existsBySnapshotDate(YESTERDAY))
+                .thenReturn(false, false);
+        when(memberRepository.findAllByStatusForUpdate(MemberStatus.ACTIVE))
+                .thenReturn(List.of(first, second));
+        when(rankingQueryRepository.findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        )).thenReturn(List.of());
+        when(rankingQueryRepository.findTimeAttackRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        )).thenReturn(List.of());
+
+        rankingSettlementService.settlePreviousDay();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<StockDailySnapshot>> snapshotsCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(stockDailySnapshotRepository).saveAll(
+                snapshotsCaptor.capture()
+        );
+        verify(stockDailySnapshotRepository).flush();
+
+        assertThat(snapshotsCaptor.getValue())
+                .extracting(
+                        snapshot -> snapshot.getMember().getMemberId(),
+                        StockDailySnapshot::getSnapshotDate,
+                        StockDailySnapshot::getStockValue
+                )
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                1L, YESTERDAY, new java.math.BigDecimal("300.00")
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                2L, YESTERDAY, new java.math.BigDecimal("200.00")
+                        )
+                );
+
+        verify(transactionRetryExecutor, times(2)).execute(any());
+        var order = inOrder(
+                stockDailySnapshotRepository,
+                rankingQueryRepository
+        );
+        order.verify(stockDailySnapshotRepository).flush();
+        order.verify(rankingQueryRepository).findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        );
+    }
+
+    @Test
+    @DisplayName("전날 스냅샷이 이미 있으면 값을 덮어쓰지 않고 기존 값으로 재정산한다")
+    void reusesExistingStockSnapshots() {
+        when(stockDailySnapshotRepository.existsBySnapshotDate(YESTERDAY))
+                .thenReturn(true);
+        when(rankingQueryRepository.findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        )).thenReturn(List.of());
+        when(rankingQueryRepository.findTimeAttackRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        )).thenReturn(List.of());
+
+        rankingSettlementService.settlePreviousDay();
+
+        verify(memberRepository, never())
+                .findAllByStatusForUpdate(any());
+        verify(stockDailySnapshotRepository, never()).saveAll(any());
+        verify(stockDailySnapshotRepository, never()).flush();
+        verify(rankingQueryRepository).findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        );
+    }
+
+    @Test
+    @DisplayName("스냅샷 저장이 실패하면 보상 정산을 실행하지 않는다")
+    void doesNotSettleWhenSnapshotCaptureFails() {
+        Member member = activeMemberWithStock(1L, "300.00");
+        when(stockDailySnapshotRepository.existsBySnapshotDate(YESTERDAY))
+                .thenReturn(false, false);
+        when(memberRepository.findAllByStatusForUpdate(MemberStatus.ACTIVE))
+                .thenReturn(List.of(member));
+        doThrow(new RuntimeException("스냅샷 저장 실패"))
+                .when(stockDailySnapshotRepository)
+                .flush();
+
+        assertThatThrownBy(rankingSettlementService::settlePreviousDay)
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("스냅샷 저장 실패");
+
+        verifyNoInteractions(rankingQueryRepository);
+        verifyNoInteractions(fishService);
         verify(transactionRetryExecutor).execute(any());
     }
 
@@ -158,7 +265,9 @@ class RankingSettlementServiceTest {
         Member firstMember = activeMember(1L);
         Member tiedMember = activeMember(2L);
 
-        when(rankingQueryRepository.findStockRewardTargets(REWARD_MAX_RANK))
+        when(rankingQueryRepository.findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        ))
                 .thenReturn(List.of(first, tied));
         when(rankingQueryRepository.findTimeAttackRewardTargets(
                 YESTERDAY, REWARD_MAX_RANK
@@ -190,7 +299,9 @@ class RankingSettlementServiceTest {
         RankingWinnerRow winner = winner(1L, 1L);
         Member member = activeMember(1L);
 
-        when(rankingQueryRepository.findStockRewardTargets(REWARD_MAX_RANK))
+        when(rankingQueryRepository.findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        ))
                 .thenReturn(List.of(winner));
         when(rankingQueryRepository.findTimeAttackRewardTargets(
                 YESTERDAY, REWARD_MAX_RANK
@@ -215,7 +326,9 @@ class RankingSettlementServiceTest {
         RankingWinnerRow inactive = winner(2L, 2L);
         Member inactiveMember = mock(Member.class);
 
-        when(rankingQueryRepository.findStockRewardTargets(REWARD_MAX_RANK))
+        when(rankingQueryRepository.findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        ))
                 .thenReturn(List.of(missing, inactive));
         when(rankingQueryRepository.findTimeAttackRewardTargets(
                 YESTERDAY, REWARD_MAX_RANK
@@ -239,7 +352,9 @@ class RankingSettlementServiceTest {
         RankingWinnerRow timeAttackWinner = winner(1L, 2L);
         Member member = activeMember(1L);
 
-        when(rankingQueryRepository.findStockRewardTargets(REWARD_MAX_RANK))
+        when(rankingQueryRepository.findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        ))
                 .thenReturn(List.of(stockWinner));
         when(rankingQueryRepository.findTimeAttackRewardTargets(
                 YESTERDAY, REWARD_MAX_RANK
@@ -309,6 +424,13 @@ class RankingSettlementServiceTest {
         Member member = mock(Member.class);
         lenient().when(member.getMemberId()).thenReturn(memberId);
         lenient().when(member.getStatus()).thenReturn(MemberStatus.ACTIVE);
+        return member;
+    }
+
+    private Member activeMemberWithStock(Long memberId, String stock) {
+        Member member = activeMember(memberId);
+        lenient().when(member.getCurrentStock())
+                .thenReturn(new java.math.BigDecimal(stock));
         return member;
     }
 }
