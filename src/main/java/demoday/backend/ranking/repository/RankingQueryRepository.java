@@ -1,10 +1,7 @@
 package demoday.backend.ranking.repository;
 
 import demoday.backend.member.domain.Member;
-import demoday.backend.ranking.repository.projection.StockRankingRow;
-import demoday.backend.ranking.repository.projection.StockRankingStatsRow;
-import demoday.backend.ranking.repository.projection.TimeAttackRankingRow;
-import demoday.backend.ranking.repository.projection.TimeAttackRankingStatsRow;
+import demoday.backend.ranking.repository.projection.*;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
@@ -221,5 +218,73 @@ public interface RankingQueryRepository
     findTimeAttackRankingStats(
             @Param("rankingDate")
             LocalDate rankingDate
+    );
+
+    @Query(
+            value = /* language=MySQL */ """
+                WITH ranked AS (
+                    SELECT
+                        m.member_id AS memberId,
+                        RANK() OVER (
+                            ORDER BY m.current_stock DESC
+                        ) AS rankingPosition
+                    FROM member m
+                    WHERE m.status = 'ACTIVE'
+                )
+                SELECT
+                    memberId,
+                    rankingPosition
+                FROM ranked
+                WHERE rankingPosition BETWEEN 1 AND :maxRank
+                ORDER BY
+                    rankingPosition ASC,
+                    memberId ASC
+                """,
+            nativeQuery = true
+    )
+    List<RankingWinnerRow> findStockRewardTargets(
+            @Param("maxRank")
+            int maxRank
+    );
+
+    @Query(
+            value = /* language=MySQL */ """
+                WITH member_best AS (
+                    SELECT
+                        s.member_id AS memberId,
+                        MAX(s.correct_count) AS correctCount
+                    FROM time_attack_session s
+                    WHERE s.attempt_date = :rankingDate
+                      AND s.status = 'COMPLETED'
+                    GROUP BY s.member_id
+                ),
+                ranked AS (
+                    SELECT
+                        m.member_id AS memberId,
+                        RANK() OVER (
+                            ORDER BY b.correctCount DESC
+                        ) AS rankingPosition
+                    FROM member_best b
+                    JOIN member m
+                      ON m.member_id = b.memberId
+                    WHERE m.status = 'ACTIVE'
+                )
+                SELECT
+                    memberId,
+                    rankingPosition
+                FROM ranked
+                WHERE rankingPosition BETWEEN 1 AND :maxRank
+                ORDER BY
+                    rankingPosition ASC,
+                    memberId ASC
+                """,
+            nativeQuery = true
+    )
+    List<RankingWinnerRow> findTimeAttackRewardTargets(
+            @Param("rankingDate")
+            LocalDate rankingDate,
+
+            @Param("maxRank")
+            int maxRank
     );
 }
