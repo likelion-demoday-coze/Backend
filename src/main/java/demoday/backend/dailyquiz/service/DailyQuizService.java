@@ -601,7 +601,7 @@ public class DailyQuizService {
                                         )
                                 );
 
-                member.completeLearning(learnedYesterday);
+                member.completeLearning(learnedYesterday, now.toLocalDate());
             }
 
             // 원본 오답 개수 확인

@@ -40,6 +40,9 @@ public class Member {
     @Column(name = "current_streak", nullable = false)
     private Integer currentStreak;
 
+    @Column(name = "last_learning_date")
+    private LocalDate lastLearningDate;
+
     @Column(name = "last_attendance_reward_date")
     private LocalDate lastAttendanceRewardDate;
 
@@ -137,7 +140,12 @@ public class Member {
     }
 
     // 연속 학습일 변경
-    public void completeLearning(boolean continuedFromYesterday) {
+    public void completeLearning(boolean continuedFromYesterday, LocalDate learningDate) {
+        if (learningDate == null || (lastLearningDate != null && learningDate.isBefore(lastLearningDate))) {
+            throw new IllegalArgumentException("정규장 학습 완료 날짜가 올바르지 않습니다.");
+        }
+        if (learningDate.equals(lastLearningDate)) return;
+        lastLearningDate = learningDate;
         if (continuedFromYesterday) {
             currentStreak++;
             return;
