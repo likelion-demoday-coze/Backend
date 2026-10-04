@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -306,6 +307,11 @@ class RankingQueryRepositoryMySqlTest {
     ) {
         Member member = Member.create(kakaoUserId, nickname);
         member.changeStock(new BigDecimal(stock));
+        ReflectionTestUtils.setField(
+                member,
+                "createdAt",
+                RANKING_DATE.minusDays(1).atStartOfDay()
+        );
         return memberRepository.save(member);
     }
 
