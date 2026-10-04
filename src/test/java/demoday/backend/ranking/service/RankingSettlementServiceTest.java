@@ -13,6 +13,7 @@ import demoday.backend.ranking.domain.RankingReward;
 import demoday.backend.ranking.repository.RankingQueryRepository;
 import demoday.backend.ranking.repository.RankingRewardRepository;
 import demoday.backend.ranking.repository.projection.RankingWinnerRow;
+import demoday.backend.ranking.repository.projection.StockClosingValueRow;
 import demoday.backend.stock.domain.StockDailySnapshot;
 import demoday.backend.stock.repository.StockDailySnapshotRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -163,13 +164,24 @@ class RankingSettlementServiceTest {
     @Test
     @DisplayName("전날 정산 전에 활성 회원의 마감 주가 스냅샷을 별도 트랜잭션으로 저장한다")
     void capturesStockSnapshotsBeforeSettlement() {
-        Member first = activeMemberWithStock(1L, "300.00");
-        Member second = activeMemberWithStock(2L, "200.00");
+        Member first = activeMemberWithStock(1L, "999.00");
+        Member second = activeMemberWithStock(2L, "888.00");
+        StockClosingValueRow firstClosing = closingValue(1L, "300.00");
+        StockClosingValueRow secondClosing = closingValue(2L, "200.00");
 
         when(stockDailySnapshotRepository.existsBySnapshotDate(YESTERDAY))
-                .thenReturn(false, false);
-        when(memberRepository.findAllByStatusForUpdate(MemberStatus.ACTIVE))
+                .thenReturn(false);
+        when(memberRepository.findAllByStatusAndCreatedBeforeForUpdate(
+                MemberStatus.ACTIVE,
+                LocalDate.of(2026, 10, 3).atStartOfDay()
+        ))
                 .thenReturn(List.of(first, second));
+        when(rankingQueryRepository.findStockClosingValues(
+                LocalDate.of(2026, 10, 3).atStartOfDay()
+        )).thenReturn(List.of(
+                firstClosing,
+                secondClosing
+        ));
         when(rankingQueryRepository.findStockRewardTargets(
                 YESTERDAY, REWARD_MAX_RANK
         )).thenReturn(List.of());
@@ -204,8 +216,17 @@ class RankingSettlementServiceTest {
 
         verify(transactionRetryExecutor, times(2)).execute(any());
         var order = inOrder(
+                memberRepository,
                 stockDailySnapshotRepository,
                 rankingQueryRepository
+        );
+        order.verify(memberRepository)
+                .findAllByStatusAndCreatedBeforeForUpdate(
+                        MemberStatus.ACTIVE,
+                        LocalDate.of(2026, 10, 3).atStartOfDay()
+                );
+        order.verify(rankingQueryRepository).findStockClosingValues(
+                LocalDate.of(2026, 10, 3).atStartOfDay()
         );
         order.verify(stockDailySnapshotRepository).flush();
         order.verify(rankingQueryRepository).findStockRewardTargets(
@@ -227,8 +248,13 @@ class RankingSettlementServiceTest {
 
         rankingSettlementService.settlePreviousDay();
 
-        verify(memberRepository, never())
-                .findAllByStatusForUpdate(any());
+        verify(memberRepository)
+                .findAllByStatusAndCreatedBeforeForUpdate(
+                        MemberStatus.ACTIVE,
+                        LocalDate.of(2026, 10, 3).atStartOfDay()
+                );
+        verify(rankingQueryRepository, never())
+                .findStockClosingValues(any());
         verify(stockDailySnapshotRepository, never()).saveAll(any());
         verify(stockDailySnapshotRepository, never()).flush();
         verify(rankingQueryRepository).findStockRewardTargets(
@@ -240,10 +266,17 @@ class RankingSettlementServiceTest {
     @DisplayName("스냅샷 저장이 실패하면 보상 정산을 실행하지 않는다")
     void doesNotSettleWhenSnapshotCaptureFails() {
         Member member = activeMemberWithStock(1L, "300.00");
+        StockClosingValueRow closing = closingValue(1L, "300.00");
         when(stockDailySnapshotRepository.existsBySnapshotDate(YESTERDAY))
-                .thenReturn(false, false);
-        when(memberRepository.findAllByStatusForUpdate(MemberStatus.ACTIVE))
+                .thenReturn(false);
+        when(memberRepository.findAllByStatusAndCreatedBeforeForUpdate(
+                MemberStatus.ACTIVE,
+                LocalDate.of(2026, 10, 3).atStartOfDay()
+        ))
                 .thenReturn(List.of(member));
+        when(rankingQueryRepository.findStockClosingValues(
+                LocalDate.of(2026, 10, 3).atStartOfDay()
+        )).thenReturn(List.of(closing));
         doThrow(new RuntimeException("스냅샷 저장 실패"))
                 .when(stockDailySnapshotRepository)
                 .flush();
@@ -252,7 +285,13 @@ class RankingSettlementServiceTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("스냅샷 저장 실패");
 
-        verifyNoInteractions(rankingQueryRepository);
+        verify(rankingQueryRepository).findStockClosingValues(
+                LocalDate.of(2026, 10, 3).atStartOfDay()
+        );
+        verify(rankingQueryRepository, never())
+                .findStockRewardTargets(any(), anyInt());
+        verify(rankingQueryRepository, never())
+                .findTimeAttackRewardTargets(any(), anyInt());
         verifyNoInteractions(fishService);
         verify(transactionRetryExecutor).execute(any());
     }
@@ -432,5 +471,16 @@ class RankingSettlementServiceTest {
         lenient().when(member.getCurrentStock())
                 .thenReturn(new java.math.BigDecimal(stock));
         return member;
+    }
+
+    private StockClosingValueRow closingValue(
+            Long memberId,
+            String stock
+    ) {
+        StockClosingValueRow row = mock(StockClosingValueRow.class);
+        lenient().when(row.getMemberId()).thenReturn(memberId);
+        lenient().when(row.getClosingStock())
+                .thenReturn(new java.math.BigDecimal(stock));
+        return row;
     }
 }

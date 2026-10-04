@@ -13,6 +13,7 @@ import demoday.backend.ranking.domain.RankingReward;
 import demoday.backend.ranking.repository.RankingQueryRepository;
 import demoday.backend.ranking.repository.RankingRewardRepository;
 import demoday.backend.ranking.repository.projection.RankingWinnerRow;
+import demoday.backend.ranking.repository.projection.StockClosingValueRow;
 import demoday.backend.stock.domain.StockDailySnapshot;
 import demoday.backend.stock.repository.StockDailySnapshotRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +21,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static demoday.backend.ranking.code.RankingPolicy.KST;
 import static demoday.backend.ranking.code.RankingPolicy.REWARD_FISH_AMOUNT;
@@ -55,26 +60,39 @@ public class RankingSettlementService {
     ) {
         transactionRetryExecutor.execute(
                 () -> {
-                    if (stockDailySnapshotRepository
-                            .existsBySnapshotDate(rankingDate)) {
-                        return null;
-                    }
+                    LocalDateTime closedAt = rankingDate
+                            .plusDays(1)
+                            .atStartOfDay();
 
                     List<Member> members = memberRepository
-                            .findAllByStatusForUpdate(MemberStatus.ACTIVE);
+                            .findAllByStatusAndCreatedBeforeForUpdate(
+                                    MemberStatus.ACTIVE,
+                                    closedAt
+                            );
 
-                    // 여러 서버가 동시에 실행된 경우 회원 잠금 획득 후 다시 확인
+                    // 회원 잠금으로 주가 변경과 다중 서버의 스냅샷 생성을 직렬화한 뒤 확인
                     if (stockDailySnapshotRepository
                             .existsBySnapshotDate(rankingDate)) {
                         return null;
                     }
 
                     if (!members.isEmpty()) {
+                        Map<Long, StockClosingValueRow> closingValues =
+                                rankingQueryRepository
+                                        .findStockClosingValues(closedAt)
+                                        .stream()
+                                        .collect(Collectors.toMap(
+                                                StockClosingValueRow::getMemberId,
+                                                Function.identity()
+                                        ));
+
                         List<StockDailySnapshot> snapshots = members.stream()
                                 .map(member -> StockDailySnapshot.create(
                                         member,
                                         rankingDate,
-                                        member.getCurrentStock()
+                                        closingValues
+                                                .get(member.getMemberId())
+                                                .getClosingStock()
                                 ))
                                 .toList();
 

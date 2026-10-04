@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
 
@@ -26,9 +27,11 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             SELECT m
             FROM Member m
             WHERE m.status = :status
+              AND (m.createdAt IS NULL OR m.createdAt < :closedAt)
             ORDER BY m.memberId
             """)
-    List<Member> findAllByStatusForUpdate(
-            @Param("status") MemberStatus status
+    List<Member> findAllByStatusAndCreatedBeforeForUpdate(
+            @Param("status") MemberStatus status,
+            @Param("closedAt") LocalDateTime closedAt
     );
 }

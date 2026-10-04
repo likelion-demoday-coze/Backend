@@ -7,6 +7,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -93,6 +94,34 @@ public interface RankingQueryRepository
             nativeQuery = true
     )
     StockRankingStatsRow findStockRankingStats();
+
+    @Query(
+            value = /* language=MySQL */ """
+                    SELECT
+                        m.member_id AS memberId,
+                        COALESCE(
+                            (
+                                SELECT sc.stock_before
+                                FROM stock_change sc
+                                WHERE sc.member_id = m.member_id
+                                  AND sc.created_at >= :closedAt
+                                ORDER BY
+                                    sc.created_at ASC,
+                                    sc.stock_change_id ASC
+                                LIMIT 1
+                            ),
+                            m.current_stock
+                        ) AS closingStock
+                    FROM member m
+                    WHERE m.status = 'ACTIVE'
+                      AND (m.created_at IS NULL OR m.created_at < :closedAt)
+                    ORDER BY m.member_id ASC
+                    """,
+            nativeQuery = true
+    )
+    List<StockClosingValueRow> findStockClosingValues(
+            @Param("closedAt") LocalDateTime closedAt
+    );
 
     @Query(
             value = /* language=MySQL */ """

@@ -8,6 +8,9 @@ import demoday.backend.ranking.repository.projection.StockRankingStatsRow;
 import demoday.backend.ranking.repository.projection.TimeAttackRankingRow;
 import demoday.backend.ranking.repository.projection.TimeAttackRankingStatsRow;
 import demoday.backend.stock.domain.StockDailySnapshot;
+import demoday.backend.stock.domain.StockChange;
+import demoday.backend.stock.code.StockChangeType;
+import demoday.backend.stock.repository.StockChangeRepository;
 import demoday.backend.stock.repository.StockDailySnapshotRepository;
 import demoday.backend.timeattack.domain.TimeAttackSession;
 import demoday.backend.timeattack.repository.TimeAttackSessionRepository;
@@ -60,6 +63,7 @@ class RankingQueryRepositoryMySqlTest {
     @Autowired MemberRepository memberRepository;
     @Autowired TimeAttackSessionRepository timeAttackSessionRepository;
     @Autowired StockDailySnapshotRepository stockDailySnapshotRepository;
+    @Autowired StockChangeRepository stockChangeRepository;
 
     private Member first;
     private Member second;
@@ -110,6 +114,49 @@ class RankingQueryRepositoryMySqlTest {
                 rankingQueryRepository.findStockRankingStats();
         assertThat(stats.getTotalMemberCount()).isEqualTo(4L);
         assertThat(stats.getAverageStock()).isEqualByComparingTo("275.00");
+    }
+
+    @Test
+    @DisplayName("지연 실행 시 자정 이후 첫 변경 직전 주가를 전날 마감값으로 복원한다")
+    void reconstructsClosingStockFromFirstChangeAfterMidnight() {
+        LocalDateTime closedAt = RANKING_DATE.plusDays(1).atStartOfDay();
+
+        stockChangeRepository.save(StockChange.create(
+                first,
+                StockChangeType.ADMIN_ADJUSTMENT,
+                new BigDecimal("400.00"),
+                new BigDecimal("250.00"),
+                null,
+                "ranking-closing-first",
+                closedAt.plusMinutes(2)
+        ));
+        first.changeStock(new BigDecimal("250.00"));
+
+        stockChangeRepository.save(StockChange.create(
+                first,
+                StockChangeType.ADMIN_ADJUSTMENT,
+                new BigDecimal("250.00"),
+                new BigDecimal("350.00"),
+                null,
+                "ranking-closing-second",
+                closedAt.plusMinutes(5)
+        ));
+        first.changeStock(new BigDecimal("350.00"));
+        memberRepository.flush();
+
+        var rows = rankingQueryRepository.findStockClosingValues(closedAt);
+
+        assertThat(rows)
+                .filteredOn(row -> row.getMemberId().equals(first.getMemberId()))
+                .singleElement()
+                .extracting(row -> row.getClosingStock())
+                .isEqualTo(new BigDecimal("400.00"));
+
+        assertThat(rows)
+                .filteredOn(row -> row.getMemberId().equals(second.getMemberId()))
+                .singleElement()
+                .extracting(row -> row.getClosingStock())
+                .isEqualTo(new BigDecimal("300.00"));
     }
 
     @Test
