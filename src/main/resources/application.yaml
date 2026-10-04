@@ -42,6 +42,8 @@ springdoc:
 app:
   frontend-base-url: ${FRONTEND_BASE_URL}
   frontend-allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
+  ranking:
+    settlement-start-date: ${RANKING_SETTLEMENT_START_DATE:2026-10-31}
 
 server:
   servlet:

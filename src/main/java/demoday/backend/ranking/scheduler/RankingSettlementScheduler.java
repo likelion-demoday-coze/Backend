@@ -1,33 +1,59 @@
 package demoday.backend.ranking.scheduler;
 
 import demoday.backend.ranking.service.RankingSettlementService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RankingSettlementScheduler {
 
     private final RankingSettlementService rankingSettlementService;
+    private final LocalDate settlementStartDate;
 
-    // 매일 00:00 KST에 전날 랭킹을 확정하고 보상을 지급
-    // 주가 랭킹은 스트릭 미학습에 따른 20% 하락이 적용되기 전에 조회
+    public RankingSettlementScheduler(
+            RankingSettlementService rankingSettlementService,
+            @Value("${app.ranking.settlement-start-date:2026-10-31}")
+            String settlementStartDate
+    ) {
+        this.rankingSettlementService = rankingSettlementService;
+        this.settlementStartDate = LocalDate.parse(
+                settlementStartDate
+        );
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void settleOnStartup() {
+        settlePendingRankings("서버 시작");
+    }
+
+    // 매일 00:00 KST에 어제까지 남은 미정산 날짜를 재처리
     @Scheduled(
             cron = "0 0 0 * * *",
             zone = "Asia/Seoul"
     )
-    public void settlePreviousDayRanking() {
-        log.info("전날 랭킹 정산을 시작합니다.");
+    public void settleAtMidnight() {
+        settlePendingRankings("자정 스케줄");
+    }
+
+    private void settlePendingRankings(String trigger) {
+        log.info("랭킹 미정산 날짜 처리를 시작합니다. trigger={}", trigger);
 
         try {
-            rankingSettlementService.settlePreviousDay();
-            log.info("전날 랭킹 정산을 완료했습니다.");
+            rankingSettlementService.settlePendingDates(
+                    settlementStartDate
+            );
+            log.info("랭킹 미정산 날짜 처리를 완료했습니다. trigger={}", trigger);
         } catch (Exception exception) {
             log.error(
-                    "전날 랭킹 정산 중 오류가 발생했습니다.",
+                    "랭킹 미정산 날짜 처리 중 오류가 발생했습니다. trigger={}",
+                    trigger,
                     exception
             );
         }

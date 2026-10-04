@@ -10,8 +10,10 @@ import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.ranking.code.RankingErrorCode;
 import demoday.backend.ranking.code.RankingType;
 import demoday.backend.ranking.domain.RankingReward;
+import demoday.backend.ranking.domain.RankingSettlement;
 import demoday.backend.ranking.repository.RankingQueryRepository;
 import demoday.backend.ranking.repository.RankingRewardRepository;
+import demoday.backend.ranking.repository.RankingSettlementRepository;
 import demoday.backend.ranking.repository.projection.RankingWinnerRow;
 import demoday.backend.ranking.repository.projection.StockClosingValueRow;
 import demoday.backend.stock.domain.StockDailySnapshot;
@@ -53,6 +55,7 @@ class RankingSettlementServiceTest {
 
     @Mock RankingQueryRepository rankingQueryRepository;
     @Mock RankingRewardRepository rankingRewardRepository;
+    @Mock RankingSettlementRepository rankingSettlementRepository;
     @Mock MemberRepository memberRepository;
     @Mock StockDailySnapshotRepository stockDailySnapshotRepository;
     @Mock FishService fishService;
@@ -66,6 +69,7 @@ class RankingSettlementServiceTest {
         rankingSettlementService = new RankingSettlementService(
                 rankingQueryRepository,
                 rankingRewardRepository,
+                rankingSettlementRepository,
                 memberRepository,
                 stockDailySnapshotRepository,
                 fishService,
@@ -82,6 +86,10 @@ class RankingSettlementServiceTest {
         lenient().when(stockDailySnapshotRepository
                 .existsBySnapshotDate(YESTERDAY))
                 .thenReturn(true);
+
+        lenient().when(rankingSettlementRepository
+                .existsByRankingDate(any(LocalDate.class)))
+                .thenReturn(false);
 
         lenient().when(rankingRewardRepository.save(any(RankingReward.class)))
                 .thenAnswer(invocation -> {
@@ -159,6 +167,67 @@ class RankingSettlementServiceTest {
                 "RANKING_REWARD:TIME_ATTACK:2026-10-02:2"
         );
         verify(transactionRetryExecutor, times(2)).execute(any());
+        verify(rankingSettlementRepository).save(
+                argThat(settlement ->
+                        settlement.getRankingDate().equals(YESTERDAY)
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("운영 시작일부터 어제까지 완료 기록이 없는 날짜만 오래된 순서로 정산한다")
+    void settlesPendingDatesInOrder() {
+        LocalDate startDate = LocalDate.of(2026, 9, 30);
+        LocalDate completedDate = LocalDate.of(2026, 10, 1);
+
+        when(rankingSettlementRepository
+                .findAllByRankingDateBetweenOrderByRankingDateAsc(
+                        startDate,
+                        YESTERDAY
+                ))
+                .thenReturn(List.of(
+                        RankingSettlement.complete(
+                                completedDate,
+                                java.time.LocalDateTime.of(
+                                        2026, 10, 2, 0, 0
+                                )
+                        )
+                ));
+
+        rankingSettlementService.settlePendingDates(startDate);
+
+        var order = inOrder(rankingQueryRepository);
+        order.verify(rankingQueryRepository).findStockRewardTargets(
+                LocalDate.of(2026, 9, 30),
+                REWARD_MAX_RANK
+        );
+        order.verify(rankingQueryRepository).findStockRewardTargets(
+                YESTERDAY,
+                REWARD_MAX_RANK
+        );
+
+        verify(rankingQueryRepository, never()).findStockRewardTargets(
+                completedDate,
+                REWARD_MAX_RANK
+        );
+        verify(rankingSettlementRepository, times(2))
+                .save(any(RankingSettlement.class));
+    }
+
+    @Test
+    @DisplayName("운영 시작일이 어제보다 미래이면 정산을 실행하지 않는다")
+    void ignoresSettlementStartDateAfterYesterday() {
+        rankingSettlementService.settlePendingDates(
+                LocalDate.of(2026, 10, 3)
+        );
+
+        verifyNoInteractions(rankingQueryRepository);
+        verify(rankingSettlementRepository, never())
+                .findAllByRankingDateBetweenOrderByRankingDateAsc(
+                        any(),
+                        any()
+                );
+        verify(transactionRetryExecutor, never()).execute(any());
     }
 
     @Test

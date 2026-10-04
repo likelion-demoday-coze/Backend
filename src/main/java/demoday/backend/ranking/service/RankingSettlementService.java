@@ -10,8 +10,10 @@ import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.ranking.code.RankingErrorCode;
 import demoday.backend.ranking.code.RankingType;
 import demoday.backend.ranking.domain.RankingReward;
+import demoday.backend.ranking.domain.RankingSettlement;
 import demoday.backend.ranking.repository.RankingQueryRepository;
 import demoday.backend.ranking.repository.RankingRewardRepository;
+import demoday.backend.ranking.repository.RankingSettlementRepository;
 import demoday.backend.ranking.repository.projection.RankingWinnerRow;
 import demoday.backend.ranking.repository.projection.StockClosingValueRow;
 import demoday.backend.stock.domain.StockDailySnapshot;
@@ -24,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -37,6 +40,7 @@ public class RankingSettlementService {
 
     private final RankingQueryRepository rankingQueryRepository;
     private final RankingRewardRepository rankingRewardRepository;
+    private final RankingSettlementRepository rankingSettlementRepository;
     private final MemberRepository memberRepository;
     private final StockDailySnapshotRepository stockDailySnapshotRepository;
     private final FishService fishService;
@@ -50,8 +54,43 @@ public class RankingSettlementService {
                         clock.withZone(KST)
                 ).minusDays(1);
 
-        captureStockSnapshots(rankingDate);
         settle(rankingDate);
+    }
+
+    // 운영 시작일부터 어제까지 완료 기록이 없는 날짜를 오래된 순서로 재처리
+    public void settlePendingDates(
+            LocalDate settlementStartDate
+    ) {
+        LocalDate yesterday = LocalDate.now(
+                clock.withZone(KST)
+        ).minusDays(1);
+
+        if (settlementStartDate == null) {
+            throw new ProjectException(
+                    RankingErrorCode.INVALID_SETTLEMENT_DATE
+            );
+        }
+
+        if (settlementStartDate.isAfter(yesterday)) {
+            return;
+        }
+
+        Set<LocalDate> completedDates = rankingSettlementRepository
+                .findAllByRankingDateBetweenOrderByRankingDateAsc(
+                        settlementStartDate,
+                        yesterday
+                )
+                .stream()
+                .map(RankingSettlement::getRankingDate)
+                .collect(Collectors.toSet());
+
+        for (LocalDate date = settlementStartDate;
+             !date.isAfter(yesterday);
+             date = date.plusDays(1)) {
+            if (!completedDates.contains(date)) {
+                settle(date);
+            }
+        }
     }
 
     // 보상 정산과 별도 트랜잭션으로 마감 주가를 먼저 확정해 정산 재시도에도 같은 값을 사용
@@ -113,10 +152,26 @@ public class RankingSettlementService {
                 rankingDate
         );
 
+        captureStockSnapshots(rankingDate);
+
         transactionRetryExecutor.execute(
                 () -> {
+                    if (rankingSettlementRepository
+                            .existsByRankingDate(rankingDate)) {
+                        return null;
+                    }
+
                     settleInTransaction(
                             rankingDate
+                    );
+
+                    rankingSettlementRepository.save(
+                            RankingSettlement.complete(
+                                    rankingDate,
+                                    LocalDateTime.now(
+                                            clock.withZone(KST)
+                                    )
+                            )
                     );
 
                     return null;

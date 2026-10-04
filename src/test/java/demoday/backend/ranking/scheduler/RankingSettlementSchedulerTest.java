@@ -18,15 +18,32 @@ class RankingSettlementSchedulerTest {
     @Mock
     RankingSettlementService rankingSettlementService;
 
-    @InjectMocks
-    RankingSettlementScheduler rankingSettlementScheduler;
+    private final java.time.LocalDate settlementStartDate =
+            java.time.LocalDate.of(2026, 10, 31);
+
+    private RankingSettlementScheduler scheduler() {
+        return new RankingSettlementScheduler(
+                rankingSettlementService,
+                settlementStartDate.toString()
+        );
+    }
 
     @Test
-    @DisplayName("스케줄러가 전날 랭킹 정산을 실행한다")
-    void settlePreviousDayRanking() {
-        rankingSettlementScheduler.settlePreviousDayRanking();
+    @DisplayName("자정 스케줄러가 미정산 날짜 처리를 실행한다")
+    void settleAtMidnight() {
+        scheduler().settleAtMidnight();
 
-        verify(rankingSettlementService).settlePreviousDay();
+        verify(rankingSettlementService)
+                .settlePendingDates(settlementStartDate);
+    }
+
+    @Test
+    @DisplayName("서버가 시작될 때 미정산 날짜 처리를 실행한다")
+    void settleOnStartup() {
+        scheduler().settleOnStartup();
+
+        verify(rankingSettlementService)
+                .settlePendingDates(settlementStartDate);
     }
 
     @Test
@@ -34,12 +51,13 @@ class RankingSettlementSchedulerTest {
     void catchesSettlementFailure() {
         doThrow(new RuntimeException("정산 실패"))
                 .when(rankingSettlementService)
-                .settlePreviousDay();
+                .settlePendingDates(settlementStartDate);
 
         assertThatCode(
-                rankingSettlementScheduler::settlePreviousDayRanking
+                scheduler()::settleAtMidnight
         ).doesNotThrowAnyException();
 
-        verify(rankingSettlementService).settlePreviousDay();
+        verify(rankingSettlementService)
+                .settlePendingDates(settlementStartDate);
     }
 }
