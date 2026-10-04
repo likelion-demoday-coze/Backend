@@ -23,3 +23,5 @@ spring:
 
 app:
   frontend-base-url: http://localhost:3000
+  ranking:
+    settlement-start-date: 2026-10-31

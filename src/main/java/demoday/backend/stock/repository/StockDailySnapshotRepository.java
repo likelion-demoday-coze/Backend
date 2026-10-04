@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface StockDailySnapshotRepository extends JpaRepository<StockDailySnapshot, Long> {
+
+    boolean existsBySnapshotDate(LocalDate snapshotDate);
+
     Optional<StockDailySnapshot> findFirstByMemberMemberIdOrderBySnapshotDateAsc(Long memberId);
 
     List<StockDailySnapshot> findAllByMemberMemberIdAndSnapshotDateBetweenOrderBySnapshotDateAsc(
