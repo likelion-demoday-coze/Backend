@@ -1,6 +1,5 @@
 package demoday.backend.timeattack.service;
 
-import demoday.backend.activity.code.LearningStatus;
 import demoday.backend.activity.domain.MemberDailyActivity;
 import demoday.backend.activity.repository.MemberDailyActivityRepository;
 import demoday.backend.fish.code.FishTransactionType;
@@ -442,45 +441,6 @@ public class TimeAttackService {
 
         // 60초가 지난 진행 중 세션만 정상 완료 가능
         session.complete(now);
-
-        if (!correctResults.isEmpty()) {
-            LocalDate learningDate =
-                    session.getAttemptDate();
-
-            MemberDailyActivity activity =
-                    memberDailyActivityRepository
-                            .findByMemberMemberIdAndActivityDate(
-                                    memberId,
-                                    learningDate
-                            )
-                            .orElseGet(() ->
-                                    MemberDailyActivity.create(
-                                            member,
-                                            learningDate
-                                    )
-                            );
-
-            // 같은 날 최초 학습 완료일 때만 연속 학습일을 갱신
-            boolean learningCompleted =
-                    activity.completeLearning(now);
-
-            if (learningCompleted) {
-                boolean learnedYesterday =
-                        memberDailyActivityRepository
-                                .existsByMemberMemberIdAndActivityDateAndLearningStatusIn(
-                                        memberId,
-                                        learningDate.minusDays(1),
-                                        List.of(
-                                                LearningStatus.COMPLETED,
-                                                LearningStatus.RECOVERED
-                                        )
-                                );
-
-                member.completeLearning(learnedYesterday);
-            }
-
-            memberDailyActivityRepository.save(activity);
-        }
 
         return createCompleteResponse(
                 session,
