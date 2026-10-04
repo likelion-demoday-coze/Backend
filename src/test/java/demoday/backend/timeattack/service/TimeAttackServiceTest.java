@@ -1,6 +1,5 @@
 package demoday.backend.timeattack.service;
 
-import demoday.backend.activity.code.LearningStatus;
 import demoday.backend.activity.domain.MemberDailyActivity;
 import demoday.backend.activity.repository.MemberDailyActivityRepository;
 import demoday.backend.fish.code.FishTransactionType;
@@ -337,32 +336,66 @@ class TimeAttackServiceTest {
     }
 
     @Test
-    @DisplayName("정상 종료하면 학습 완료와 최대 콤보를 반영한다")
-    void completeSession() {
+    @DisplayName("타임어택을 정상 종료해도 학습 완료와 연속 학습일은 변경하지 않는다")
+    void completeSessionDoesNotCompleteLearning() {
         Member member = member();
-        MemberDailyActivity activity = activity(member, LocalDate.now(KST));
-        TimeAttackSession session = session(member, LocalDateTime.now(KST).minusSeconds(61));
-        when(memberRepository.findByIdForUpdate(MEMBER_ID)).thenReturn(Optional.of(member));
-        when(timeAttackSessionRepository.findByIdAndMemberIdForUpdate(SESSION_ID, MEMBER_ID))
+        int streakBefore = member.getCurrentStreak();
+
+        TimeAttackSession session =
+                session(
+                        member,
+                        LocalDateTime.now(KST).minusSeconds(61)
+                );
+
+        when(memberRepository.findByIdForUpdate(MEMBER_ID))
+                .thenReturn(Optional.of(member));
+
+        when(timeAttackSessionRepository
+                .findByIdAndMemberIdForUpdate(
+                        SESSION_ID,
+                        MEMBER_ID
+                ))
                 .thenReturn(Optional.of(session));
-        when(timeAttackAnswerRepository.findCorrectResultsBySessionIdOrderByLatest(SESSION_ID))
-                .thenReturn(List.of(true, true, false, true));
-        when(memberDailyActivityRepository.findByMemberMemberIdAndActivityDate(
-                eq(MEMBER_ID), any(LocalDate.class)
-        )).thenReturn(Optional.of(activity));
-        when(memberDailyActivityRepository
-                .existsByMemberMemberIdAndActivityDateAndLearningStatusIn(
-                        eq(MEMBER_ID), any(LocalDate.class), anyCollection()
-                )).thenReturn(true);
+
+        when(timeAttackAnswerRepository
+                .findCorrectResultsBySessionIdOrderByLatest(
+                        SESSION_ID
+                ))
+                .thenReturn(
+                        List.of(
+                                true,
+                                true,
+                                false,
+                                true
+                        )
+                );
 
         TimeAttackCompleteResponse result =
-                timeAttackService.completeSession(MEMBER_ID, SESSION_ID);
+                timeAttackService.completeSession(
+                        MEMBER_ID,
+                        SESSION_ID
+                );
 
-        assertThat(result.status()).isEqualTo(TimeAttackStatus.COMPLETED);
+        assertThat(result.status())
+                .isEqualTo(TimeAttackStatus.COMPLETED);
         assertThat(result.totalAnsweredCount()).isEqualTo(4);
         assertThat(result.maxConsecutiveCorrectCount()).isEqualTo(2);
-        assertThat(activity.getLearningStatus()).isEqualTo(LearningStatus.COMPLETED);
-        assertThat(member.getCurrentStreak()).isEqualTo(1);
+        assertThat(member.getCurrentStreak()).isEqualTo(streakBefore);
+
+        verify(memberDailyActivityRepository, never())
+                .findByMemberMemberIdAndActivityDate(
+                        anyLong(),
+                        any(LocalDate.class)
+                );
+
+        verify(memberDailyActivityRepository, never())
+                .existsByMemberMemberIdAndActivityDateAndLearningStatusIn(
+                        anyLong(),
+                        any(LocalDate.class),
+                        anyCollection()
+                );
+
+        verify(memberDailyActivityRepository, never()).save(any());
     }
 
     @Test
