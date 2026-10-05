@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.regex.Pattern;
 
 @Getter
 @Entity
@@ -13,6 +14,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Product {
+
+    private static final Pattern PRODUCT_NAME_PATTERN = Pattern.compile(
+            "^[가-힣A-Za-z0-9 ()\\[\\]+\\-_=,./]+$"
+    );
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -70,7 +75,17 @@ public class Product {
             LocalDateTime saleEndedAt,
             Boolean active
     ) {
-        validateAmount(price, fishAmount);
+        validateProduct(
+                productCode,
+                productType,
+                name,
+                price,
+                fishAmount,
+                passDurationHours,
+                saleStartedAt,
+                saleEndedAt,
+                active
+        );
 
         return Product.builder()
                 .productCode(productCode)
@@ -85,17 +100,76 @@ public class Product {
                 .build();
     }
 
-    private static void validateAmount(Integer price, Integer fishAmount) {
+    private static void validateProduct(
+            String productCode,
+            ProductType productType,
+            String name,
+            Integer price,
+            Integer fishAmount,
+            Integer passDurationHours,
+            LocalDateTime saleStartedAt,
+            LocalDateTime saleEndedAt,
+            Boolean active
+    ) {
+        if (productCode == null || productCode.isBlank()
+                || productCode.length() > 50) {
+            throw new IllegalArgumentException(
+                    "상품 코드는 1자 이상 50자 이하여야 합니다."
+            );
+        }
+
+        if (productType == null) {
+            throw new IllegalArgumentException("상품 유형은 필수입니다.");
+        }
+
+        if (name == null || name.isBlank() || name.length() > 50
+                || !PRODUCT_NAME_PATTERN.matcher(name).matches()) {
+            throw new IllegalArgumentException(
+                    "상품명은 코페이 허용 문자로 구성된 50자 이하여야 합니다."
+            );
+        }
+
         if (price == null || price < 100) {
             throw new IllegalArgumentException(
                     "결제 금액은 100원 이상이어야 합니다."
             );
         }
 
-        if (fishAmount != null && fishAmount < 0) {
+        if (productType == ProductType.FISH) {
+            if (fishAmount == null || fishAmount <= 0) {
+                throw new IllegalArgumentException(
+                        "생선 상품의 지급 수량은 1 이상이어야 합니다."
+                );
+            }
+            if (passDurationHours != null) {
+                throw new IllegalArgumentException(
+                        "생선 상품에는 패스 기간을 설정할 수 없습니다."
+                );
+            }
+        }
+
+        if (productType == ProductType.PASS) {
+            if (passDurationHours == null || passDurationHours <= 0) {
+                throw new IllegalArgumentException(
+                        "패스 상품의 유효 시간은 1시간 이상이어야 합니다."
+                );
+            }
+            if (fishAmount != null) {
+                throw new IllegalArgumentException(
+                        "패스 상품에는 생선 지급 수량을 설정할 수 없습니다."
+                );
+            }
+        }
+
+        if (saleStartedAt != null && saleEndedAt != null
+                && !saleEndedAt.isAfter(saleStartedAt)) {
             throw new IllegalArgumentException(
-                    "지급 생선 수량은 0 이상이어야 합니다."
+                    "판매 종료 시각은 시작 시각보다 뒤여야 합니다."
             );
+        }
+
+        if (active == null) {
+            throw new IllegalArgumentException("상품 활성 여부는 필수입니다.");
         }
     }
 

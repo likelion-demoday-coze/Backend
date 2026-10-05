@@ -37,11 +37,7 @@ public record PaymentOrderResponse(
 
         @Schema(
                 description = "결제 수단",
-                allowableValues = {
-                        "card",
-                        "easyPay",
-                        "unified"
-                },
+                allowableValues = "card",
                 example = "card"
         )
         String payMethod,

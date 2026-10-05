@@ -27,7 +27,7 @@ public record KorpayProperties(
         String returnUrl,
 
         @NotBlank
-        @Pattern(regexp = "card|easyPay|unified")
+        @Pattern(regexp = "card")
         String payMethod,
 
         @NotNull
