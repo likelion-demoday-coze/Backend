@@ -85,6 +85,8 @@ class RankingSettlementServiceTest {
                     return operation.get();
                 });
 
+        lenient().when(memberRepository.countMissingStockSnapshots(any(), any(), any())).thenReturn(1L);
+
         lenient().when(rankingSettlementRepository
                 .existsByRankingDate(any(LocalDate.class)))
                 .thenReturn(false);
@@ -302,11 +304,8 @@ class RankingSettlementServiceTest {
     @Test
     @DisplayName("전날 스냅샷이 이미 있으면 값을 덮어쓰지 않고 기존 값으로 재정산한다")
     void reusesExistingStockSnapshots() {
-        Member existingMember = activeMemberWithStock(1L, "300.00");
-        when(memberRepository.findAllByStatusAndCreatedBeforeForUpdate(MemberStatus.ACTIVE,
-                LocalDate.of(2026, 10, 3).atStartOfDay())).thenReturn(List.of(existingMember));
-        when(stockDailySnapshotRepository.findAllBySnapshotDate(YESTERDAY)).thenReturn(
-                List.of(StockDailySnapshot.create(existingMember, YESTERDAY, new java.math.BigDecimal("300.00"))));
+        when(memberRepository.countMissingStockSnapshots(MemberStatus.ACTIVE,
+                LocalDate.of(2026, 10, 3).atStartOfDay(), YESTERDAY)).thenReturn(0L);
         when(rankingQueryRepository.findStockRewardTargets(
                 YESTERDAY, REWARD_MAX_RANK
         )).thenReturn(List.of());
@@ -316,7 +315,7 @@ class RankingSettlementServiceTest {
 
         rankingSettlementService.settlePreviousDay();
 
-        verify(memberRepository)
+        verify(memberRepository, never())
                 .findAllByStatusAndCreatedBeforeForUpdate(
                         MemberStatus.ACTIVE,
                         LocalDate.of(2026, 10, 3).atStartOfDay()

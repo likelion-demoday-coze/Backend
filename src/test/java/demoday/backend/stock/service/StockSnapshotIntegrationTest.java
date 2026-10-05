@@ -81,6 +81,18 @@ class StockSnapshotIntegrationTest {
         assertThat(snapshots.findAllBySnapshotDate(DATE)).extracting(s -> s.getMember().getMemberId())
                 .containsExactlyInAnyOrder(first.getMemberId(), second.getMemberId());
     }
+    @Test void equalCountsDoNotHideMissingActiveMembers() {
+        Member withdrawn = member("2026-10-04T12:00:00", "150");
+        snapshots.saveAndFlush(StockDailySnapshot.create(withdrawn, DATE, new BigDecimal("150")));
+        jdbc.update("update member set status='WITHDRAWN' where member_id=?", withdrawn.getMemberId());
+        Member active = member("2026-10-04T12:00:00", "200");
+
+        // 대상 회원과 저장 행은 각각 1개지만, 대상 회원의 기록은 아직 없다.
+        assertThat(service.capture(DATE)).isEqualTo(1);
+        assertThat(value(active)).isEqualByComparingTo("200");
+        assertThat(value(withdrawn)).isEqualByComparingTo("150");
+        assertThat(service.capture(DATE)).isZero();
+    }
     @Test void rejectsTodayFutureAndNullDateWithoutWriting() {
         for (LocalDate date : new LocalDate[]{null, DATE.plusDays(1), DATE.plusDays(2)})
             assertThatThrownBy(() -> service.capture(date)).isInstanceOf(IllegalArgumentException.class);

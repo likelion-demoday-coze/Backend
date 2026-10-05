@@ -46,4 +46,20 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             @Param("status") MemberStatus status,
             @Param("closedAt") LocalDateTime closedAt
     );
+
+    // 개수만 비교하지 않고 실제 대상 회원의 스냅샷 누락 여부를 잠금 없이 확인한다.
+    @Query("""
+            SELECT COUNT(m) FROM Member m
+            WHERE m.status = :status
+              AND (m.createdAt IS NULL OR m.createdAt < :closedAt)
+              AND NOT EXISTS (
+                  SELECT s FROM StockDailySnapshot s
+                  WHERE s.member = m AND s.snapshotDate = :snapshotDate
+              )
+            """)
+    long countMissingStockSnapshots(
+            @Param("status") MemberStatus status,
+            @Param("closedAt") LocalDateTime closedAt,
+            @Param("snapshotDate") LocalDate snapshotDate
+    );
 }

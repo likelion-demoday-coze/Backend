@@ -29,8 +29,10 @@ public class StockSnapshotService {
     public int capture(LocalDate date) {
         if (date == null || !date.isBefore(LocalDate.now(clock.withZone(KST))))
             throw new IllegalArgumentException("스냅샷은 마감된 과거 날짜만 저장할 수 있습니다.");
+        var closedAt = date.plusDays(1).atStartOfDay();
+        // 완료된 날짜는 집계 조회만 수행하고 회원 잠금·엔티티 적재를 생략한다.
+        if (members.countMissingStockSnapshots(MemberStatus.ACTIVE, closedAt, date) == 0) return 0;
         return transactions.execute(() -> {
-            var closedAt = date.plusDays(1).atStartOfDay();
             // 모든 호출자가 같은 회원 ID 순서로 잠가 동시 생성·주가 변경과 직렬화한다.
             var eligible = members.findAllByStatusAndCreatedBeforeForUpdate(MemberStatus.ACTIVE, closedAt);
             var savedMemberIds = snapshots.findAllBySnapshotDate(date).stream()
