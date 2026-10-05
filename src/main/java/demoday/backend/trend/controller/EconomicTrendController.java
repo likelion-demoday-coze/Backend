@@ -3,6 +3,7 @@ package demoday.backend.trend.controller;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
 import demoday.backend.trend.dto.TodayTrendsResponse;
+import demoday.backend.trend.dto.TrendDetailResponse;
 import demoday.backend.trend.service.EconomicTrendService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,5 +24,12 @@ public class EconomicTrendController {
     public ApiResponse<TodayTrendsResponse> getToday(
             @Parameter(hidden = true) @AuthenticationPrincipal Long memberId) {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, economicTrendService.getToday(memberId));
+    }
+
+    @Operation(summary = "경제 트렌드 상세 조회", description = "세션 인증과 ROLE_MEMBER가 필요합니다. 최근 72시간 이내의 성공한 3개 콘텐츠 묶음에 속한 트렌드의 상세 요약·경제 용어·출처와 생성 기준 날짜를 반환합니다. 목록 조회 후 새 콘텐츠가 생성되어도 기존 콘텐츠가 제공 조건을 만족하면 조회할 수 있습니다. 없는 ID나 제공할 수 없는 콘텐츠는 404, 0 이하 ID는 400입니다. 조회는 외부 API를 호출하지 않습니다.")
+    @GetMapping("/{trendId}")
+    public ApiResponse<TrendDetailResponse> getDetail(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long trendId) {
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, economicTrendService.getDetail(memberId, trendId));
     }
 }

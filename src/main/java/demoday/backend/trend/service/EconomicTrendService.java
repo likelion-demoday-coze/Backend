@@ -23,14 +23,13 @@ public class EconomicTrendService {
     private final MemberRepository members;
     private final TrendGenerationRepository generations;
     private final EconomicTrendRepository trends;
+    private final EconomicTermRepository terms;
+    private final TrendReferenceRepository references;
     private final Clock clock;
 
     /** 외부 API 호출 없이, 최근 72시간의 완성된 성공 콘텐츠만 조회한다. */
     public TodayTrendsResponse getToday(Long memberId) {
-        if (memberId == null) throw new ProjectException(GeneralErrorCode.UNAUTHORIZED);
-        Member member = members.findById(memberId)
-                .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
-        if (member.getStatus() != MemberStatus.ACTIVE) throw new ProjectException(TrendErrorCode.INACTIVE_MEMBER);
+        validateMember(memberId);
         LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
         for (TrendGeneration generation : generations.findAllByStatusAndGenerationDateBetweenOrderByGenerationDateDesc(
                 TrendGenerationStatus.SUCCESS, now.minusHours(72), now)) {
@@ -44,5 +43,35 @@ public class EconomicTrendService {
         }
         return new TodayTrendsResponse(now.toLocalDate(), null, null, TrendContentStatus.PREPARING,
                 "경제 트렌드를 준비하고 있어요", List.of());
+    }
+
+    /** 목록과 같은 제공 조건을 적용하고 해당 트렌드의 용어·출처만 반환한다. */
+    public TrendDetailResponse getDetail(Long memberId, Long trendId) {
+        validateMember(memberId);
+        if (trendId == null || trendId <= 0) throw new ProjectException(GeneralErrorCode.BAD_REQUEST);
+        EconomicTrend trend = trends.findById(trendId)
+                .orElseThrow(() -> new ProjectException(TrendErrorCode.TREND_NOT_FOUND));
+        TrendGeneration generation = trend.getTrendGeneration();
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
+        if (generation.getStatus() != TrendGenerationStatus.SUCCESS
+                || generation.getGenerationDate().isBefore(now.minusHours(72))
+                || generation.getGenerationDate().isAfter(now)
+                || trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(
+                        generation.getTrendGenerationId()).size() != 3) {
+            throw new ProjectException(TrendErrorCode.TREND_NOT_FOUND);
+        }
+        return new TrendDetailResponse(trend.getEconomicTrendId(), generation.getGenerationDate().toLocalDate(),
+                generation.getGenerationDate(), trend.getDisplayOrder(), trend.getTitle(), trend.getSummary(),
+                terms.findAllByEconomicTrendEconomicTrendIdOrderByEconomicTermIdAsc(trendId)
+                        .stream().map(TrendDetailResponse.TermResponse::from).toList(),
+                references.findAllByEconomicTrendEconomicTrendIdOrderByTrendReferenceIdAsc(trendId)
+                        .stream().map(TrendDetailResponse.ReferenceResponse::from).toList());
+    }
+
+    private void validateMember(Long memberId) {
+        if (memberId == null) throw new ProjectException(GeneralErrorCode.UNAUTHORIZED);
+        Member member = members.findById(memberId)
+                .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
+        if (member.getStatus() != MemberStatus.ACTIVE) throw new ProjectException(TrendErrorCode.INACTIVE_MEMBER);
     }
 }
