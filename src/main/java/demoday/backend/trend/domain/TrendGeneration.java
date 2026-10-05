@@ -32,10 +32,37 @@ public class TrendGeneration {
     @Column(name = "last_error_type", length = 100)
     private String lastErrorType;
 
+    @Column(name = "last_attempt_slot")
+    private Integer lastAttemptSlot;
+
+    @Column(name = "lease_expires_at")
+    private LocalDateTime leaseExpiresAt;
+
+    /** 슬롯은 08:00=1, 08:05=2, 08:15=3, 08:30=4다. 실제 호출 횟수와 구분한다. */
+    public void beginAttempt(int slot, LocalDateTime leaseUntil) {
+        status = TrendGenerationStatus.PROCESSING;
+        attemptCount++;
+        lastAttemptSlot = slot;
+        leaseExpiresAt = leaseUntil;
+        lastErrorType = null;
+    }
+
+    public boolean ownsAttempt(int attempt, LocalDateTime now) {
+        return status == TrendGenerationStatus.PROCESSING && attemptCount == attempt
+                && leaseExpiresAt != null && now.isBefore(leaseExpiresAt);
+    }
+
+    public void failAttempt(String errorType) {
+        status = TrendGenerationStatus.FAILED;
+        lastErrorType = errorType;
+        leaseExpiresAt = null;
+    }
+
     public void completeSuccessfully() {
         if (status != TrendGenerationStatus.PROCESSING) throw new IllegalStateException("생성 중인 작업만 완료할 수 있습니다.");
         status = TrendGenerationStatus.SUCCESS;
         lastErrorType = null;
+        leaseExpiresAt = null;
     }
 
     public static TrendGeneration create(

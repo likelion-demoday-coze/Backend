@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
 public interface TrendGenerationRepository extends JpaRepository<TrendGeneration, Long> {
+    Optional<TrendGeneration> findByGenerationDate(LocalDateTime generationDate);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select g from TrendGeneration g where g.trendGenerationId = :id")
     Optional<TrendGeneration> findByIdForUpdate(@Param("id") Long id);

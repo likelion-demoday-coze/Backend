@@ -44,6 +44,9 @@ liner:
   timeout-seconds: ${LINER_TIMEOUT_SECONDS:120}
 
 app:
+  economic-trends:
+    enabled: ${ECONOMIC_TRENDS_ENABLED:false}
+    local-generate-on-startup: ${ECONOMIC_TRENDS_LOCAL_GENERATE_ON_STARTUP:false}
   frontend-base-url: ${FRONTEND_BASE_URL}
   frontend-allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
   ranking:
