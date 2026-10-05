@@ -22,7 +22,7 @@ public class MemberPass {
     private Long memberPassId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "member_id", nullable = false)
+    @JoinColumn(name = "member_id", nullable = false, unique = true)
     private Member member;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)

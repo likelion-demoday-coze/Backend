@@ -39,8 +39,7 @@ public class PaymentCallbackService {
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final PaymentRepository paymentRepository;
-    private final MemberPassRepository memberPassRepository;
-    private final FishService fishService;
+    private final PaymentFulfillmentService paymentFulfillmentService;
     private final KorpayClient korpayClient;
     private final KorpayProperties korpayProperties;
     private final TransactionTemplate transactionTemplate;
@@ -235,7 +234,10 @@ public class PaymentCallbackService {
             );
 
             // 결제 승인 저장과 상품 지급은 같은 트랜잭션
-            issueProduct(payment, approvedAt);
+            paymentFulfillmentService.fulfill(
+                    payment,
+                    approvedAt
+            );
 
             LocalDateTime completedAt =
                     LocalDateTime.now(clock)
