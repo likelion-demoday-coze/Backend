@@ -65,4 +65,10 @@ public class MemberItem {
         if (quantity > Integer.MAX_VALUE - amount) throw new ProjectException(StoreErrorCode.QUANTITY_OVERFLOW);
         quantity += amount;
     }
+
+    /** 회원 잠금을 가진 복구 업무에서 수량을 차감한다. */
+    public void useOne() {
+        if (quantity <= 0) throw new IllegalStateException("사용할 아이템이 없습니다.");
+        quantity--;
+    }
 }

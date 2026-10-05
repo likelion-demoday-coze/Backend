@@ -256,7 +256,8 @@ class AttendanceRewardIntegrationTest {
     static class MutableClock extends Clock {
         private final AtomicReference<Instant> instant;
         private final ZoneId zone;
-        MutableClock() { this(new AtomicReference<>(), ZoneOffset.UTC); }
+        // 서버 시작 작업도 시계를 사용하므로 @BeforeEach 이전부터 유효한 시각을 제공한다.
+        MutableClock() { this(new AtomicReference<>(Instant.parse("2026-09-29T15:00:00Z")), ZoneOffset.UTC); }
         private MutableClock(AtomicReference<Instant> instant, ZoneId zone) { this.instant = instant; this.zone = zone; }
         void set(String value) { instant.set(Instant.parse(value)); }
         @Override public ZoneId getZone() { return zone; }
