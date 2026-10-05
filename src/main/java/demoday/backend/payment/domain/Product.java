@@ -98,4 +98,16 @@ public class Product {
             );
         }
     }
+
+    public boolean isAvailableAt(LocalDateTime now) {
+        if (!Boolean.TRUE.equals(active)) {
+            return false;
+        }
+
+        if (saleStartedAt != null && now.isBefore(saleStartedAt)) {
+            return false;
+        }
+
+        return saleEndedAt == null || now.isBefore(saleEndedAt);
+    }
 }

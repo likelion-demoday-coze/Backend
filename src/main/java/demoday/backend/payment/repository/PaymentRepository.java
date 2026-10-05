@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Optional;
 
@@ -70,5 +71,12 @@ public interface PaymentRepository
     Optional<Payment> findByPaymentKeyForUpdate(
             @Param("paymentKey")
             String paymentKey
+    );
+
+    boolean existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThanEqual(
+            Long memberId,
+            ProductType productType,
+            Collection<PaymentStatus> statuses,
+            LocalDateTime requestedAt
     );
 }
