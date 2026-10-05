@@ -3,12 +3,10 @@ package demoday.backend.payment.controller;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
 import demoday.backend.global.exception.ProjectException;
-import demoday.backend.payment.dto.KorpayCallbackRequest;
-import demoday.backend.payment.dto.PaymentConfirmResultResponse;
-import demoday.backend.payment.dto.PaymentOrderRequest;
-import demoday.backend.payment.dto.PaymentOrderResponse;
+import demoday.backend.payment.dto.*;
 import demoday.backend.payment.service.PaymentCallbackService;
 import demoday.backend.payment.service.PaymentOrderService;
+import demoday.backend.payment.service.PaymentQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,11 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
@@ -36,6 +30,7 @@ public class PaymentController {
 
     private final PaymentOrderService paymentOrderService;
     private final PaymentCallbackService paymentCallbackService;
+    private final PaymentQueryService paymentQueryService;
 
     @Value("${app.frontend-base-url}")
     private String frontendBaseUrl;
@@ -117,5 +112,35 @@ public class PaymentController {
                     .location(location)
                     .build();
         }
+    }
+
+    @Operation(
+            summary = "내 결제 상태 조회",
+            description = """
+                로그인 회원이 주문번호로 자신의 결제 상태를 조회합니다.
+                READY는 인증 대기, UNKNOWN은 승인 여부 확인 필요,
+                APPROVED는 승인 완료 후 상품 지급 대기,
+                COMPLETED는 상품 지급까지 완료된 상태입니다.
+                다른 회원의 주문은 조회할 수 없습니다.
+                """
+    )
+    @GetMapping("/{orderNumber}")
+    public ApiResponse<PaymentStatusResponse> getPaymentStatus(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal Long memberId,
+
+            @Parameter(
+                    description = "결제 주문번호",
+                    example = "PAY20261006123000A1B2C3D4E5F6"
+            )
+            @PathVariable String orderNumber
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                paymentQueryService.getStatus(
+                        memberId,
+                        orderNumber
+                )
+        );
     }
 }
