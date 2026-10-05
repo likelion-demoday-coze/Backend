@@ -49,6 +49,8 @@ app:
     settlement-start-date: ${RANKING_SETTLEMENT_START_DATE:2026-10-31}
 
   payment:
+    frontend-success-path: ${PAYMENT_FRONTEND_SUCCESS_PATH:/payment/success}
+    frontend-failure-path: ${PAYMENT_FRONTEND_FAILURE_PATH:/payment/failure}
     korpay:
       merchant-id: ${KORPAY_MERCHANT_ID}
       merchant-key: ${KORPAY_MKEY}
