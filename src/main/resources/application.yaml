@@ -51,6 +51,7 @@ app:
   payment:
     frontend-success-path: ${PAYMENT_FRONTEND_SUCCESS_PATH:/payment/success}
     frontend-failure-path: ${PAYMENT_FRONTEND_FAILURE_PATH:/payment/failure}
+    fulfillment-retry-cron: ${PAYMENT_FULFILLMENT_RETRY_CRON:0 */5 * * * *}
     korpay:
       merchant-id: ${KORPAY_MERCHANT_ID}
       merchant-key: ${KORPAY_MKEY}

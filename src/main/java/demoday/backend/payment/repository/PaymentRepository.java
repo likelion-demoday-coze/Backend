@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface PaymentRepository
@@ -40,6 +41,18 @@ public interface PaymentRepository
     boolean existsByTid(
             String tid
     );
+
+    @Query("""
+            SELECT p.paymentId
+            FROM Payment p
+            WHERE p.status = :status
+            ORDER BY p.approvedAt ASC, p.paymentId ASC
+            """)
+    List<Long> findIdsByStatus(
+            @Param("status") PaymentStatus status
+    );
+
+    long countByStatus(PaymentStatus status);
 
     boolean existsByMemberMemberIdAndProductProductTypeAndStatusIn(
             Long memberId,

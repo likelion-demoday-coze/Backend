@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -53,6 +54,25 @@ public class PaymentProcessingService {
     ) {
         // PG 승인 API를 다시 호출하지 않고 내부 상품 지급만 재시도한다.
         return fulfillApprovedPayment(paymentId);
+    }
+
+    public void retryPendingFulfillments() {
+        List<Long> paymentIds = payments.findIdsByStatus(
+                PaymentStatus.APPROVED
+        );
+
+        for (Long paymentId : paymentIds) {
+            try {
+                retryFulfillment(paymentId);
+            } catch (RuntimeException exception) {
+                // 한 건의 지급 실패가 나머지 승인 건 복구를 막지 않도록 개별 처리한다.
+                log.error(
+                        "[Payment] 미지급 승인 건 재처리 실패 - paymentId: {}",
+                        paymentId,
+                        exception
+                );
+            }
+        }
     }
 
     private Long saveApproval(
