@@ -26,14 +26,14 @@ public class Product {
     @Column(name = "product_type", nullable = false)
     private ProductType productType;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 50)
     private String name;
 
     @Column(
             nullable = false,
             check = @CheckConstraint(
-                    name = "ck_product_price_non_negative",
-                    constraint = "price >= 0"
+                    name = "ck_product_price_minimum",
+                    constraint = "price >= 100"
             )
     )
     private Integer price;
@@ -86,9 +86,9 @@ public class Product {
     }
 
     private static void validateAmount(Integer price, Integer fishAmount) {
-        if (price == null || price < 0) {
+        if (price == null || price < 100) {
             throw new IllegalArgumentException(
-                    "상품 가격은 0 이상이어야 합니다."
+                    "결제 금액은 100원 이상이어야 합니다."
             );
         }
 
