@@ -75,10 +75,8 @@ public class StreakRecoveryService {
         // 이미 신청한 요청은 위에서 반환한다. 신규 요청만 현재 복구 대상과 일일 제한을 확인한다.
         penalties.applyDuePenaltyInTransaction(memberId, now.toLocalDate());
         var latest = events.findFirstByMemberMemberIdOrderByMissedDateDesc(memberId).orElseThrow();
-        LocalDate lastLearningDate = member.getLastLearningDate();
         if (!latest.getStreakRecoveryEventId().equals(eventId)
-                || (lastLearningDate != null && !lastLearningDate.isBefore(event.getMissedDate())
-                    && !lastLearningDate.equals(now.toLocalDate()))) {
+                || !canResumeFromEvent(member, event, now.toLocalDate())) {
             throw new ProjectException(StreakErrorCode.STALE_RECOVERY);
         }
         if (events.existsByMemberMemberIdAndRequestedAtGreaterThanEqualAndRequestedAtLessThan(
@@ -138,11 +136,17 @@ public class StreakRecoveryService {
     }
 
     private boolean isRequestable(Member member, StreakRecoveryEvent event, LocalDateTime now) {
-        LocalDate last = member.getLastLearningDate();
         return event.getStatus() == StreakRecoveryStatus.AVAILABLE
-                && (last == null || last.isBefore(event.getMissedDate()) || last.equals(now.toLocalDate()))
+                && canResumeFromEvent(member, event, now.toLocalDate())
                 && !events.existsByMemberMemberIdAndRequestedAtGreaterThanEqualAndRequestedAtLessThan(
                         member.getMemberId(), now.toLocalDate().atStartOfDay(), now.toLocalDate().plusDays(1).atStartOfDay());
+    }
+
+    /** 오늘 첫 재시작만 허용하고, 전날부터 이어진 새 연속 기록은 덮어쓰지 않는다. */
+    private boolean canResumeFromEvent(Member member, StreakRecoveryEvent event, LocalDate today) {
+        LocalDate last = member.getLastLearningDate();
+        return last == null || last.isBefore(event.getMissedDate())
+                || (last.equals(today) && member.getCurrentStreak() == 1);
     }
 
     private Member findActiveMember(Long memberId, boolean forUpdate) {

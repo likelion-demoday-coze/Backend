@@ -269,6 +269,31 @@ class StreakRecoveryIntegrationTest {
     }
 
     @Test
+    void yesterdayRestartAndTodayCompletionRejectOldRecoveryWithoutChangingState() throws Exception {
+        Long eventId = breakStreak(3);
+        giveItems(1);
+        clock.set("2026-10-04T03:00:00Z");
+        completeRegularQuiz();
+        clock.set("2026-10-05T03:00:00Z");
+        completeRegularQuiz();
+        assertThat(member().getCurrentStreak()).isEqualTo(2);
+        assertThat(member().getLastLearningDate()).isEqualTo(TODAY);
+        var auth = new UsernamePasswordAuthenticationToken(memberId, null,
+                List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
+        mvc.perform(get("/api/v1/streaks/recovery").with(authentication(auth)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.requestable").value(false));
+        mvc.perform(post("/api/v1/streaks/recoveries/{id}", eventId).with(authentication(auth)).with(csrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STREAK_409_3"));
+        assertThat(quantity()).isEqualTo(1);
+        assertThat(member().getCurrentStock()).isEqualByComparingTo("80");
+        assertThat(member().getCurrentStreak()).isEqualTo(2);
+        assertThat(recoveryCount()).isZero();
+        assertThat(events.findById(eventId).orElseThrow().getStatus()).isEqualTo(StreakRecoveryStatus.AVAILABLE);
+        assertThat(jdbc.queryForObject("select learning_status from member_daily_activity where member_id=? and activity_date=?",
+                String.class, memberId, TODAY.minusDays(1))).isEqualTo("COMPLETED");
+    }
+
+    @Test
     void simultaneousDuplicateRequestsConsumeOnlyOne() throws Exception {
         Long eventId = breakStreak(1);
         giveItems(2);

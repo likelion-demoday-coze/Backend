@@ -25,6 +25,7 @@ import demoday.backend.streak.service.StreakPenaltyService;
 import demoday.backend.streak.service.StreakRecoveryService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -48,6 +49,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,11 +84,41 @@ class CharacterServiceIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private EntityManager entityManager;
     private Member member;
+    private boolean committedFixture;
+    private Long createdItemId;
+    private final List<Long> createdQuestionIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
         long id = SEQUENCE.incrementAndGet();
         member = members.saveAndFlush(Member.create(id, "c" + id));
+    }
+
+    @AfterEach
+    void cleanCommittedFixture() {
+        if (!committedFixture) return; // 일반 테스트는 Spring 테스트 트랜잭션이 롤백한다.
+        transactions.execute(() -> {
+            Long memberId = member.getMemberId();
+            // 외래 키를 참조하는 자식 데이터부터, 이 테스트가 만든 회원 범위만 삭제한다.
+            jdbc.update("delete from daily_quiz_attempt where session_question_id in (select session_question_id from daily_quiz_session_question where daily_quiz_session_id in (select daily_quiz_session_id from daily_quiz_session where member_id=?))", memberId);
+            jdbc.update("delete from daily_quiz_session_question where daily_quiz_session_id in (select daily_quiz_session_id from daily_quiz_session where member_id=?)", memberId);
+            jdbc.update("delete from daily_quiz_session where member_id=?", memberId);
+            jdbc.update("delete from streak_recovery_event where member_id=?", memberId);
+            jdbc.update("delete from stock_change where member_id=?", memberId);
+            jdbc.update("delete from member_daily_activity where member_id=?", memberId);
+            jdbc.update("delete from member_item where member_id=?", memberId);
+            jdbc.update("delete from member_question_history where member_id=?", memberId);
+            jdbc.update("delete from member where member_id=?", memberId);
+            for (Long questionId : createdQuestionIds) {
+                jdbc.update("delete from quiz_option where question_id=?", questionId);
+                jdbc.update("delete from quiz_question where question_id=?", questionId);
+                assertThat(questions.existsById(questionId)).isFalse();
+            }
+            // 기존 공유 상품은 유지하고, 이번 테스트에서 새로 만든 상품만 삭제한다.
+            if (createdItemId != null) jdbc.update("delete from store_item where item_id=?", createdItemId);
+            assertThat(members.existsById(memberId)).isFalse();
+            return null;
+        });
     }
 
     @Test
@@ -149,6 +181,7 @@ class CharacterServiceIntegrationTest {
     @CsvSource({"1000,BIG_HAND,BEGINNER", "10000,NOBLE,BIG_HAND"})
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void realPenaltyAndRecoveryAutomaticallyChangeStageAndEffect(String stock, CharacterStage before, CharacterStage after) {
+        committedFixture = true;
         Long memberId = member.getMemberId();
         transactions.execute(() -> {
             var saved = members.findByIdForUpdate(memberId).orElseThrow();
@@ -161,7 +194,11 @@ class CharacterServiceIntegrationTest {
         assertThat(characters.getCurrent(memberId).stage()).isEqualTo(after);
         assertThat(characters.getCurrent(memberId).effects()).isEmpty();
         var item = items.findAll().stream().filter(i -> i.getItemCode().equals("STREAK_RECOVERY"))
-                .findFirst().orElseGet(() -> items.saveAndFlush(StoreItem.create("STREAK_RECOVERY", "복구권", 200, true, "복구")));
+                .findFirst().orElseGet(() -> {
+                    var created = items.saveAndFlush(StoreItem.create("STREAK_RECOVERY", "복구권", 200, true, "복구"));
+                    createdItemId = created.getItemId();
+                    return created;
+                });
         var saved = members.findById(memberId).orElseThrow();
         inventory.saveAndFlush(MemberItem.create(saved, item, 1));
         recoveries.request(memberId, recoveries.getLatest(memberId).eventId());
@@ -170,6 +207,7 @@ class CharacterServiceIntegrationTest {
         for (int index = 0; index < 5; index++) {
             var question = questions.saveAndFlush(QuizQuestion.create(QuizCategory.MACRO_ECONOMY,
                     "MULTIPLE_CHOICE", "캐릭터 문제" + index, "해설", true));
+            createdQuestionIds.add(question.getQuestionId());
             var wrong = options.saveAndFlush(QuizOption.create(question, 1, "오답", false));
             options.saveAndFlush(QuizOption.create(question, 2, "정답", true));
             var sq = sessionQuestions.saveAndFlush(DailyQuizSessionQuestion.create(question, session));
