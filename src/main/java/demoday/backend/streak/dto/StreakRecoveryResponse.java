@@ -22,10 +22,9 @@ public record StreakRecoveryResponse(
         @Schema(description = "복구 완료 직후 연속 학습일. 완료 전에는 null") Integer streakAfterRecovery
 ) {
     public static StreakRecoveryResponse from(StreakRecoveryEvent event, LocalDateTime now, boolean requestable) {
-        StreakRecoveryStatus status = event.getStatus();
+        StreakRecoveryStatus status = event.recoveryStatusAt(now);
         LocalDateTime expiresAt = event.getRequestedAt() == null ? null
                 : event.getRequestedAt().toLocalDate().plusDays(1).atStartOfDay();
-        if (status == StreakRecoveryStatus.PENDING && !now.isBefore(expiresAt)) status = StreakRecoveryStatus.EXPIRED;
         return new StreakRecoveryResponse(event.getStreakRecoveryEventId(), event.getMissedDate(), status, requestable,
                 event.getRecoveryMethod(), event.getRequestedAt(), expiresAt, event.getRecoveredAt(),
                 event.getQuantityAfterRequest(), event.getStockAfterRecovery(), event.getStreakAfterRecovery());

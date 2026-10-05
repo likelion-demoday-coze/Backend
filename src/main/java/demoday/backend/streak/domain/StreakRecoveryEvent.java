@@ -87,6 +87,9 @@ public class StreakRecoveryEvent {
     @Column(name = "streak_after_recovery")
     private Integer streakAfterRecovery;
 
+    @Column(name = "penalty_notification_acknowledged_at")
+    private LocalDateTime penaltyNotificationAcknowledgedAt;
+
     public static StreakRecoveryEvent create(
             Member member,
             LocalDate missedDate,
@@ -144,5 +147,20 @@ public class StreakRecoveryEvent {
         streakAfterRecovery = streakAfter;
         recoveredAt = now;
         status = StreakRecoveryStatus.RECOVERED;
+    }
+
+    /** 알림을 실제로 표시한 클라이언트가 확인을 요청한다. 재요청은 최초 시각을 유지한다. */
+    public void acknowledgePenaltyNotification(LocalDateTime now) {
+        if (now == null) throw new IllegalArgumentException("알림 확인 시각은 필수입니다.");
+        if (penaltyNotificationAcknowledgedAt == null) penaltyNotificationAcknowledgedAt = now;
+    }
+
+    /** 스케줄러가 지연되어도 읽기 응답에서는 완료 기한을 적용한다. DB 상태를 변경하지 않는다. */
+    public StreakRecoveryStatus recoveryStatusAt(LocalDateTime now) {
+        if (status == StreakRecoveryStatus.PENDING
+                && !now.isBefore(requestedAt.toLocalDate().plusDays(1).atStartOfDay())) {
+            return StreakRecoveryStatus.EXPIRED;
+        }
+        return status;
     }
 }
