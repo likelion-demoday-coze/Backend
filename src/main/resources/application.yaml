@@ -39,6 +39,10 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+liner:
+  api-key: ${LINER_API_KEY:}
+  timeout-seconds: ${LINER_TIMEOUT_SECONDS:120}
+
 app:
   frontend-base-url: ${FRONTEND_BASE_URL}
   frontend-allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}

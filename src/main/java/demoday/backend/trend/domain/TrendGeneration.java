@@ -32,6 +32,12 @@ public class TrendGeneration {
     @Column(name = "last_error_type", length = 100)
     private String lastErrorType;
 
+    public void completeSuccessfully() {
+        if (status != TrendGenerationStatus.PROCESSING) throw new IllegalStateException("생성 중인 작업만 완료할 수 있습니다.");
+        status = TrendGenerationStatus.SUCCESS;
+        lastErrorType = null;
+    }
+
     public static TrendGeneration create(
             LocalDateTime generationDate,
             TrendGenerationStatus status,
