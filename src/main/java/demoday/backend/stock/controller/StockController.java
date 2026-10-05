@@ -28,7 +28,7 @@ public class StockController {
     private final StockService stockService;
 
     @Operation(summary = "기간별 주가 그래프 조회",
-            description = "DAY는 KST 오늘, WEEK는 오늘 포함 7일의 변동 이력입니다. ALL은 가입 이후 일별 스냅샷이며 기간 제한이 없습니다. 시작값과 현재값을 포함합니다. 가입 시각이 없는 기존 회원은 최초 기록 기준이며 estimatedStart=true입니다.")
+            description = "DAY는 KST 오늘, WEEK는 오늘 포함 7일의 변동 이력입니다. ALL은 가입 이후 일별 마감 스냅샷이며 기간 제한이 없습니다. 스냅샷 날짜의 다음 날 00시를 마감 지점으로 표시합니다. 시작값과 현재값을 포함합니다. 가입 시각이 없는 기존 회원은 최초 기록 기준이며 estimatedStart=true입니다.")
     @GetMapping("/me/graph")
     public ApiResponse<StockGraphResponse> getGraph(
             @Parameter(hidden = true) @AuthenticationPrincipal Long memberId,

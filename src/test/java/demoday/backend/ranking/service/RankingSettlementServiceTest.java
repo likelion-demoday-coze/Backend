@@ -18,6 +18,7 @@ import demoday.backend.ranking.repository.projection.RankingWinnerRow;
 import demoday.backend.ranking.repository.projection.StockClosingValueRow;
 import demoday.backend.stock.domain.StockDailySnapshot;
 import demoday.backend.stock.repository.StockDailySnapshotRepository;
+import demoday.backend.stock.service.StockSnapshotService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,7 +72,8 @@ class RankingSettlementServiceTest {
                 rankingRewardRepository,
                 rankingSettlementRepository,
                 memberRepository,
-                stockDailySnapshotRepository,
+                new StockSnapshotService(memberRepository, stockDailySnapshotRepository,
+                        rankingQueryRepository, transactionRetryExecutor, CLOCK),
                 fishService,
                 transactionRetryExecutor,
                 CLOCK
@@ -82,10 +84,6 @@ class RankingSettlementServiceTest {
                     Supplier<?> operation = invocation.getArgument(0);
                     return operation.get();
                 });
-
-        lenient().when(stockDailySnapshotRepository
-                .existsBySnapshotDate(YESTERDAY))
-                .thenReturn(true);
 
         lenient().when(rankingSettlementRepository
                 .existsByRankingDate(any(LocalDate.class)))
@@ -238,8 +236,6 @@ class RankingSettlementServiceTest {
         StockClosingValueRow firstClosing = closingValue(1L, "300.00");
         StockClosingValueRow secondClosing = closingValue(2L, "200.00");
 
-        when(stockDailySnapshotRepository.existsBySnapshotDate(YESTERDAY))
-                .thenReturn(false);
         when(memberRepository.findAllByStatusAndCreatedBeforeForUpdate(
                 MemberStatus.ACTIVE,
                 LocalDate.of(2026, 10, 3).atStartOfDay()
@@ -306,8 +302,11 @@ class RankingSettlementServiceTest {
     @Test
     @DisplayName("전날 스냅샷이 이미 있으면 값을 덮어쓰지 않고 기존 값으로 재정산한다")
     void reusesExistingStockSnapshots() {
-        when(stockDailySnapshotRepository.existsBySnapshotDate(YESTERDAY))
-                .thenReturn(true);
+        Member existingMember = activeMemberWithStock(1L, "300.00");
+        when(memberRepository.findAllByStatusAndCreatedBeforeForUpdate(MemberStatus.ACTIVE,
+                LocalDate.of(2026, 10, 3).atStartOfDay())).thenReturn(List.of(existingMember));
+        when(stockDailySnapshotRepository.findAllBySnapshotDate(YESTERDAY)).thenReturn(
+                List.of(StockDailySnapshot.create(existingMember, YESTERDAY, new java.math.BigDecimal("300.00"))));
         when(rankingQueryRepository.findStockRewardTargets(
                 YESTERDAY, REWARD_MAX_RANK
         )).thenReturn(List.of());
@@ -336,8 +335,6 @@ class RankingSettlementServiceTest {
     void doesNotSettleWhenSnapshotCaptureFails() {
         Member member = activeMemberWithStock(1L, "300.00");
         StockClosingValueRow closing = closingValue(1L, "300.00");
-        when(stockDailySnapshotRepository.existsBySnapshotDate(YESTERDAY))
-                .thenReturn(false);
         when(memberRepository.findAllByStatusAndCreatedBeforeForUpdate(
                 MemberStatus.ACTIVE,
                 LocalDate.of(2026, 10, 3).atStartOfDay()

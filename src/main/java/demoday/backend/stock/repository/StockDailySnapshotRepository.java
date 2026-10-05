@@ -11,6 +11,8 @@ public interface StockDailySnapshotRepository extends JpaRepository<StockDailySn
 
     boolean existsBySnapshotDate(LocalDate snapshotDate);
 
+    List<StockDailySnapshot> findAllBySnapshotDate(LocalDate snapshotDate);
+
     Optional<StockDailySnapshot> findFirstByMemberMemberIdOrderBySnapshotDateAsc(Long memberId);
 
     List<StockDailySnapshot> findAllByMemberMemberIdAndSnapshotDateBetweenOrderBySnapshotDateAsc(
