@@ -28,11 +28,13 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
 import java.util.List;
@@ -313,6 +315,35 @@ class PaymentIntegrationTest {
     }
 
     @Test
+    void expiredAuthenticationSessionIsNotConfirmed() throws Exception {
+        PaymentOrderResponse order = createOrder();
+        Payment payment = payments.findByOrderNumber(
+                order.orderNumber()
+        ).orElseThrow();
+        ReflectionTestUtils.setField(
+                payment,
+                "requestedAt",
+                LocalDateTime.ofInstant(NOW, ZoneId.of("Asia/Seoul"))
+                        .minusMinutes(31)
+        );
+        payments.saveAndFlush(payment);
+
+        performCallback(
+                order,
+                "expired-key-" + SEQUENCE.incrementAndGet()
+        )
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        org.hamcrest.Matchers.containsString(
+                                "code=PAYMENT_410_1"
+                        )
+                ));
+
+        verify(korpayClient, org.mockito.Mockito.never()).confirm(any());
+    }
+
+    @Test
     void mismatchedApprovalResponseIsNotGranted() throws Exception {
         PaymentOrderResponse order = createOrder();
         String paymentKey = "mismatch-key-" + SEQUENCE.incrementAndGet();
@@ -416,6 +447,13 @@ class PaymentIntegrationTest {
         );
 
         assertThat(memberPasses.existsByMemberMemberId(member.getMemberId())).isTrue();
+        var memberPass = memberPasses.findAll().stream()
+                .filter(pass -> pass.getMember().getMemberId()
+                        .equals(member.getMemberId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(memberPass.getExpiresAt())
+                .isEqualTo(memberPass.getStartedAt().plusHours(168));
         assertThatThrownBy(() -> orderService.createOrder(
                 member.getMemberId(),
                 passProduct.getProductCode()

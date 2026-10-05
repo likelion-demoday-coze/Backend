@@ -51,12 +51,6 @@ public enum PaymentErrorCode implements BaseErrorCode {
             "유효하지 않은 주문번호입니다."
     ),
 
-    INVALID_PAYMENT_AMOUNT(
-            HttpStatus.BAD_REQUEST,
-            "PAYMENT_400_2",
-            "유효하지 않은 결제 금액입니다."
-    ),
-
     INVALID_CALLBACK(
             HttpStatus.BAD_REQUEST,
             "PAYMENT_400_3",
@@ -93,12 +87,6 @@ public enum PaymentErrorCode implements BaseErrorCode {
             "주문 상품과 승인 상품이 일치하지 않습니다."
     ),
 
-    ORDER_MEMBER_MISMATCH(
-            HttpStatus.FORBIDDEN,
-            "PAYMENT_403_1",
-            "해당 결제 주문에 접근할 수 없습니다."
-    ),
-
     AUTHENTICATION_FAILED(
             HttpStatus.BAD_REQUEST,
             "PAYMENT_400_9",
@@ -133,12 +121,6 @@ public enum PaymentErrorCode implements BaseErrorCode {
             HttpStatus.SERVICE_UNAVAILABLE,
             "PAYMENT_503_1",
             "결제 승인 여부를 확인할 수 없습니다."
-    ),
-
-    POST_PROCESSING_FAILED(
-            HttpStatus.SERVICE_UNAVAILABLE,
-            "PAYMENT_503_2",
-            "결제 후처리 결과를 확인할 수 없습니다."
     ),
 
     FULFILLMENT_FAILED(

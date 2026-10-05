@@ -30,18 +30,6 @@ public interface PaymentRepository
             String paymentKey
     );
 
-    Optional<Payment> findByTid(
-            String tid
-    );
-
-    boolean existsByPaymentKey(
-            String paymentKey
-    );
-
-    boolean existsByTid(
-            String tid
-    );
-
     @Query("""
             SELECT p.paymentId
             FROM Payment p
