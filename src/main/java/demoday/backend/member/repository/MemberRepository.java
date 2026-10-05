@@ -62,4 +62,33 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             @Param("closedAt") LocalDateTime closedAt,
             @Param("snapshotDate") LocalDate snapshotDate
     );
+
+    @Query("""
+            SELECT m.memberId FROM Member m
+            WHERE m.status = :status
+              AND (m.createdAt IS NULL OR m.createdAt < :closedAt)
+              AND NOT EXISTS (
+                  SELECT s FROM StockDailySnapshot s
+                  WHERE s.member = m AND s.snapshotDate = :snapshotDate
+              )
+            ORDER BY m.memberId
+            """)
+    List<Long> findMissingStockSnapshotMemberIds(
+            @Param("status") MemberStatus status,
+            @Param("closedAt") LocalDateTime closedAt,
+            @Param("snapshotDate") LocalDate snapshotDate
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT m FROM Member m
+            WHERE m.memberId IN :memberIds AND m.status = :status
+              AND (m.createdAt IS NULL OR m.createdAt < :closedAt)
+            ORDER BY m.memberId
+            """)
+    List<Member> findSnapshotCandidatesForUpdate(
+            @Param("status") MemberStatus status,
+            @Param("closedAt") LocalDateTime closedAt,
+            @Param("memberIds") List<Long> memberIds
+    );
 }

@@ -32,15 +32,20 @@ public class StockSnapshotService {
         var closedAt = date.plusDays(1).atStartOfDay();
         // 완료된 날짜는 집계 조회만 수행하고 회원 잠금·엔티티 적재를 생략한다.
         if (members.countMissingStockSnapshots(MemberStatus.ACTIVE, closedAt, date) == 0) return 0;
+        // 후보 조회는 트랜잭션 밖에서 수행한다. 잠금 대기 전의 RR 스냅샷을 만들지 않는다.
+        var candidateIds = members.findMissingStockSnapshotMemberIds(MemberStatus.ACTIVE, closedAt, date);
+        if (candidateIds.isEmpty()) return 0;
         return transactions.execute(() -> {
             // 모든 호출자가 같은 회원 ID 순서로 잠가 동시 생성·주가 변경과 직렬화한다.
-            var eligible = members.findAllByStatusAndCreatedBeforeForUpdate(MemberStatus.ACTIVE, closedAt);
-            var savedMemberIds = snapshots.findAllBySnapshotDate(date).stream()
-                    .map(snapshot -> snapshot.getMember().getMemberId()).collect(Collectors.toSet());
+            var eligible = members.findSnapshotCandidatesForUpdate(MemberStatus.ACTIVE, closedAt, candidateIds);
+            if (eligible.isEmpty()) return 0;
+            // 모든 후보 잠금을 얻은 뒤 처음 읽어, 대기 중 먼저 저장된 기록도 반영한다.
+            var savedMemberIds = new java.util.HashSet<>(snapshots.findSavedMemberIds(date, candidateIds));
             var missing = eligible.stream().filter(member -> !savedMemberIds.contains(member.getMemberId())).toList();
             if (missing.isEmpty()) return 0;
             // 자정 이후 첫 변동의 stockBefore가 자정 직전 값이다. 이후 변동이 없으면 현재 값이다.
-            var values = closingValues.findStockClosingValues(closedAt).stream()
+            var missingIds = missing.stream().map(member -> member.getMemberId()).toList();
+            var values = closingValues.findStockClosingValues(closedAt, missingIds).stream()
                     .collect(Collectors.toMap(StockClosingValueRow::getMemberId, Function.identity()));
             var additions = missing.stream().map(member -> {
                 var value = values.get(member.getMemberId());

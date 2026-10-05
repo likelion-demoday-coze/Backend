@@ -86,6 +86,7 @@ class RankingSettlementServiceTest {
                 });
 
         lenient().when(memberRepository.countMissingStockSnapshots(any(), any(), any())).thenReturn(1L);
+        lenient().when(memberRepository.findMissingStockSnapshotMemberIds(any(), any(), any())).thenReturn(List.of(1L, 2L));
 
         lenient().when(rankingSettlementRepository
                 .existsByRankingDate(any(LocalDate.class)))
@@ -238,13 +239,13 @@ class RankingSettlementServiceTest {
         StockClosingValueRow firstClosing = closingValue(1L, "300.00");
         StockClosingValueRow secondClosing = closingValue(2L, "200.00");
 
-        when(memberRepository.findAllByStatusAndCreatedBeforeForUpdate(
-                MemberStatus.ACTIVE,
-                LocalDate.of(2026, 10, 3).atStartOfDay()
+        when(memberRepository.findSnapshotCandidatesForUpdate(
+                eq(MemberStatus.ACTIVE),
+                eq(LocalDate.of(2026, 10, 3).atStartOfDay()), anyList()
         ))
                 .thenReturn(List.of(first, second));
         when(rankingQueryRepository.findStockClosingValues(
-                LocalDate.of(2026, 10, 3).atStartOfDay()
+                eq(LocalDate.of(2026, 10, 3).atStartOfDay()), anyList()
         )).thenReturn(List.of(
                 firstClosing,
                 secondClosing
@@ -288,12 +289,12 @@ class RankingSettlementServiceTest {
                 rankingQueryRepository
         );
         order.verify(memberRepository)
-                .findAllByStatusAndCreatedBeforeForUpdate(
-                        MemberStatus.ACTIVE,
-                        LocalDate.of(2026, 10, 3).atStartOfDay()
+                .findSnapshotCandidatesForUpdate(
+                        eq(MemberStatus.ACTIVE),
+                        eq(LocalDate.of(2026, 10, 3).atStartOfDay()), anyList()
                 );
         order.verify(rankingQueryRepository).findStockClosingValues(
-                LocalDate.of(2026, 10, 3).atStartOfDay()
+                eq(LocalDate.of(2026, 10, 3).atStartOfDay()), anyList()
         );
         order.verify(stockDailySnapshotRepository).flush();
         order.verify(rankingQueryRepository).findStockRewardTargets(
@@ -316,12 +317,12 @@ class RankingSettlementServiceTest {
         rankingSettlementService.settlePreviousDay();
 
         verify(memberRepository, never())
-                .findAllByStatusAndCreatedBeforeForUpdate(
-                        MemberStatus.ACTIVE,
-                        LocalDate.of(2026, 10, 3).atStartOfDay()
+                .findSnapshotCandidatesForUpdate(
+                        eq(MemberStatus.ACTIVE),
+                        eq(LocalDate.of(2026, 10, 3).atStartOfDay()), anyList()
                 );
         verify(rankingQueryRepository, never())
-                .findStockClosingValues(any());
+                .findStockClosingValues(any(), anyList());
         verify(stockDailySnapshotRepository, never()).saveAll(any());
         verify(stockDailySnapshotRepository, never()).flush();
         verify(rankingQueryRepository).findStockRewardTargets(
@@ -334,13 +335,13 @@ class RankingSettlementServiceTest {
     void doesNotSettleWhenSnapshotCaptureFails() {
         Member member = activeMemberWithStock(1L, "300.00");
         StockClosingValueRow closing = closingValue(1L, "300.00");
-        when(memberRepository.findAllByStatusAndCreatedBeforeForUpdate(
-                MemberStatus.ACTIVE,
-                LocalDate.of(2026, 10, 3).atStartOfDay()
+        when(memberRepository.findSnapshotCandidatesForUpdate(
+                eq(MemberStatus.ACTIVE),
+                eq(LocalDate.of(2026, 10, 3).atStartOfDay()), anyList()
         ))
                 .thenReturn(List.of(member));
         when(rankingQueryRepository.findStockClosingValues(
-                LocalDate.of(2026, 10, 3).atStartOfDay()
+                eq(LocalDate.of(2026, 10, 3).atStartOfDay()), anyList()
         )).thenReturn(List.of(closing));
         doThrow(new RuntimeException("스냅샷 저장 실패"))
                 .when(stockDailySnapshotRepository)
@@ -351,7 +352,7 @@ class RankingSettlementServiceTest {
                 .hasMessage("스냅샷 저장 실패");
 
         verify(rankingQueryRepository).findStockClosingValues(
-                LocalDate.of(2026, 10, 3).atStartOfDay()
+                eq(LocalDate.of(2026, 10, 3).atStartOfDay()), anyList()
         );
         verify(rankingQueryRepository, never())
                 .findStockRewardTargets(any(), anyInt());
