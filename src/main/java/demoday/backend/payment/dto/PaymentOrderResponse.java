@@ -57,7 +57,13 @@ public record PaymentOrderResponse(
         @Schema(
                 description = "결제창 호출용 위변조 검증 해시"
         )
-        String hashKey
+        String hashKey,
+
+        @Schema(
+                description = "코페이 reserved 필드에 그대로 전달할 프론트엔드 주소",
+                example = "http://localhost:3000"
+        )
+        String reserved
 ) {
 
     public static PaymentOrderResponse of(
@@ -65,7 +71,8 @@ public record PaymentOrderResponse(
             String merchantId,
             String payMethod,
             String returnUrl,
-            String hashKey
+            String hashKey,
+            String reserved
     ) {
         return new PaymentOrderResponse(
                 payment.getPaymentId(),
@@ -76,7 +83,8 @@ public record PaymentOrderResponse(
                 payMethod,
                 returnUrl,
                 payment.getEdiDate(),
-                hashKey
+                hashKey,
+                reserved
         );
     }
 }

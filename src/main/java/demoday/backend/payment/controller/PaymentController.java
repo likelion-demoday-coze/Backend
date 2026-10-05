@@ -3,6 +3,7 @@ package demoday.backend.payment.controller;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
 import demoday.backend.global.exception.ProjectException;
+import demoday.backend.auth.service.FrontendRedirectService;
 import demoday.backend.payment.dto.*;
 import demoday.backend.payment.service.PaymentCallbackService;
 import demoday.backend.payment.service.PaymentOrderService;
@@ -31,9 +32,7 @@ public class PaymentController {
     private final PaymentOrderService paymentOrderService;
     private final PaymentCallbackService paymentCallbackService;
     private final PaymentQueryService paymentQueryService;
-
-    @Value("${app.frontend-base-url}")
-    private String frontendBaseUrl;
+    private final FrontendRedirectService frontendRedirectService;
 
     @Value("${app.payment.frontend-success-path:/payment/success}")
     private String frontendSuccessPath;
@@ -58,7 +57,8 @@ public class PaymentController {
     ) {
         PaymentOrderResponse response = paymentOrderService.createOrder(
                 memberId,
-                request.productCode()
+                request.productCode(),
+                request.redirectUrl()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -88,7 +88,7 @@ public class PaymentController {
                     paymentCallbackService.confirm(request);
 
             URI location = UriComponentsBuilder
-                    .fromUriString(frontendBaseUrl)
+                    .fromUriString(resolveRedirectUrl(request.reserved()))
                     .path(frontendSuccessPath)
                     .queryParam("orderNumber", result.orderNumber())
                     .build()
@@ -100,7 +100,7 @@ public class PaymentController {
                     .build();
         } catch (ProjectException exception) {
             URI location = UriComponentsBuilder
-                    .fromUriString(frontendBaseUrl)
+                    .fromUriString(resolveRedirectUrl(request.reserved()))
                     .path(frontendFailurePath)
                     .queryParam("orderNumber", request.orderNumber())
                     .queryParam("code", exception.getErrorCode().getCode())
@@ -111,6 +111,14 @@ public class PaymentController {
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(location)
                     .build();
+        }
+    }
+
+    private String resolveRedirectUrl(String requestedUrl) {
+        try {
+            return frontendRedirectService.validate(requestedUrl);
+        } catch (ProjectException ignored) {
+            return frontendRedirectService.validate(null);
         }
     }
 

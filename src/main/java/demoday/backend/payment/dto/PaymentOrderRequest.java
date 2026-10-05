@@ -15,6 +15,13 @@ public record PaymentOrderRequest(
                 max = 50,
                 message = "상품 코드는 50자 이하여야 합니다."
         )
-        String productCode
+        String productCode,
+
+        @Schema(
+                description = "결제 완료 후 돌아갈 허용된 프론트엔드 주소",
+                example = "http://localhost:3000",
+                nullable = true
+        )
+        String redirectUrl
 ) {
 }

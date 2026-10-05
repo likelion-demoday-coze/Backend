@@ -131,6 +131,8 @@ class PaymentIntegrationTest {
                 .andExpect(jsonPath("$.result.merchantId").value("testmid"))
                 .andExpect(jsonPath("$.result.amount").value(1000))
                 .andExpect(jsonPath("$.result.payMethod").value("card"))
+                .andExpect(jsonPath("$.result.reserved")
+                        .value("http://localhost:3000"))
                 .andExpect(jsonPath("$.result.hashKey").isString());
     }
 
@@ -459,9 +461,10 @@ class PaymentIntegrationTest {
                 .param("resultCode", "0000")
                 .param("message", "성공")
                 .param("paymentKey", paymentKey)
-                .param("merchantId", "testmid")
-                .param("orderNumber", order.orderNumber())
-                .param("amount", order.amount().toString()));
+                        .param("merchantId", "testmid")
+                        .param("orderNumber", order.orderNumber())
+                        .param("amount", order.amount().toString())
+                        .param("reserved", order.reserved()));
     }
 
     private UsernamePasswordAuthenticationToken authToken(Long memberId) {

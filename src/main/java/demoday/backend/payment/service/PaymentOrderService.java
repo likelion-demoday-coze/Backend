@@ -1,5 +1,6 @@
 package demoday.backend.payment.service;
 
+import demoday.backend.auth.service.FrontendRedirectService;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
@@ -60,12 +61,22 @@ public class PaymentOrderService {
     private final PaymentRepository paymentRepository;
     private final MemberPassRepository memberPassRepository;
     private final KorpayProperties korpayProperties;
+    private final FrontendRedirectService frontendRedirectService;
     private final Clock clock;
 
     @Transactional
     public PaymentOrderResponse createOrder(
             Long memberId,
             String productCode
+    ) {
+        return createOrder(memberId, productCode, null);
+    }
+
+    @Transactional
+    public PaymentOrderResponse createOrder(
+            Long memberId,
+            String productCode,
+            String redirectUrl
     ) {
         if (memberId == null) {
             throw new ProjectException(GeneralErrorCode.UNAUTHORIZED);
@@ -114,6 +125,9 @@ public class PaymentOrderService {
                 payment.getAmount(),
                 korpayProperties.merchantKey()
         );
+        String validatedRedirectUrl = frontendRedirectService.validate(
+                redirectUrl
+        );
 
         log.info(
                 "[Payment] 주문 생성 완료 - paymentId: {}, orderNumber: {}, memberId: {}, productCode: {}, amount: {}",
@@ -129,7 +143,8 @@ public class PaymentOrderService {
                 korpayProperties.merchantId(),
                 korpayProperties.payMethod(),
                 korpayProperties.returnUrl(),
-                hashKey
+                hashKey,
+                validatedRedirectUrl
         );
     }
 
