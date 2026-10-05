@@ -40,7 +40,10 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  stock:
+    snapshot-start-date: ${STOCK_SNAPSHOT_START_DATE:${RANKING_SETTLEMENT_START_DATE:2026-10-31}}
   frontend-base-url: ${FRONTEND_BASE_URL}
+  frontend-login-success-path: ${FRONTEND_LOGIN_SUCCESS_PATH:/home}
   frontend-allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
   ranking:
     settlement-start-date: ${RANKING_SETTLEMENT_START_DATE:2026-10-31}

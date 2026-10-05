@@ -6,6 +6,7 @@ import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.member.domain.Member;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -35,7 +36,8 @@ public class SecurityConfig {
             KakaoAuthService kakaoAuthService,
             FrontendRedirectService frontendRedirectService,
             HttpSessionSecurityContextRepository contextRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            @Value("${app.frontend-login-success-path:/home}") String loginSuccessPath
     ) throws Exception {
 
         return http
@@ -121,7 +123,7 @@ public class SecurityConfig {
                             String frontendUrl = frontendRedirectService.consume(
                                     request.getSession()
                             );
-                            response.sendRedirect(frontendUrl + "/");
+                            response.sendRedirect(frontendUrl + loginSuccessPath);
                         }))
                 .csrf(csrf -> csrf
                         .ignoringRequestMatchers(
