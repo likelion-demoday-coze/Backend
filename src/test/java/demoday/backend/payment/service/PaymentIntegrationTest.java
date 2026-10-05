@@ -48,6 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -155,6 +156,78 @@ class PaymentIntegrationTest {
     }
 
     @Test
+    void availableProductsCanBeListedAndViewed() throws Exception {
+        mvc.perform(get("/api/v1/products")
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result[*].productCode")
+                        .value(org.hamcrest.Matchers.hasItem(
+                                fishProduct.getProductCode()
+                        )));
+
+        mvc.perform(get("/api/v1/products/{productId}",
+                        fishProduct.getProductId())
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.productCode")
+                        .value(fishProduct.getProductCode()))
+                .andExpect(jsonPath("$.result.price").value(1000));
+    }
+
+    @Test
+    void paymentStatusCanOnlyBeViewedByOwner() throws Exception {
+        PaymentOrderResponse order = createOrder();
+        Member other = members.saveAndFlush(
+                Member.create(
+                        900000L + SEQUENCE.incrementAndGet(),
+                        "other" + SEQUENCE.incrementAndGet()
+                )
+        );
+
+        mvc.perform(get("/api/v1/payments/{orderNumber}",
+                        order.orderNumber())
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status").value("READY"));
+
+        mvc.perform(get("/api/v1/payments/{orderNumber}",
+                        order.orderNumber())
+                        .with(authentication(authToken(other.getMemberId()))))
+                .andExpect(status().isNotFound());
+
+        mvc.perform(get("/api/v1/payments/{orderNumber}",
+                        order.orderNumber()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void invalidProductDefinitionIsRejectedBeforeSale() {
+        assertThatThrownBy(() -> Product.create(
+                "INVALID_FISH",
+                ProductType.FISH,
+                "생선 상품",
+                500,
+                null,
+                null,
+                null,
+                null,
+                true
+        )).isInstanceOf(IllegalArgumentException.class);
+
+        assertThatThrownBy(() -> Product.create(
+                "INVALID_PASS",
+                ProductType.PASS,
+                "일주일 패스",
+                1900,
+                null,
+                null,
+                null,
+                null,
+                true
+        )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void callbackNeedsNeitherLoginNorCsrfAndDuplicateDoesNotGrantTwice() throws Exception {
         PaymentOrderResponse order = createOrder();
         String paymentKey = "payment-key-" + SEQUENCE.incrementAndGet();
@@ -234,7 +307,7 @@ class PaymentIntegrationTest {
         assertThat(approved.getFailureMessage()).isNotBlank();
 
         doCallRealMethod().when(fulfillmentService).fulfill(any(), any());
-        processingService.retryFulfillment(approved.getPaymentId());
+        processingService.retryPendingFulfillments();
 
         Payment completed = payments.findById(approved.getPaymentId()).orElseThrow();
         assertThat(completed.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
