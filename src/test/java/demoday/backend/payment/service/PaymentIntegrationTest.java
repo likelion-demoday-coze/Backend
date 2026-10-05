@@ -285,6 +285,71 @@ class PaymentIntegrationTest {
     }
 
     @Test
+    void authenticationFailureIsStoredWithoutCallingConfirmApi() throws Exception {
+        PaymentOrderResponse order = createOrder();
+
+        mvc.perform(post("/api/v1/payments/callback")
+                        .contentType("application/x-www-form-urlencoded")
+                        .param("resultCode", "A001")
+                        .param("message", "사용자 취소")
+                        .param("merchantId", "testmid")
+                        .param("orderNumber", order.orderNumber())
+                        .param("amount", order.amount().toString()))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        org.hamcrest.Matchers.containsString(
+                                "code=PAYMENT_400_9"
+                        )
+                ));
+
+        Payment saved = payments.findByOrderNumber(
+                order.orderNumber()
+        ).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        verify(korpayClient, org.mockito.Mockito.never()).confirm(any());
+    }
+
+    @Test
+    void mismatchedApprovalResponseIsNotGranted() throws Exception {
+        PaymentOrderResponse order = createOrder();
+        String paymentKey = "mismatch-key-" + SEQUENCE.incrementAndGet();
+        KorpayConfirmResponse approved = approvedResponse(order, paymentKey);
+
+        when(korpayClient.confirm(paymentKey)).thenReturn(
+                new KorpayConfirmResponse(
+                        approved.resultCode(),
+                        approved.message(),
+                        approved.tid(),
+                        approved.merchantId(),
+                        approved.orderNumber(),
+                        approved.productName(),
+                        approved.currency(),
+                        approved.amount() + 1,
+                        approved.approvedAt(),
+                        approved.payMethod(),
+                        approved.reserved()
+                )
+        );
+
+        performCallback(order, paymentKey)
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        org.hamcrest.Matchers.containsString(
+                                "code=PAYMENT_400_7"
+                        )
+                ));
+
+        Payment saved = payments.findByOrderNumber(
+                order.orderNumber()
+        ).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+        assertThat(members.findById(member.getMemberId())
+                .orElseThrow().getFishBalance()).isZero();
+    }
+
+    @Test
     void failedFulfillmentLeavesApprovedAndCanBeRetriedWithoutReapproval() throws Exception {
         PaymentOrderResponse order = createOrder();
         String paymentKey = "retry-key-" + SEQUENCE.incrementAndGet();

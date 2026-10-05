@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -22,12 +24,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class PaymentCallbackService {
 
     private static final String AUTHENTICATION_SUCCESS_CODE = "0000";
+    private static final long AUTHENTICATION_VALID_MINUTES = 30L;
 
     private final PaymentRepository paymentRepository;
     private final PaymentProcessingService paymentProcessingService;
     private final KorpayClient korpayClient;
     private final KorpayProperties korpayProperties;
     private final TransactionTemplate transactionTemplate;
+    private final Clock clock;
 
     public PaymentConfirmResultResponse confirm(
             KorpayCallbackRequest callback
@@ -147,6 +151,16 @@ public class PaymentCallbackService {
                     || payment.getStatus() == PaymentStatus.CANCELLED) {
                 throw new ProjectException(
                         PaymentErrorCode.PAYMENT_ALREADY_PROCESSED
+                );
+            }
+
+            if (!LocalDateTime.now(clock).isBefore(
+                    payment.getRequestedAt().plusMinutes(
+                            AUTHENTICATION_VALID_MINUTES
+                    )
+            )) {
+                throw new ProjectException(
+                        PaymentErrorCode.PAYMENT_SESSION_EXPIRED
                 );
             }
 
