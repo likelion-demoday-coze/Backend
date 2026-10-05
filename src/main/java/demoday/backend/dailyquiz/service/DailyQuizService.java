@@ -43,6 +43,7 @@ import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
 import demoday.backend.stock.code.StockChangeType;
 import demoday.backend.stock.service.StockService;
+import demoday.backend.streak.service.StreakPenaltyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -86,6 +87,7 @@ public class DailyQuizService {
     private final MemberDailyActivityRepository memberDailyActivityRepository;
     private final MemberQuestionHistoryRepository memberQuestionHistoryRepository;
     private final StockService stockService;
+    private final StreakPenaltyService streakPenaltyService;
 
     @Transactional(readOnly = true)
     public List<DailyQuizCategoryResponse> getCategories() {
@@ -117,6 +119,9 @@ public class DailyQuizService {
                 .orElseThrow(() ->
                         new ProjectException(GeneralErrorCode.NOT_FOUND)
                 );
+
+        // 자정 작업이 지연되어도 세션 시작 주가에 누락된 하락을 먼저 반영한다.
+        streakPenaltyService.applyDuePenaltyInTransaction(memberId, now.toLocalDate());
 
         // 기존 진행 중 세션 확인
         validateActiveSession(memberId, now);
@@ -460,6 +465,8 @@ public class DailyQuizService {
                 .orElseThrow(() ->
                         new ProjectException(GeneralErrorCode.NOT_FOUND)
                 );
+
+        streakPenaltyService.applyDuePenaltyInTransaction(memberId, now.toLocalDate());
 
         DailyQuizSession session = findSessionForUpdate(sessionId, memberId);
 

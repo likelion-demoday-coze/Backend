@@ -11,8 +11,20 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    // 후보 조회에는 잠금을 잡지 않고, 처리 시 회원 한 명씩 잠근 뒤 조건을 다시 검사한다.
+    @Query("""
+            SELECT m.memberId FROM Member m
+            WHERE m.status = :status AND m.currentStreak > 0
+              AND (m.lastLearningDate IS NULL OR m.lastLearningDate < :yesterday)
+            ORDER BY m.memberId
+            """)
+    List<Long> findStreakPenaltyCandidateIds(
+            @Param("status") MemberStatus status, @Param("yesterday") LocalDate yesterday
+    );
 
     Optional<Member> findByKakaoUserId(Long kakaoUserId);
 

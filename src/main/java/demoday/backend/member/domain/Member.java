@@ -139,6 +139,11 @@ public class Member {
         lastAttendanceRewardDate = rewardDate;
     }
 
+    // 하락 기록을 먼저 저장한 뒤 호출한다. 마지막 완료 날짜는 복구 판정용으로 보존한다.
+    public void breakLearningStreak() {
+        currentStreak = 0;
+    }
+
     // 연속 학습일 변경
     public void completeLearning(boolean continuedFromYesterday, LocalDate learningDate) {
         if (learningDate == null || (lastLearningDate != null && learningDate.isBefore(lastLearningDate))) {

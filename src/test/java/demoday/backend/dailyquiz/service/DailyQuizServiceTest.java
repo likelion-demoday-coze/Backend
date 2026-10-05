@@ -23,6 +23,7 @@ import demoday.backend.quiz.repository.MemberQuestionHistoryRepository;
 import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
 import demoday.backend.stock.service.StockService;
+import demoday.backend.streak.service.StreakPenaltyService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,6 +82,9 @@ class DailyQuizServiceTest {
 
     @Mock
     private StockService stockService;
+
+    @Mock
+    private StreakPenaltyService streakPenaltyService;
 
     @InjectMocks
     private DailyQuizService dailyQuizService;
