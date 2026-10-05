@@ -127,6 +127,7 @@ class PaymentIntegrationTest {
                         .contentType("application/json")
                         .content(body))
                 .andExpect(status().isCreated())
+                .andExpect(header().exists("X-Request-Id"))
                 .andExpect(jsonPath("$.result.merchantId").value("testmid"))
                 .andExpect(jsonPath("$.result.amount").value(1000))
                 .andExpect(jsonPath("$.result.payMethod").value("card"))

@@ -59,7 +59,8 @@ public class HttpKorpayClient implements KorpayClient {
             // 연결 또는 응답 시간 초과가 발생하면 실제 PG 승인 여부가 불분명할 수 있으므로 일반 실패로 확정하지 않음
             if (isTimeout(exception)) {
                 log.error(
-                        "[Payment] 코페이 승인 요청 시간 초과"
+                        "[Payment] 코페이 승인 요청 시간 초과",
+                        exception
                 );
 
                 throw new ProjectException(
@@ -68,7 +69,8 @@ public class HttpKorpayClient implements KorpayClient {
             }
 
             log.error(
-                    "[Payment] 코페이 승인 API 통신 실패"
+                    "[Payment] 코페이 승인 API 통신 실패",
+                    exception
             );
 
             throw new ProjectException(
@@ -78,7 +80,8 @@ public class HttpKorpayClient implements KorpayClient {
             // PG 서버가 4xx 또는 5xx를 반환한 경우
             log.error(
                     "[Payment] 코페이 승인 API 오류 응답 - status: {}",
-                    exception.getStatusCode()
+                    exception.getStatusCode(),
+                    exception
             );
 
             throw new ProjectException(
