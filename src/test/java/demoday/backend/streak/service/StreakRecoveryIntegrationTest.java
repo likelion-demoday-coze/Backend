@@ -269,6 +269,36 @@ class StreakRecoveryIntegrationTest {
     }
 
     @Test
+    void staleRequestCommitsNewlyDiscoveredPenaltyWithoutConsumingItem() throws Exception {
+        Long oldEventId = breakStreak(5);
+        giveItems(2);
+        // 오래된 AVAILABLE 이벤트가 남은 상태에서 새 학습을 시작하고 다시 중단했다.
+        transactions.execute(() -> {
+            members.findByIdForUpdate(memberId).orElseThrow().completeLearning(false, TODAY.minusDays(2));
+            return null;
+        });
+        var auth = new UsernamePasswordAuthenticationToken(memberId, null,
+                List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
+        mvc.perform(post("/api/v1/streaks/recoveries/{id}", oldEventId).with(authentication(auth)).with(csrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STREAK_409_3"));
+        var latest = recoveries.getLatest(memberId);
+        assertThat(latest.eventId()).isNotEqualTo(oldEventId);
+        assertThat(latest.status()).isEqualTo(StreakRecoveryStatus.AVAILABLE);
+        assertThat(latest.requestable()).isTrue();
+        assertThat(member().getCurrentStock()).isEqualByComparingTo("64");
+        assertThat(member().getCurrentStreak()).isZero();
+        assertThat(quantity()).isEqualTo(2);
+        assertThat(recoveryCount()).isZero();
+        assertThatThrownBy(() -> recoveries.request(memberId, oldEventId))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        ex -> assertThat(ex.getErrorCode()).isEqualTo(StreakErrorCode.STALE_RECOVERY));
+        assertThat(recoveries.getLatest(memberId).eventId()).isEqualTo(latest.eventId());
+        assertThat(member().getCurrentStock()).isEqualByComparingTo("64");
+        recoveries.request(memberId, latest.eventId());
+        assertThat(quantity()).isEqualTo(1);
+    }
+
+    @Test
     void yesterdayRestartAndTodayCompletionRejectOldRecoveryWithoutChangingState() throws Exception {
         Long eventId = breakStreak(3);
         giveItems(1);

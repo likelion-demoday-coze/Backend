@@ -2,6 +2,8 @@ package demoday.backend.dailyquiz.service;
 
 import demoday.backend.activity.repository.MemberDailyActivityRepository;
 import demoday.backend.dailyquiz.code.DailyQuizErrorCode;
+import demoday.backend.dailyquiz.code.DailyQuizAttemptType;
+import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerRequest;
 import demoday.backend.dailyquiz.dto.category.DailyQuizCategoryResponse;
 import demoday.backend.dailyquiz.domain.DailyQuizSession;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
@@ -41,6 +43,9 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.function.Supplier;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -97,6 +102,36 @@ class DailyQuizServiceTest {
 
     @InjectMocks
     private DailyQuizService dailyQuizService;
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(DailyQuizAttemptType.class)
+    void answerUsesTimeAfterSessionLockWhenWaitingCrossesMidnight(DailyQuizAttemptType type) {
+        var before = Instant.parse("2026-10-05T14:59:59Z");
+        var after = Instant.parse("2026-10-05T15:00:00Z");
+        var time = new AtomicReference<>(before);
+        Clock movingClock = mock(Clock.class);
+        when(movingClock.withZone(any())).thenReturn(movingClock);
+        when(movingClock.instant()).thenAnswer(invocation -> time.get());
+        when(movingClock.getZone()).thenReturn(java.time.ZoneId.of("Asia/Seoul"));
+        ReflectionTestUtils.setField(dailyQuizService, "clock", movingClock);
+        when(transactionRetryExecutor.execute(any())).thenAnswer(invocation ->
+                ((Supplier<?>) invocation.getArgument(0)).get());
+        Member member = Member.create(1L, "회원");
+        if (type == DailyQuizAttemptType.ORIGINAL)
+            when(memberRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member));
+        var session = DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
+                member.getCurrentStock(), LocalDate.of(2026, 10, 5).atTime(12, 0), false);
+        when(dailyQuizSessionRepository.findByIdAndMemberIdForUpdate(2L, 1L)).thenAnswer(invocation -> {
+            time.set(after); // 세션 잠금 대기를 마친 시점은 다음 날이다.
+            return Optional.of(session);
+        });
+        assertThatThrownBy(() -> dailyQuizService.submitAnswer(1L, 2L, 3L, new DailyQuizAnswerRequest(4L, type)))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        ex -> assertThat(ex.getErrorCode()).isEqualTo(DailyQuizErrorCode.SESSION_EXPIRED));
+        if (type == DailyQuizAttemptType.ORIGINAL)
+            verify(streakPenaltyService).applyDuePenaltyInTransaction(1L, LocalDate.of(2026, 10, 6));
+        verifyNoInteractions(dailyQuizAttemptRepository, memberDailyActivityRepository, stockService);
+    }
 
     @Test
     @DisplayName("와이어프레임 순서대로 데일리 퀴즈 카테고리 8개를 조회한다")

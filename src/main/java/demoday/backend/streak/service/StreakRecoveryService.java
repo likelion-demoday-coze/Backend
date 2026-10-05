@@ -60,24 +60,29 @@ public class StreakRecoveryService {
     /** 이벤트 ID가 동일하면 신청 결과를 재조회하며 아이템을 중복 소모하지 않는다. */
     public StreakRecoveryResponse request(Long memberId, Long eventId) {
         if (eventId == null || eventId <= 0) throw new ProjectException(GeneralErrorCode.BAD_REQUEST);
-        return transactions.execute(() -> requestInTransaction(memberId, eventId));
+        RecoveryRequestOutcome outcome = transactions.execute(() -> requestInTransaction(memberId, eventId));
+        // 누락된 하락은 먼저 커밋한다. 오래된 이벤트 요청의 409가 그 하락까지 롤백하지 않게 한다.
+        if (outcome.error() != null) throw new ProjectException(outcome.error());
+        return outcome.response();
     }
 
-    private StreakRecoveryResponse requestInTransaction(Long memberId, Long eventId) {
+    private record RecoveryRequestOutcome(StreakRecoveryResponse response, StreakErrorCode error) {}
+
+    private RecoveryRequestOutcome requestInTransaction(Long memberId, Long eventId) {
         Member member = findActiveMember(memberId, true);
         LocalDateTime now = now();
         expirePendingInTransaction(memberId, now);
         StreakRecoveryEvent event = events.findByStreakRecoveryEventIdAndMemberMemberId(eventId, memberId)
                 .orElseThrow(() -> new ProjectException(StreakErrorCode.RECOVERY_NOT_FOUND));
         if (event.getStatus() != StreakRecoveryStatus.AVAILABLE) {
-            return StreakRecoveryResponse.from(event, now, false);
+            return new RecoveryRequestOutcome(StreakRecoveryResponse.from(event, now, false), null);
         }
         // 이미 신청한 요청은 위에서 반환한다. 신규 요청만 현재 복구 대상과 일일 제한을 확인한다.
         penalties.applyDuePenaltyInTransaction(memberId, now.toLocalDate());
         var latest = events.findFirstByMemberMemberIdOrderByMissedDateDesc(memberId).orElseThrow();
         if (!latest.getStreakRecoveryEventId().equals(eventId)
                 || !canResumeFromEvent(member, event, now.toLocalDate())) {
-            throw new ProjectException(StreakErrorCode.STALE_RECOVERY);
+            return new RecoveryRequestOutcome(null, StreakErrorCode.STALE_RECOVERY);
         }
         if (events.existsByMemberMemberIdAndRequestedAtGreaterThanEqualAndRequestedAtLessThan(
                 memberId, now.toLocalDate().atStartOfDay(), now.toLocalDate().plusDays(1).atStartOfDay())) {
@@ -93,7 +98,7 @@ public class StreakRecoveryService {
             event.requestRecovery(StreakRecoveryMethod.ITEM, now, owned.getMemberItemId(), owned.getQuantity());
         }
         if (now.toLocalDate().equals(member.getLastLearningDate())) completeRecovery(member, event, now);
-        return StreakRecoveryResponse.from(event, now, false);
+        return new RecoveryRequestOutcome(StreakRecoveryResponse.from(event, now, false), null);
     }
 
     /** 원본 5문제 완료와 동일한 트랜잭션에서 호출한다. */

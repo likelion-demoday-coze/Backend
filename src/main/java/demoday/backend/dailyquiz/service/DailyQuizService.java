@@ -116,13 +116,13 @@ public class DailyQuizService {
             Long memberId,
             DailyQuizSessionCreateRequest request
     ) {
-        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
-
         // 회원을 비관적 락으로 조회
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() ->
                         new ProjectException(GeneralErrorCode.NOT_FOUND)
                 );
+
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         // 자정 작업이 지연되어도 세션 시작 주가에 누락된 하락을 먼저 반영한다.
         streakPenaltyService.applyDuePenaltyInTransaction(memberId, now.toLocalDate());
@@ -461,18 +461,18 @@ public class DailyQuizService {
             Long sessionQuestionId,
             DailyQuizAnswerRequest request
     ) {
-        // 현재 KST 시각 확인
-        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
-
         // 회원 비관적 락 조회
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() ->
                         new ProjectException(GeneralErrorCode.NOT_FOUND)
                 );
 
-        streakPenaltyService.applyDuePenaltyInTransaction(memberId, now.toLocalDate());
-
         DailyQuizSession session = findSessionForUpdate(sessionId, memberId);
+
+        // 잠금 대기가 자정을 넘겼다면 잠금을 획득한 후의 날짜를 모든 판정에 사용한다.
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
+
+        streakPenaltyService.applyDuePenaltyInTransaction(memberId, now.toLocalDate());
 
         // 세션 만료 확인
         validateSessionNotExpired(session, now);
@@ -695,9 +695,8 @@ public class DailyQuizService {
             Long sessionQuestionId,
             DailyQuizAnswerRequest request
     ) {
-        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
-
         DailyQuizSession session = findSessionForUpdate(sessionId, memberId);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         // 만료 검사
         validateSessionNotExpired(session, now);
@@ -1049,10 +1048,9 @@ public class DailyQuizService {
             Long memberId,
             Long sessionId
     ) {
-        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
-
         // 세션 락 조회
         DailyQuizSession session = findSessionForUpdate(sessionId, memberId);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         // 이미 완료된 세션 처리
         if (session.getStatus() == DailyQuizSessionStatus.COMPLETED) {
