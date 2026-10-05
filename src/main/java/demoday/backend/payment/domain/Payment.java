@@ -242,6 +242,7 @@ public class Payment {
         }
 
         this.completedAt = completedAt;
+        this.failureMessage = null;
         this.status = PaymentStatus.COMPLETED;
     }
 
@@ -366,5 +367,19 @@ public class Payment {
         }
 
         return normalized.substring(0, 500);
+    }
+
+    public void recordFulfillmentFailure(String message) {
+        if (status != PaymentStatus.APPROVED) {
+            throw new IllegalStateException(
+                    "승인된 결제에만 지급 실패를 기록할 수 있습니다."
+            );
+        }
+
+        this.failureMessage = normalizeMessage(message);
+    }
+
+    public void clearFailureMessage() {
+        this.failureMessage = null;
     }
 }

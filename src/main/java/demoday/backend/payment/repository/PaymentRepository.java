@@ -79,4 +79,16 @@ public interface PaymentRepository
             Collection<PaymentStatus> statuses,
             LocalDateTime requestedAt
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT p
+        FROM Payment p
+        JOIN FETCH p.member
+        JOIN FETCH p.product
+        WHERE p.paymentId = :paymentId
+        """)
+    Optional<Payment> findByIdForUpdate(
+            @Param("paymentId") Long paymentId
+    );
 }

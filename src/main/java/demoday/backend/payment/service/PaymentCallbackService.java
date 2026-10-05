@@ -1,32 +1,20 @@
 package demoday.backend.payment.service;
 
-import demoday.backend.fish.code.FishTransactionType;
-import demoday.backend.fish.service.FishService;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.payment.client.KorpayClient;
 import demoday.backend.payment.client.dto.KorpayConfirmResponse;
-import demoday.backend.payment.code.PassType;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.code.PaymentStatus;
-import demoday.backend.payment.code.ProductType;
 import demoday.backend.payment.config.KorpayProperties;
-import demoday.backend.payment.domain.MemberPass;
 import demoday.backend.payment.domain.Payment;
-import demoday.backend.payment.domain.Product;
 import demoday.backend.payment.dto.KorpayCallbackRequest;
 import demoday.backend.payment.dto.PaymentConfirmResultResponse;
-import demoday.backend.payment.repository.MemberPassRepository;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.temporal.ChronoUnit;
 
 @Slf4j
 @Service
@@ -35,15 +23,11 @@ public class PaymentCallbackService {
 
     private static final String AUTHENTICATION_SUCCESS_CODE = "0000";
 
-    private static final DateTimeFormatter APPROVED_AT_FORMAT =
-            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-
     private final PaymentRepository paymentRepository;
-    private final PaymentFulfillmentService paymentFulfillmentService;
+    private final PaymentProcessingService paymentProcessingService;
     private final KorpayClient korpayClient;
     private final KorpayProperties korpayProperties;
     private final TransactionTemplate transactionTemplate;
-    private final Clock clock;
 
     public PaymentConfirmResultResponse confirm(
             KorpayCallbackRequest callback
@@ -68,6 +52,13 @@ public class PaymentCallbackService {
         if (preparedPayment.completed()) {
             return findCompletedResult(
                     preparedPayment.paymentKey()
+            );
+        }
+
+        // PG 승인은 저장됐지만 상품 지급이 실패한 결제는 승인 API를 다시 호출하지 않는다.
+        if (preparedPayment.approved()) {
+            return paymentProcessingService.retryFulfillment(
+                    preparedPayment.paymentId()
             );
         }
 
@@ -127,8 +118,27 @@ public class PaymentCallbackService {
             // 이미 상품 지급까지 끝났으면 기존 결과 반환
             if (payment.getStatus() == PaymentStatus.COMPLETED) {
                 return new PreparedPayment(
+                        payment.getPaymentId(),
                         payment.getPaymentKey(),
+                        false,
                         true
+                );
+            }
+
+            // 승인까지 저장된 결제는 상품 지급 단계만 재시도한다.
+            if (payment.getStatus() == PaymentStatus.APPROVED) {
+                return new PreparedPayment(
+                        payment.getPaymentId(),
+                        payment.getPaymentKey(),
+                        true,
+                        false
+                );
+            }
+
+            // 승인 여부가 불명확한 결제는 코페이 상태 조회 전까지 재승인하지 않는다.
+            if (payment.getStatus() == PaymentStatus.UNKNOWN) {
+                throw new ProjectException(
+                        PaymentErrorCode.CONFIRM_RESULT_UNKNOWN
                 );
             }
 
@@ -155,7 +165,9 @@ public class PaymentCallbackService {
             );
 
             return new PreparedPayment(
+                    payment.getPaymentId(),
                     callback.paymentKey(),
+                    false,
                     false
             );
         });
@@ -204,59 +216,20 @@ public class PaymentCallbackService {
             );
         }
 
-        return transactionTemplate.execute(status -> {
-            // 승인 완료 처리와 상품 지급 직렬화 위해 결제 행 다시 잠금
-            Payment payment = paymentRepository
-                    .findByPaymentKeyForUpdate(paymentKey)
-                    .orElseThrow(() ->
-                            new ProjectException(
-                                    PaymentErrorCode.ORDER_NOT_FOUND
-                            )
-                    );
-
-            // 동일 승인 결과 재전송돼도 상품 재지급하지 않음
-            if (payment.getStatus() == PaymentStatus.COMPLETED) {
-                return PaymentConfirmResultResponse.from(payment);
-            }
-
-            // 검증 통해 위변조 및 잘못된 주문 연결 방지
-            validateConfirmResponse(payment, response);
-
-            LocalDateTime approvedAt =
-                    parseApprovedAt(response.approvedAt());
-
-            // 코페이 승인 정보를 내부 결제에 먼저 반영
-            payment.approve(
-                    response.tid(),
+        try {
+            return paymentProcessingService.processApprovedPayment(
+                    paymentKey,
+                    response
+            );
+        } catch (ProjectException exception) {
+            // PG는 승인했지만 응답 대조에 실패했다면 READY로 두지 않고 확인 대상으로 남긴다.
+            markUnknown(
+                    paymentKey,
                     response.resultCode(),
-                    response.payMethod(),
-                    approvedAt
+                    exception.getMessage()
             );
-
-            // 결제 승인 저장과 상품 지급은 같은 트랜잭션
-            paymentFulfillmentService.fulfill(
-                    payment,
-                    approvedAt
-            );
-
-            LocalDateTime completedAt =
-                    LocalDateTime.now(clock)
-                            .truncatedTo(ChronoUnit.MICROS);
-
-            // 상품 지급까지 성공했을 때만 COMPLETE
-            payment.complete(completedAt);
-
-            log.info(
-                    "[Payment] 결제 승인 및 상품 지급 완료 - paymentId: {}, orderNumber: {}, memberId: {}, tid: {}, amount: {}",
-                    payment.getPaymentId(),
-                    payment.getOrderNumber(),
-                    payment.getMember().getMemberId(),
-                    maskTid(response.tid()),
-                    payment.getAmount()
-            );
-
-            return PaymentConfirmResultResponse.from(payment);
-        });
+            throw exception;
+        }
     }
 
     private void validateCallback(
@@ -304,129 +277,6 @@ public class PaymentCallbackService {
                 });
     }
 
-    private void validateConfirmResponse(
-            Payment payment,
-            KorpayConfirmResponse response
-    ) {
-        if (!korpayProperties.merchantId().equals(
-                response.merchantId()
-        )) {
-            throw new ProjectException(
-                    PaymentErrorCode.MERCHANT_MISMATCH
-            );
-        }
-
-        if (!payment.getOrderNumber().equals(
-                response.orderNumber()
-        )) {
-            throw new ProjectException(
-                    PaymentErrorCode.ORDER_NUMBER_MISMATCH
-            );
-        }
-
-        if (!payment.getAmount().equals(response.amount())) {
-            throw new ProjectException(
-                    PaymentErrorCode.AMOUNT_MISMATCH
-            );
-        }
-
-        if (!payment.getProduct().getName().equals(
-                response.productName()
-        )) {
-            throw new ProjectException(
-                    PaymentErrorCode.PRODUCT_MISMATCH
-            );
-        }
-
-        if (!"KRW".equals(response.currency())) {
-            throw new ProjectException(
-                    PaymentErrorCode.AMOUNT_MISMATCH
-            );
-        }
-
-        if (response.tid() == null
-                || response.tid().isBlank()) {
-            throw new ProjectException(
-                    PaymentErrorCode.INVALID_CALLBACK
-            );
-        }
-
-        paymentRepository.findByTid(response.tid())
-                .filter(existing ->
-                        !existing.getPaymentId()
-                                .equals(payment.getPaymentId())
-                )
-                .ifPresent(existing -> {
-                    throw new ProjectException(
-                            PaymentErrorCode.DUPLICATE_TRANSACTION
-                    );
-                });
-    }
-
-    private void issueProduct(
-            Payment payment,
-            LocalDateTime approvedAt
-    ) {
-        Product product = payment.getProduct();
-        Long memberId = payment.getMember().getMemberId();
-
-        if (product.getProductType() == ProductType.FISH) {
-            Integer fishAmount = product.getFishAmount();
-
-            if (fishAmount == null || fishAmount <= 0) {
-                throw new ProjectException(
-                        PaymentErrorCode.FULFILLMENT_FAILED
-                );
-            }
-
-            // paymentId 기반 멱등 키 사용
-            fishService.credit(
-                    memberId,
-                    fishAmount.longValue(),
-                    FishTransactionType.PAID_CHARGE,
-                    payment.getPaymentId(),
-                    "PAYMENT:" + payment.getPaymentId()
-            );
-
-            return;
-        }
-
-        if (product.getProductType() == ProductType.PASS) {
-            // 일주일 패스의 회원당 1회 구매 정책을 지급 직전에 다시 검증
-            if (memberPassRepository.existsByMemberMemberId(memberId)) {
-                throw new ProjectException(
-                        PaymentErrorCode.PASS_ALREADY_PURCHASED
-                );
-            }
-
-            Integer durationHours =
-                    product.getPassDurationHours();
-
-            if (durationHours == null || durationHours <= 0) {
-                throw new ProjectException(
-                        PaymentErrorCode.FULFILLMENT_FAILED
-                );
-            }
-
-            // 실제 PG 승인 시각을 패스 시작 시각으로 사용
-            memberPassRepository.save(
-                    MemberPass.create(
-                            payment.getMember(),
-                            payment,
-                            PassType.SEVEN_DAY,
-                            approvedAt,
-                            approvedAt.plusHours(durationHours)
-                    )
-            );
-
-            return;
-        }
-
-        throw new ProjectException(
-                PaymentErrorCode.FULFILLMENT_FAILED
-        );
-    }
-
     private void recordAuthenticationFailure(
             KorpayCallbackRequest callback
     ) {
@@ -440,6 +290,23 @@ public class PaymentCallbackService {
                                 callback.orderNumber()
                         )
                         .ifPresent(payment -> {
+                            // 실패 콜백도 임의 요청으로 주문 상태를 바꾸지 못하도록 주문 정보와 대조한다.
+                            if (!korpayProperties.merchantId().equals(
+                                    callback.merchantId()
+                            )) {
+                                throw new ProjectException(
+                                        PaymentErrorCode.MERCHANT_MISMATCH
+                                );
+                            }
+
+                            if (!payment.getAmount().equals(
+                                    callback.amount()
+                            )) {
+                                throw new ProjectException(
+                                        PaymentErrorCode.AMOUNT_MISMATCH
+                                );
+                            }
+
                             if (payment.getStatus()
                                     == PaymentStatus.READY) {
                                 payment.fail(
@@ -458,12 +325,14 @@ public class PaymentCallbackService {
     ) {
         transactionTemplate.executeWithoutResult(status ->
                 paymentRepository.findByPaymentKeyForUpdate(paymentKey)
-                        .ifPresent(payment ->
-                                payment.fail(
+                        .filter(payment ->
+                                payment.getStatus() == PaymentStatus.READY
+                                        || payment.getStatus() == PaymentStatus.UNKNOWN
+                        )
+                        .ifPresent(payment -> payment.fail(
                                         resultCode,
                                         message
-                                )
-                        )
+                                ))
         );
     }
 
@@ -474,12 +343,14 @@ public class PaymentCallbackService {
     ) {
         transactionTemplate.executeWithoutResult(status ->
                 paymentRepository.findByPaymentKeyForUpdate(paymentKey)
-                        .ifPresent(payment ->
-                                payment.markUnknown(
+                        .filter(payment ->
+                                payment.getStatus() == PaymentStatus.READY
+                                        || payment.getStatus() == PaymentStatus.UNKNOWN
+                        )
+                        .ifPresent(payment -> payment.markUnknown(
                                         resultCode,
                                         message
-                                )
-                        )
+                                ))
         );
     }
 
@@ -494,19 +365,6 @@ public class PaymentCallbackService {
                 );
 
         return PaymentConfirmResultResponse.from(payment);
-    }
-
-    private LocalDateTime parseApprovedAt(String approvedAt) {
-        try {
-            return LocalDateTime.parse(
-                    approvedAt,
-                    APPROVED_AT_FORMAT
-            ).truncatedTo(ChronoUnit.MICROS);
-        } catch (DateTimeParseException | NullPointerException e) {
-            throw new ProjectException(
-                    PaymentErrorCode.INVALID_CALLBACK
-            );
-        }
     }
 
     private void validateRequiredCallbackValues(
@@ -538,18 +396,10 @@ public class PaymentCallbackService {
         );
     }
 
-    private String maskTid(String tid) {
-        if (tid == null || tid.length() <= 6) {
-            return "****";
-        }
-
-        return tid.substring(0, 3)
-                + "****"
-                + tid.substring(tid.length() - 3);
-    }
-
     private record PreparedPayment(
+            Long paymentId,
             String paymentKey,
+            boolean approved,
             boolean completed
     ) {
     }
