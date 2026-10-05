@@ -15,9 +15,7 @@ import demoday.backend.ranking.repository.RankingQueryRepository;
 import demoday.backend.ranking.repository.RankingRewardRepository;
 import demoday.backend.ranking.repository.RankingSettlementRepository;
 import demoday.backend.ranking.repository.projection.RankingWinnerRow;
-import demoday.backend.ranking.repository.projection.StockClosingValueRow;
-import demoday.backend.stock.domain.StockDailySnapshot;
-import demoday.backend.stock.repository.StockDailySnapshotRepository;
+import demoday.backend.stock.service.StockSnapshotService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -25,9 +23,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static demoday.backend.ranking.code.RankingPolicy.KST;
@@ -42,7 +38,7 @@ public class RankingSettlementService {
     private final RankingRewardRepository rankingRewardRepository;
     private final RankingSettlementRepository rankingSettlementRepository;
     private final MemberRepository memberRepository;
-    private final StockDailySnapshotRepository stockDailySnapshotRepository;
+    private final StockSnapshotService stockSnapshotService;
     private final FishService fishService;
     private final TransactionRetryExecutor transactionRetryExecutor;
     private final Clock clock;
@@ -93,57 +89,6 @@ public class RankingSettlementService {
         }
     }
 
-    // 보상 정산과 별도 트랜잭션으로 마감 주가를 먼저 확정해 정산 재시도에도 같은 값을 사용
-    private void captureStockSnapshots(
-            LocalDate rankingDate
-    ) {
-        transactionRetryExecutor.execute(
-                () -> {
-                    LocalDateTime closedAt = rankingDate
-                            .plusDays(1)
-                            .atStartOfDay();
-
-                    List<Member> members = memberRepository
-                            .findAllByStatusAndCreatedBeforeForUpdate(
-                                    MemberStatus.ACTIVE,
-                                    closedAt
-                            );
-
-                    // 회원 잠금으로 주가 변경과 다중 서버의 스냅샷 생성을 직렬화한 뒤 확인
-                    if (stockDailySnapshotRepository
-                            .existsBySnapshotDate(rankingDate)) {
-                        return null;
-                    }
-
-                    if (!members.isEmpty()) {
-                        Map<Long, StockClosingValueRow> closingValues =
-                                rankingQueryRepository
-                                        .findStockClosingValues(closedAt)
-                                        .stream()
-                                        .collect(Collectors.toMap(
-                                                StockClosingValueRow::getMemberId,
-                                                Function.identity()
-                                        ));
-
-                        List<StockDailySnapshot> snapshots = members.stream()
-                                .map(member -> StockDailySnapshot.create(
-                                        member,
-                                        rankingDate,
-                                        closingValues
-                                                .get(member.getMemberId())
-                                                .getClosingStock()
-                                ))
-                                .toList();
-
-                        stockDailySnapshotRepository.saveAll(snapshots);
-                        stockDailySnapshotRepository.flush();
-                    }
-
-                    return null;
-                }
-        );
-    }
-
     // 주어진 날짜의 두 랭킹을 하나의 트랜잭션에서 정산
     public void settle(
             LocalDate rankingDate
@@ -152,7 +97,8 @@ public class RankingSettlementService {
                 rankingDate
         );
 
-        captureStockSnapshots(rankingDate);
+        // 공통 서비스가 별도 트랜잭션으로 마감값을 확정한 뒤 보상을 정산한다.
+        stockSnapshotService.capture(rankingDate);
 
         transactionRetryExecutor.execute(
                 () -> {

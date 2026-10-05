@@ -73,8 +73,8 @@ public class StockService {
                 joinedAt = firstChange.get().getCreatedAt();
                 initialStock = firstChange.get().getStockBefore();
             }
-            if (firstSnapshot.isPresent() && firstSnapshot.get().getSnapshotDate().atStartOfDay().isBefore(joinedAt)) {
-                joinedAt = firstSnapshot.get().getSnapshotDate().atStartOfDay();
+            if (firstSnapshot.isPresent() && firstSnapshot.get().getSnapshotDate().plusDays(1).atStartOfDay().isBefore(joinedAt)) {
+                joinedAt = firstSnapshot.get().getSnapshotDate().plusDays(1).atStartOfDay();
                 initialStock = firstSnapshot.get().getStockValue();
             }
         }
@@ -92,7 +92,7 @@ public class StockService {
             var snapshots = stockDailySnapshotRepository.findAllByMemberMemberIdAndSnapshotDateBetweenOrderBySnapshotDateAsc(
                     memberId, from.toLocalDate(), now.toLocalDate());
             for (var snapshot : snapshots) {
-                LocalDateTime time = snapshot.getSnapshotDate().atStartOfDay();
+                LocalDateTime time = snapshot.getSnapshotDate().plusDays(1).atStartOfDay();
                 if (!time.isBefore(from) && !time.isAfter(now)) {
                     points.add(new StockGraphResponse.Point(time, snapshot.getStockValue()));
                 }
