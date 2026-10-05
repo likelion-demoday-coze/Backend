@@ -235,8 +235,11 @@ class AttendanceRewardIntegrationTest {
         LocalDateTime now = LocalDateTime.now(clock.withZone(ZoneId.of("Asia/Seoul")));
         Product product = products.saveAndFlush(Product.create(UUID.randomUUID().toString(), ProductType.PASS,
                 "일주일 패스", 1900, null, 168, null, null, true));
-        Payment payment = payments.saveAndFlush(Payment.create(owner, product, UUID.randomUUID().toString(),
-                1900, PaymentStatus.APPROVED, now));
+        Payment payment = Payment.create(owner, product, UUID.randomUUID().toString().replace("-", ""),
+                1900, now.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")), now);
+        payment.recordAuthentication(UUID.randomUUID().toString(), "testmid");
+        payment.approve(UUID.randomUUID().toString(), "3001", "card", now);
+        payments.saveAndFlush(payment);
         MemberPass pass = passes.saveAndFlush(MemberPass.create(owner, payment, PassType.SEVEN_DAY,
                 now.plusHours(startHours), now.plusHours(endHours)));
         jdbc.update("update member_pass set status=? where member_pass_id=?", status.name(), pass.getMemberPassId());

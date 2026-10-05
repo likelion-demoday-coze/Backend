@@ -74,7 +74,7 @@ public class PaymentOrderService {
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() ->
                         new ProjectException(
-                                PaymentErrorCode.PRODUCT_NOT_FOUND
+                                GeneralErrorCode.NOT_FOUND
                         )
                 );
 
