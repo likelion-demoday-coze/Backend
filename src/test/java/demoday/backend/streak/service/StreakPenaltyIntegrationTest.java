@@ -229,7 +229,7 @@ class StreakPenaltyIntegrationTest {
 
     @Test
     void quizStartAppliesDelayedPenaltyBeforeRecordingStartStock() {
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate today = TODAY;
         learnedThreeDaysEnding(today.minusDays(2));
         jdbc.update("update member set fish_balance=100 where member_id=?", memberId);
         for (int index = 0; index < 5; index++) {
@@ -245,7 +245,7 @@ class StreakPenaltyIntegrationTest {
 
     @Test
     void originalAnswersCatchUpPenaltyBeforeRestartingStreak() {
-        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        LocalDateTime now = TODAY.atStartOfDay();
         learnedThreeDaysEnding(now.toLocalDate().minusDays(2));
         var member = members.findById(memberId).orElseThrow();
         var session = sessions.saveAndFlush(DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,

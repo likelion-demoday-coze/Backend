@@ -144,6 +144,13 @@ public class Member {
         currentStreak = 0;
     }
 
+    public void restoreLearningStreak(int restoredStreak, LocalDate today) {
+        if (restoredStreak <= 0 || today == null || !today.equals(lastLearningDate)) {
+            throw new IllegalArgumentException("오늘 정규장을 완료한 회원만 연속 학습을 복구할 수 있습니다.");
+        }
+        currentStreak = restoredStreak;
+    }
+
     // 연속 학습일 변경
     public void completeLearning(boolean continuedFromYesterday, LocalDate learningDate) {
         if (learningDate == null || (lastLearningDate != null && learningDate.isBefore(lastLearningDate))) {

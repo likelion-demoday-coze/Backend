@@ -196,7 +196,7 @@ public class StockService {
                 yield penalty != null
                         && penalty.getChangeType() == StockChangeType.STREAK_PENALTY
                         && Objects.equals(penalty.getMember().getMemberId(), memberId)
-                        && penalty.getStockBefore().compareTo(after) == 0;
+                        && before.divide(new BigDecimal("0.80"), 2, RoundingMode.HALF_UP).compareTo(after) == 0;
             }
             case ADMIN_ADJUSTMENT -> true;
         };

@@ -88,6 +88,15 @@ public class MemberDailyActivity {
         return true;
     }
 
+    // 복구권으로 인정한 날짜의 상태만 기록하며 실제 문제 풀이 횟수는 올리지 않는다.
+    public void recoverLearning(LocalDateTime recoveredAt) {
+        if (recoveredAt == null || learningStatus != LearningStatus.NONE) {
+            throw new IllegalArgumentException("미학습 날짜만 복구할 수 있습니다.");
+        }
+        learningStatus = LearningStatus.RECOVERED;
+        learnedAt = recoveredAt;
+    }
+
     // 타임어택 횟수 제한 검증 및 참여 횟수 증가
     public boolean recordTimeAttackAttempt(int dailyLimit) {
         if (timeAttackAttemptCount >= dailyLimit) {

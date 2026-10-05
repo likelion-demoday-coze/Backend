@@ -238,7 +238,7 @@ class StockChangeIntegrationTest {
     }
 
     @Test
-    void recoveryRequiresOwnPenaltyAndExactOriginalValue() {
+    void recoveryRequiresOwnPenaltyAndCurrentValueDividedByPointEight() {
         var penalty = change("100", "80", StockChangeType.STREAK_PENALTY, "penalty-rule");
         assertRuleError(() -> recover("80", "99.99", penalty.stockChangeId(), "wrong-target"));
         assertRuleError(() -> recover("80", "120", penalty.stockChangeId(), "too-high"));
@@ -253,10 +253,11 @@ class StockChangeIntegrationTest {
         assertRuleError(() -> recover("81", "100", otherPenalty.stockChangeId(), "wrong-member"));
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("81");
         assertThat(changeCount()).isEqualTo(2);
-        var original = recover("81", "100", penalty.stockChangeId(), "correct-recovery");
-        change("100", "110", StockChangeType.QUIZ_CORRECT, "later");
-        assertThat(recover("81", "100", penalty.stockChangeId(), "correct-recovery")).isEqualTo(original);
-        assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("110");
+        assertRuleError(() -> recover("81", "100", penalty.stockChangeId(), "old-policy"));
+        var original = recover("81", "101.25", penalty.stockChangeId(), "correct-recovery");
+        change("101.25", "102.26", StockChangeType.QUIZ_CORRECT, "later");
+        assertThat(recover("81", "101.25", penalty.stockChangeId(), "correct-recovery")).isEqualTo(original);
+        assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("102.26");
     }
 
     private StockChangeResponse recover(String before, String after, Long penaltyId, String key) {

@@ -44,6 +44,7 @@ import demoday.backend.quiz.repository.QuizQuestionRepository;
 import demoday.backend.stock.code.StockChangeType;
 import demoday.backend.stock.service.StockService;
 import demoday.backend.streak.service.StreakPenaltyService;
+import demoday.backend.streak.service.StreakRecoveryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -88,6 +90,8 @@ public class DailyQuizService {
     private final MemberQuestionHistoryRepository memberQuestionHistoryRepository;
     private final StockService stockService;
     private final StreakPenaltyService streakPenaltyService;
+    private final StreakRecoveryService streakRecoveryService;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public List<DailyQuizCategoryResponse> getCategories() {
@@ -112,7 +116,7 @@ public class DailyQuizService {
             Long memberId,
             DailyQuizSessionCreateRequest request
     ) {
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         // 회원을 비관적 락으로 조회
         Member member = memberRepository.findByIdForUpdate(memberId)
@@ -221,7 +225,7 @@ public class DailyQuizService {
             Long memberId
     ) {
         // 현재 KST 시각 조회
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         DailyQuizSession session =
                 // 진행 상태인 가장 최근 세션 조회
@@ -264,7 +268,7 @@ public class DailyQuizService {
             Long sessionId
     ) {
         // 현재 KST 시각 조회
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         // 본인 소유 세션 조회
         DailyQuizSession session =
@@ -458,7 +462,7 @@ public class DailyQuizService {
             DailyQuizAnswerRequest request
     ) {
         // 현재 KST 시각 확인
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         // 회원 비관적 락 조회
         Member member = memberRepository.findByIdForUpdate(memberId)
@@ -609,6 +613,7 @@ public class DailyQuizService {
                                 );
 
                 member.completeLearning(learnedYesterday, now.toLocalDate());
+                streakRecoveryService.completeForLearningInTransaction(memberId, now);
             }
 
             // 원본 오답 개수 확인
@@ -690,7 +695,7 @@ public class DailyQuizService {
             Long sessionQuestionId,
             DailyQuizAnswerRequest request
     ) {
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         DailyQuizSession session = findSessionForUpdate(sessionId, memberId);
 
@@ -1044,7 +1049,7 @@ public class DailyQuizService {
             Long memberId,
             Long sessionId
     ) {
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
 
         // 세션 락 조회
         DailyQuizSession session = findSessionForUpdate(sessionId, memberId);

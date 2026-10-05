@@ -159,7 +159,7 @@ class StreakServiceIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void onlyFifthOriginalAnswerRecordsLearningAndReplayDoesNotIncrement() {
         // 답안 처리의 가장 바깥 재시도 트랜잭션을 실제로 실행한다.
-        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        LocalDateTime now = TODAY.atStartOfDay();
         var session = sessions.saveAndFlush(DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
                 member.getCurrentStock(), now, false));
         Long lastQuestionId = null;

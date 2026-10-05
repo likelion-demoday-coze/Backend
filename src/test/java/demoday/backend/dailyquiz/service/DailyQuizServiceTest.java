@@ -24,6 +24,7 @@ import demoday.backend.quiz.repository.QuizOptionRepository;
 import demoday.backend.quiz.repository.QuizQuestionRepository;
 import demoday.backend.stock.service.StockService;
 import demoday.backend.streak.service.StreakPenaltyService;
+import demoday.backend.streak.service.StreakRecoveryService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -38,6 +40,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.function.Supplier;
+import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -85,6 +88,12 @@ class DailyQuizServiceTest {
 
     @Mock
     private StreakPenaltyService streakPenaltyService;
+
+    @Mock
+    private StreakRecoveryService streakRecoveryService;
+
+    @Spy
+    private Clock clock = Clock.systemUTC();
 
     @InjectMocks
     private DailyQuizService dailyQuizService;

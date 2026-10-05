@@ -2,6 +2,7 @@ package demoday.backend.streak.domain;
 
 import demoday.backend.member.domain.Member;
 import demoday.backend.streak.code.StreakRecoveryStatus;
+import demoday.backend.streak.code.StreakRecoveryMethod;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -13,10 +14,10 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "streak_recovery_event",
-        uniqueConstraints = @UniqueConstraint(
+        uniqueConstraints = {@UniqueConstraint(
                 name = "uk_streak_recovery_event_member_date",
                 columnNames = {"member_id", "missed_date"}
-        )
+        ), @UniqueConstraint(name = "uk_streak_recovery_event_member_request_date", columnNames = {"member_id", "request_date"})}
 )
 @Builder(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -58,6 +59,34 @@ public class StreakRecoveryEvent {
     @Column(name = "recovered_at")
     private LocalDateTime recoveredAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recovery_method")
+    private StreakRecoveryMethod recoveryMethod;
+
+    @Column(name = "requested_at")
+    private LocalDateTime requestedAt;
+
+    @Column(name = "request_date")
+    private LocalDate requestDate;
+
+    @Column(name = "expired_at")
+    private LocalDateTime expiredAt;
+
+    @Column(name = "consumed_member_item_id")
+    private Long consumedMemberItemId;
+
+    @Column(name = "quantity_after_request")
+    private Integer quantityAfterRequest;
+
+    @Column(name = "recovery_stock_change_id", unique = true)
+    private Long recoveryStockChangeId;
+
+    @Column(name = "stock_after_recovery", precision = 30, scale = 2)
+    private BigDecimal stockAfterRecovery;
+
+    @Column(name = "streak_after_recovery")
+    private Integer streakAfterRecovery;
+
     public static StreakRecoveryEvent create(
             Member member,
             LocalDate missedDate,
@@ -82,5 +111,38 @@ public class StreakRecoveryEvent {
             throw new IllegalArgumentException("하락 주가 이력은 한 번만 연결할 수 있습니다.");
         }
         penaltyStockChangeId = stockChangeId;
+    }
+
+    public void requestRecovery(StreakRecoveryMethod method, LocalDateTime now, Long memberItemId, Integer quantityAfter) {
+        if (status != StreakRecoveryStatus.AVAILABLE || method == null || now == null) {
+            throw new IllegalStateException("복구 신청 상태가 올바르지 않습니다.");
+        }
+        recoveryMethod = method;
+        requestedAt = now;
+        requestDate = now.toLocalDate();
+        consumedMemberItemId = memberItemId;
+        quantityAfterRequest = quantityAfter;
+        status = StreakRecoveryStatus.PENDING;
+    }
+
+    public boolean expireIfOverdue(LocalDateTime now) {
+        if (status == StreakRecoveryStatus.PENDING && !requestedAt.toLocalDate().equals(now.toLocalDate())
+                && now.isAfter(requestedAt)) {
+            status = StreakRecoveryStatus.EXPIRED;
+            expiredAt = now;
+            return true;
+        }
+        return false;
+    }
+
+    public void completeRecovery(Long changeId, BigDecimal stockAfter, int streakAfter, LocalDateTime now) {
+        if (status != StreakRecoveryStatus.PENDING || !requestedAt.toLocalDate().equals(now.toLocalDate())) {
+            throw new IllegalStateException("신청 당일에만 복구를 완료할 수 있습니다.");
+        }
+        recoveryStockChangeId = changeId;
+        stockAfterRecovery = stockAfter;
+        streakAfterRecovery = streakAfter;
+        recoveredAt = now;
+        status = StreakRecoveryStatus.RECOVERED;
     }
 }
