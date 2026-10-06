@@ -64,4 +64,19 @@ public class MemberController {
                 memberService.updateNickname(memberId, request)
         );
     }
+
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "로그인 회원을 탈퇴 처리합니다. CSRF 토큰이 필요합니다."
+    )
+    @DeleteMapping("/me")
+    public ApiResponse<Void> withdraw(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        memberService.withdraw(memberId);
+
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK
+        );
+    }
 }
