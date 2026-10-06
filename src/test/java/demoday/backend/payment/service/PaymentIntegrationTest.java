@@ -222,20 +222,127 @@ class PaymentIntegrationTest {
                 )
         );
 
-        mvc.perform(get("/api/v1/payments/{orderNumber}",
+        mvc.perform(get("/api/v1/payments/orders/{orderNumber}",
                         order.orderNumber())
                         .with(authentication(authToken(member.getMemberId()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.status").value("READY"));
 
-        mvc.perform(get("/api/v1/payments/{orderNumber}",
+        mvc.perform(get("/api/v1/payments/orders/{orderNumber}",
                         order.orderNumber())
                         .with(authentication(authToken(other.getMemberId()))))
                 .andExpect(status().isNotFound());
 
-        mvc.perform(get("/api/v1/payments/{orderNumber}",
+        mvc.perform(get("/api/v1/payments/orders/{orderNumber}",
                         order.orderNumber()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void paymentHistoryRequiresAuthenticationAndReturnsOnlyOwnersPayments() throws Exception {
+        PaymentOrderResponse first = createOrder();
+        PaymentOrderResponse second = createOrder();
+
+        Member other = members.saveAndFlush(
+                Member.create(
+                        910000L + SEQUENCE.incrementAndGet(),
+                        "history" + SEQUENCE.incrementAndGet()
+                )
+        );
+        orderService.createOrder(
+                other.getMemberId(),
+                fishProduct.getProductCode()
+        );
+
+        mvc.perform(get("/api/v1/payments"))
+                .andExpect(status().isUnauthorized());
+
+        mvc.perform(get("/api/v1/payments")
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.totalElements").value(2))
+                .andExpect(jsonPath("$.result.payments.length()").value(2))
+                .andExpect(jsonPath("$.result.payments[0].orderNumber")
+                        .value(second.orderNumber()))
+                .andExpect(jsonPath("$.result.payments[1].orderNumber")
+                        .value(first.orderNumber()));
+    }
+
+    @Test
+    void paymentHistorySupportsStablePagination() throws Exception {
+        PaymentOrderResponse first = createOrder();
+        PaymentOrderResponse second = createOrder();
+
+        mvc.perform(get("/api/v1/payments")
+                        .param("page", "0")
+                        .param("size", "1")
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.page").value(0))
+                .andExpect(jsonPath("$.result.size").value(1))
+                .andExpect(jsonPath("$.result.totalElements").value(2))
+                .andExpect(jsonPath("$.result.totalPages").value(2))
+                .andExpect(jsonPath("$.result.hasNext").value(true))
+                .andExpect(jsonPath("$.result.payments[0].orderNumber")
+                        .value(second.orderNumber()));
+
+        mvc.perform(get("/api/v1/payments")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.hasNext").value(false))
+                .andExpect(jsonPath("$.result.payments[0].orderNumber")
+                        .value(first.orderNumber()));
+    }
+
+    @Test
+    void paymentDetailReturnsOrderSnapshotAndOnlyOwnerCanViewIt() throws Exception {
+        PaymentOrderResponse order = createOrder();
+        Payment payment = payments.findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+        Member other = members.saveAndFlush(
+                Member.create(
+                        920000L + SEQUENCE.incrementAndGet(),
+                        "detail" + SEQUENCE.incrementAndGet()
+                )
+        );
+
+        jdbcTemplate.update(
+                "UPDATE product SET name = ?, price = ? WHERE product_id = ?",
+                "변경된 상품명",
+                2000,
+                fishProduct.getProductId()
+        );
+
+        mvc.perform(get("/api/v1/payments/{paymentId}", payment.getPaymentId())
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.paymentId").value(payment.getPaymentId()))
+                .andExpect(jsonPath("$.result.orderNumber").value(order.orderNumber()))
+                .andExpect(jsonPath("$.result.productCode")
+                        .value(fishProduct.getProductCode()))
+                .andExpect(jsonPath("$.result.productName").value("생선 100개"))
+                .andExpect(jsonPath("$.result.amount").value(1000))
+                .andExpect(jsonPath("$.result.status").value("READY"));
+
+        mvc.perform(get("/api/v1/payments/{paymentId}", payment.getPaymentId())
+                        .with(authentication(authToken(other.getMemberId()))))
+                .andExpect(status().isNotFound());
+
+        mvc.perform(get("/api/v1/payments/{paymentId}", payment.getPaymentId()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void paymentDetailRejectsInvalidOrMissingPaymentId() throws Exception {
+        mvc.perform(get("/api/v1/payments/0")
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(get("/api/v1/payments/{paymentId}", Long.MAX_VALUE)
+                        .with(authentication(authToken(member.getMemberId()))))
+                .andExpect(status().isNotFound());
     }
 
     @Test

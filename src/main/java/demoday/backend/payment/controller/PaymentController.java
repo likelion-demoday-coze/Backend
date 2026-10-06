@@ -15,7 +15,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -162,11 +161,7 @@ public class PaymentController {
             @Parameter(hidden = true)
             @AuthenticationPrincipal Long memberId,
 
-            @PageableDefault(
-                    size = 20,
-                    sort = "requestedAt",
-                    direction = Sort.Direction.DESC
-            )
+            @PageableDefault(size = 20)
             Pageable pageable
     ) {
         return ApiResponse.onSuccess(

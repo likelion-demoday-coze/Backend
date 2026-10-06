@@ -59,7 +59,7 @@ public class PaymentQueryService {
         validateMember(memberId);
 
         Page<Payment> payments =
-                paymentRepository.findAllByMemberMemberIdOrderByRequestedAtDesc(
+                paymentRepository.findAllByMemberMemberIdOrderByRequestedAtDescPaymentIdDesc(
                         memberId,
                         pageable
                 );

@@ -107,7 +107,7 @@ public interface PaymentRepository
             @Param("paymentId") Long paymentId
     );
 
-    Page<Payment> findAllByMemberMemberIdOrderByRequestedAtDesc(
+    Page<Payment> findAllByMemberMemberIdOrderByRequestedAtDescPaymentIdDesc(
             Long memberId,
             Pageable pageable
     );
