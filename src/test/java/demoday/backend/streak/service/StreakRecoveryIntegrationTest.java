@@ -441,8 +441,16 @@ class StreakRecoveryIntegrationTest {
     private void createPass(LocalDateTime expiresAt) {
         var product = products.saveAndFlush(Product.create(UUID.randomUUID().toString(), ProductType.PASS,
                 "패스", 1900, null, 168, null, null, true));
-        var payment = payments.saveAndFlush(Payment.create(member(), product, UUID.randomUUID().toString(),
-                1900, PaymentStatus.APPROVED, TODAY.atStartOfDay()));
+        var payment = Payment.create(member(), product, UUID.randomUUID().toString().replace("-", ""),
+                1900, TODAY.atStartOfDay().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")),
+                TODAY.atStartOfDay());
+        payment.startConfirmation(
+                UUID.randomUUID().toString(),
+                "testmid",
+                LocalDateTime.now()
+        );
+        payment.approve(UUID.randomUUID().toString(), "3001", "card", TODAY.atStartOfDay());
+        payments.saveAndFlush(payment);
         passes.saveAndFlush(MemberPass.create(member(), payment, PassType.SEVEN_DAY, TODAY.atStartOfDay(), expiresAt));
     }
 

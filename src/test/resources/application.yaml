@@ -25,3 +25,13 @@ app:
   frontend-base-url: http://localhost:3000
   ranking:
     settlement-start-date: 2026-10-31
+
+  payment:
+    korpay:
+      merchant-id: testmid
+      merchant-key: test-mkey
+      base-url: http://localhost:9999
+      return-url: http://localhost:8080/api/v1/payments/callback
+      pay-method: card
+      connect-timeout: 1s
+      read-timeout: 3s

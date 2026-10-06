@@ -35,6 +35,10 @@ management:
       exposure:
         include: health,info
 
+logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId:-}]"
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -47,6 +51,19 @@ app:
   frontend-allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
   ranking:
     settlement-start-date: ${RANKING_SETTLEMENT_START_DATE:2026-10-31}
+
+  payment:
+    frontend-success-path: ${PAYMENT_FRONTEND_SUCCESS_PATH:/payment/success}
+    frontend-failure-path: ${PAYMENT_FRONTEND_FAILURE_PATH:/payment/failure}
+    fulfillment-retry-cron: ${PAYMENT_FULFILLMENT_RETRY_CRON:0 */5 * * * *}
+    korpay:
+      merchant-id: ${KORPAY_MERCHANT_ID}
+      merchant-key: ${KORPAY_MKEY}
+      base-url: ${KORPAY_BASE_URL:https://payments.korpay.com/v1}
+      return-url: ${KORPAY_RETURN_URL:${BACKEND_BASE_URL}/api/v1/payments/callback}
+      pay-method: ${KORPAY_PAY_METHOD:card}
+      connect-timeout: ${KORPAY_CONNECT_TIMEOUT:1s}
+      read-timeout: ${KORPAY_READ_TIMEOUT:3s}
 
 server:
   servlet:
