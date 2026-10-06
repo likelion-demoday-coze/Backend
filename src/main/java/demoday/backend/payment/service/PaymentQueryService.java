@@ -4,9 +4,12 @@ import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.domain.Payment;
+import demoday.backend.payment.dto.PaymentHistoryPageResponse;
 import demoday.backend.payment.dto.PaymentStatusResponse;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,5 +50,45 @@ public class PaymentQueryService {
                 );
 
         return PaymentStatusResponse.from(payment);
+    }
+
+    public PaymentHistoryPageResponse getHistories(
+            Long memberId,
+            Pageable pageable
+    ) {
+        validateMember(memberId);
+
+        Page<Payment> payments =
+                paymentRepository.findAllByMemberMemberIdOrderByRequestedAtDesc(
+                        memberId,
+                        pageable
+                );
+
+        return PaymentHistoryPageResponse.from(payments);
+    }
+
+    public PaymentStatusResponse getDetail(
+            Long memberId,
+            Long paymentId
+    ) {
+        validateMember(memberId);
+
+        if (paymentId == null || paymentId <= 0) {
+            throw new ProjectException(GeneralErrorCode.BAD_REQUEST);
+        }
+
+        Payment payment = paymentRepository
+                .findByPaymentIdAndMemberMemberId(paymentId, memberId)
+                .orElseThrow(() ->
+                        new ProjectException(PaymentErrorCode.ORDER_NOT_FOUND)
+                );
+
+        return PaymentStatusResponse.from(payment);
+    }
+
+    private void validateMember(Long memberId) {
+        if (memberId == null) {
+            throw new ProjectException(GeneralErrorCode.UNAUTHORIZED);
+        }
     }
 }

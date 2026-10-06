@@ -14,6 +14,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -133,7 +136,7 @@ public class PaymentController {
                 다른 회원의 주문은 조회할 수 없습니다.
                 """
     )
-    @GetMapping("/{orderNumber}")
+    @GetMapping("/orders/{orderNumber}")
     public ApiResponse<PaymentStatusResponse> getPaymentStatus(
             @Parameter(hidden = true)
             @AuthenticationPrincipal Long memberId,
@@ -150,6 +153,39 @@ public class PaymentController {
                         memberId,
                         orderNumber
                 )
+        );
+    }
+
+    @Operation(summary = "내 결제 내역 목록 조회")
+    @GetMapping
+    public ApiResponse<PaymentHistoryPageResponse> getPaymentHistories(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal Long memberId,
+
+            @PageableDefault(
+                    size = 20,
+                    sort = "requestedAt",
+                    direction = Sort.Direction.DESC
+            )
+            Pageable pageable
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                paymentQueryService.getHistories(memberId, pageable)
+        );
+    }
+
+    @Operation(summary = "내 결제 내역 상세 조회")
+    @GetMapping("/{paymentId}")
+    public ApiResponse<PaymentStatusResponse> getPaymentDetail(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal Long memberId,
+
+            @PathVariable Long paymentId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                paymentQueryService.getDetail(memberId, paymentId)
         );
     }
 }

@@ -4,6 +4,8 @@ import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.code.ProductType;
 import demoday.backend.payment.domain.Payment;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -103,5 +105,15 @@ public interface PaymentRepository
         """)
     Optional<Payment> findByIdForUpdate(
             @Param("paymentId") Long paymentId
+    );
+
+    Page<Payment> findAllByMemberMemberIdOrderByRequestedAtDesc(
+            Long memberId,
+            Pageable pageable
+    );
+
+    Optional<Payment> findByPaymentIdAndMemberMemberId(
+            Long paymentId,
+            Long memberId
     );
 }
