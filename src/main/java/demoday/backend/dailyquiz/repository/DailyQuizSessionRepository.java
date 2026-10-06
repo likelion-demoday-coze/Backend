@@ -12,6 +12,8 @@ import java.util.Collection;
 import java.util.Optional;
 
 public interface DailyQuizSessionRepository extends JpaRepository<DailyQuizSession, Long> {
+    // endStock은 원본 5문제를 모두 제출한 때에만 기록된다. 오답 재풀이 만료 후에도 남는다.
+    Optional<DailyQuizSession> findFirstByMemberMemberIdAndEndStockIsNotNullOrderByStartedAtDesc(Long memberId);
 
     Optional<DailyQuizSession> findFirstByMemberMemberIdAndStatusInOrderByStartedAtDesc(
             Long memberId,

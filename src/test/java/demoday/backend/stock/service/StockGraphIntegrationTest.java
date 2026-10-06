@@ -91,7 +91,7 @@ class StockGraphIntegrationTest {
     @Test
     void allHasNoYearLimitAndUsesSnapshotsPlusCurrent() {
         snapshots.saveAndFlush(StockDailySnapshot.create(member, LocalDate.of(2024, 1, 2), new BigDecimal("105")));
-        snapshots.saveAndFlush(StockDailySnapshot.create(member, LocalDate.of(2026, 9, 30), new BigDecimal("120")));
+        snapshots.saveAndFlush(StockDailySnapshot.create(member, LocalDate.of(2026, 9, 29), new BigDecimal("120")));
         snapshots.saveAndFlush(StockDailySnapshot.create(newMember(), LocalDate.of(2025, 1, 1), new BigDecimal("999")));
         change(member, "2026-09-30T00:10:00", "120", "130");
         current("130");
@@ -99,7 +99,7 @@ class StockGraphIntegrationTest {
         assertThat(result.from()).isEqualTo("2024-01-01T12:00:00");
         assertThat(result.estimatedStart()).isFalse();
         assertThat(result.points()).hasSize(4);
-        assertThat(result.points().get(1).timestamp()).isEqualTo("2024-01-02T00:00:00");
+        assertThat(result.points().get(1).timestamp()).isEqualTo("2024-01-03T00:00:00");
         assertThat(result.points().get(3).stockValue()).isEqualByComparingTo(result.currentStock());
         assertThat(result.changeRate()).isEqualByComparingTo("30");
     }
@@ -129,7 +129,7 @@ class StockGraphIntegrationTest {
         current("120");
         var result = service.getGraph(member.getMemberId(), StockGraphPeriod.ALL);
         assertThat(result.estimatedStart()).isTrue();
-        assertThat(result.from()).isEqualTo("2026-09-19T00:00:00");
+        assertThat(result.from()).isEqualTo("2026-09-20T00:00:00");
         assertThat(result.startStock()).isEqualByComparingTo("110");
     }
 

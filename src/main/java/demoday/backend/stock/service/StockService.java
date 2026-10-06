@@ -73,8 +73,8 @@ public class StockService {
                 joinedAt = firstChange.get().getCreatedAt();
                 initialStock = firstChange.get().getStockBefore();
             }
-            if (firstSnapshot.isPresent() && firstSnapshot.get().getSnapshotDate().atStartOfDay().isBefore(joinedAt)) {
-                joinedAt = firstSnapshot.get().getSnapshotDate().atStartOfDay();
+            if (firstSnapshot.isPresent() && firstSnapshot.get().getSnapshotDate().plusDays(1).atStartOfDay().isBefore(joinedAt)) {
+                joinedAt = firstSnapshot.get().getSnapshotDate().plusDays(1).atStartOfDay();
                 initialStock = firstSnapshot.get().getStockValue();
             }
         }
@@ -92,7 +92,7 @@ public class StockService {
             var snapshots = stockDailySnapshotRepository.findAllByMemberMemberIdAndSnapshotDateBetweenOrderBySnapshotDateAsc(
                     memberId, from.toLocalDate(), now.toLocalDate());
             for (var snapshot : snapshots) {
-                LocalDateTime time = snapshot.getSnapshotDate().atStartOfDay();
+                LocalDateTime time = snapshot.getSnapshotDate().plusDays(1).atStartOfDay();
                 if (!time.isBefore(from) && !time.isAfter(now)) {
                     points.add(new StockGraphResponse.Point(time, snapshot.getStockValue()));
                 }
@@ -196,7 +196,7 @@ public class StockService {
                 yield penalty != null
                         && penalty.getChangeType() == StockChangeType.STREAK_PENALTY
                         && Objects.equals(penalty.getMember().getMemberId(), memberId)
-                        && penalty.getStockBefore().compareTo(after) == 0;
+                        && before.divide(new BigDecimal("0.80"), 2, RoundingMode.HALF_UP).compareTo(after) == 0;
             }
             case ADMIN_ADJUSTMENT -> true;
         };
