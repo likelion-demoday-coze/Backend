@@ -81,7 +81,7 @@ public class PaymentController {
             consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE
     )
     public ResponseEntity<Void> callback(
-            @Valid @ModelAttribute KorpayCallbackRequest request
+            @ModelAttribute KorpayCallbackRequest request
     ) {
         try {
             PaymentConfirmResultResponse result =

@@ -266,7 +266,7 @@ public class PaymentCallbackService {
             );
         }
 
-        if (!payment.getAmount().equals(callback.amount())) {
+        if (!payment.getAmount().equals(parseAmount(callback.amount()))) {
             throw new ProjectException(
                     PaymentErrorCode.AMOUNT_MISMATCH
             );
@@ -314,7 +314,7 @@ public class PaymentCallbackService {
                             }
 
                             if (!payment.getAmount().equals(
-                                    callback.amount()
+                                    parseAmount(callback.amount())
                             )) {
                                 throw new ProjectException(
                                         PaymentErrorCode.AMOUNT_MISMATCH
@@ -391,7 +391,20 @@ public class PaymentCallbackService {
                 || callback.orderNumber().isBlank()
                 || callback.merchantId() == null
                 || callback.merchantId().isBlank()
-                || callback.amount() == null) {
+                || callback.amount() == null
+                || callback.amount().isBlank()) {
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_CALLBACK
+            );
+        }
+
+        parseAmount(callback.amount());
+    }
+
+    private Integer parseAmount(String value) {
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException exception) {
             throw new ProjectException(
                     PaymentErrorCode.INVALID_CALLBACK
             );

@@ -315,6 +315,42 @@ class PaymentIntegrationTest {
     }
 
     @Test
+    void invalidCallbackFormAlwaysRedirectsToFailurePage() throws Exception {
+        PaymentOrderResponse order = createOrder();
+
+        mvc.perform(post("/api/v1/payments/callback")
+                        .contentType("application/x-www-form-urlencoded")
+                        .param("resultCode", "A001")
+                        .param("message", "사용자 취소")
+                        .param("merchantId", "testmid")
+                        .param("orderNumber", order.orderNumber())
+                        .param("reserved", order.reserved()))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        org.hamcrest.Matchers.containsString(
+                                "code=PAYMENT_400_3"
+                        )
+                ));
+
+        mvc.perform(post("/api/v1/payments/callback")
+                        .contentType("application/x-www-form-urlencoded")
+                        .param("resultCode", "0000")
+                        .param("paymentKey", "invalid-amount-key")
+                        .param("merchantId", "testmid")
+                        .param("orderNumber", order.orderNumber())
+                        .param("amount", "not-a-number")
+                        .param("reserved", order.reserved()))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        org.hamcrest.Matchers.containsString(
+                                "code=PAYMENT_400_3"
+                        )
+                ));
+    }
+
+    @Test
     void expiredAuthenticationSessionIsNotConfirmed() throws Exception {
         PaymentOrderResponse order = createOrder();
         Payment payment = payments.findByOrderNumber(
