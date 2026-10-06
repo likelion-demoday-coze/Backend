@@ -54,7 +54,7 @@ public class LinerTrendClient {
         HttpRequest request = HttpRequest.newBuilder(endpoint).timeout(timeout)
                 .header("x-api-key", apiKey).header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build();
-        CompletableFuture<HttpResponse<String>> pending = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+        CompletableFuture<HttpResponse<String>> pending = http.sendAsync(request, LimitedStringBodySubscriber.handler(1_000_000));
         HttpResponse<String> response;
         try {
             response = pending.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -62,27 +62,21 @@ public class LinerTrendClient {
             pending.cancel(true);
             Thread.currentThread().interrupt();
             throw failure(TrendGenerationFailure.NETWORK);
-        } catch (ExecutionException | TimeoutException ex) {
+        } catch (ExecutionException ex) {
+            pending.cancel(true);
+            for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+                if (cause instanceof LimitedStringBodySubscriber.BodyTooLargeException oversized) {
+                    validateStatus(oversized.status(), "");
+                    throw failure(TrendGenerationFailure.INVALID_CONTENT);
+                }
+            }
+            throw failure(TrendGenerationFailure.NETWORK);
+        } catch (TimeoutException ex) {
             pending.cancel(true);
             throw failure(TrendGenerationFailure.NETWORK);
         }
-        int status = response.statusCode();
-        if (status == 401) throw failure(TrendGenerationFailure.AUTHENTICATION);
-        if (status == 403) throw failure(TrendGenerationFailure.ACCOUNT_SUSPENDED);
-        if (status == 402) throw failure(TrendGenerationFailure.INSUFFICIENT_CREDITS);
-        if (status == 429) throw failure(TrendGenerationFailure.RATE_LIMIT);
-        if (status >= 500) {
-            boolean rejected = false;
-            try {
-                var retryable = mapper.readTree(response.body()).path("error").path("retryable");
-                rejected = retryable.isBoolean() && !retryable.asBoolean();
-            }
-            catch (RuntimeException ignored) { /* 오류 원문은 보존하지 않는다. */ }
-            throw failure(rejected ? TrendGenerationFailure.PROVIDER_REJECTED : TrendGenerationFailure.PROVIDER_ERROR);
-        }
-        if (status != 200) throw failure(TrendGenerationFailure.BAD_REQUEST);
+        validateStatus(response.statusCode(), response.body());
         try {
-            if (response.body().length() > 1_000_000) throw failure(TrendGenerationFailure.INVALID_CONTENT);
             var envelope = mapper.readTree(response.body());
             String answer = envelope.path("answer").asText("");
             GeneratedTrendContent content = mapper.readValue(answer, GeneratedTrendContent.class);
@@ -102,6 +96,23 @@ public class LinerTrendClient {
         } catch (RuntimeException ex) {
             throw failure(TrendGenerationFailure.INVALID_CONTENT);
         }
+    }
+
+    private void validateStatus(int status, String body) {
+        if (status == 401) throw failure(TrendGenerationFailure.AUTHENTICATION);
+        if (status == 403) throw failure(TrendGenerationFailure.ACCOUNT_SUSPENDED);
+        if (status == 402) throw failure(TrendGenerationFailure.INSUFFICIENT_CREDITS);
+        if (status == 429) throw failure(TrendGenerationFailure.RATE_LIMIT);
+        if (status >= 500) {
+            boolean rejected = false;
+            try {
+                var retryable = mapper.readTree(body).path("error").path("retryable");
+                rejected = retryable.isBoolean() && !retryable.asBoolean();
+            }
+            catch (RuntimeException ignored) { /* 오류 원문은 보존하지 않는다. */ }
+            throw failure(rejected ? TrendGenerationFailure.PROVIDER_REJECTED : TrendGenerationFailure.PROVIDER_ERROR);
+        }
+        if (status != 200) throw failure(TrendGenerationFailure.BAD_REQUEST);
     }
 
     private static TrendGenerationException failure(TrendGenerationFailure failure) {

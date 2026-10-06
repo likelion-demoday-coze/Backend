@@ -12,6 +12,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.*;
 
 class LinerTrendClientTest {
@@ -76,6 +78,34 @@ class LinerTrendClientTest {
         status = 502; response = "{\"error\":{\"retryable\":false}}";
         assertThatThrownBy(() -> client().generate(LocalDate.now())).isInstanceOfSatisfying(TrendGenerationException.class,
                 ex -> assertThat(ex.getFailure().isRetryable()).isFalse());
+    }
+    @ParameterizedTest @CsvSource({"200,INVALID_CONTENT", "401,AUTHENTICATION", "429,RATE_LIMIT", "503,PROVIDER_ERROR"})
+    void oversizedResponsesKeepStatusClassification(int httpStatus, TrendGenerationFailure failure) {
+        status = httpStatus;
+        response = "x".repeat(1_000_001);
+        assertThatThrownBy(() -> client().generate(LocalDate.now())).isInstanceOfSatisfying(TrendGenerationException.class,
+                ex -> assertThat(ex.getFailure()).isEqualTo(failure));
+    }
+
+    @Test void rejectsChunkedOversizedBodyWithoutWaitingForEndOfResponse() {
+        var release = new CountDownLatch(1);
+        server.createContext("/stream", exchange -> {
+            exchange.getRequestBody().close();
+            exchange.sendResponseHeaders(200, 0); // Content-Length 없는 청크 응답
+            try (var output = exchange.getResponseBody()) {
+                output.write("x".repeat(1_000_001).getBytes(StandardCharsets.UTF_8));
+                output.flush();
+                // 클라이언트가 결과를 반환할 때까지 본문 종료를 보류한다.
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
+            catch (java.io.IOException ignored) { /* 크기 초과 취소로 서버 연결이 닫힐 수 있다. */ }
+        });
+        String streamUrl = url.replace("/search", "/stream");
+        try {
+            assertThatThrownBy(() -> new LinerTrendClient(mapper, "test-key", streamUrl, 5).generate(LocalDate.now()))
+                    .isInstanceOfSatisfying(TrendGenerationException.class,
+                            ex -> assertThat(ex.getFailure()).isEqualTo(TrendGenerationFailure.INVALID_CONTENT));
+        } finally { release.countDown(); }
     }
     private LinerTrendClient client() { return new LinerTrendClient(mapper, "test-key", url, 5); }
     private void assertInvalid() {
