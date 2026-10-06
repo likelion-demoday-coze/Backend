@@ -17,6 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Slf4j
 @Service
@@ -146,6 +147,13 @@ public class PaymentCallbackService {
                 );
             }
 
+            // 다른 요청이 이미 외부 승인 API 호출을 선점했다.
+            if (payment.getStatus() == PaymentStatus.CONFIRMING) {
+                throw new ProjectException(
+                        PaymentErrorCode.CONFIRM_IN_PROGRESS
+                );
+            }
+
             // 이미 실패했거나 취소된 결제는 다시 승인 경로 진입 불가
             if (payment.getStatus() == PaymentStatus.FAILED
                     || payment.getStatus() == PaymentStatus.CANCELLED) {
@@ -165,9 +173,11 @@ public class PaymentCallbackService {
             }
 
             // 검증 통과한 paymentKey만 저장해 최종 승인 요청과 연결
-            payment.recordAuthentication(
+            payment.startConfirmation(
                     callback.paymentKey(),
-                    callback.merchantId()
+                    callback.merchantId(),
+                    LocalDateTime.now(clock)
+                            .truncatedTo(ChronoUnit.MICROS)
             );
 
             log.info(
@@ -340,7 +350,7 @@ public class PaymentCallbackService {
         transactionTemplate.executeWithoutResult(status ->
                 paymentRepository.findByPaymentKeyForUpdate(paymentKey)
                         .filter(payment ->
-                                payment.getStatus() == PaymentStatus.READY
+                                payment.getStatus() == PaymentStatus.CONFIRMING
                                         || payment.getStatus() == PaymentStatus.UNKNOWN
                         )
                         .ifPresent(payment -> payment.fail(
@@ -358,7 +368,7 @@ public class PaymentCallbackService {
         transactionTemplate.executeWithoutResult(status ->
                 paymentRepository.findByPaymentKeyForUpdate(paymentKey)
                         .filter(payment ->
-                                payment.getStatus() == PaymentStatus.READY
+                                payment.getStatus() == PaymentStatus.CONFIRMING
                                         || payment.getStatus() == PaymentStatus.UNKNOWN
                         )
                         .ifPresent(payment -> payment.markUnknown(

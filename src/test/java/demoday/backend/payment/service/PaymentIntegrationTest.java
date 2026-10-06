@@ -258,6 +258,51 @@ class PaymentIntegrationTest {
     }
 
     @Test
+    void callbackDoesNotCallConfirmAgainWhileConfirmationIsInProgress() throws Exception {
+        PaymentOrderResponse order = createOrder();
+        String paymentKey = "confirming-key-" + SEQUENCE.incrementAndGet();
+        Payment payment = payments.findByOrderNumber(order.orderNumber()).orElseThrow();
+        payment.startConfirmation(
+                paymentKey,
+                "testmid",
+                LocalDateTime.ofInstant(NOW, ZoneId.of("Asia/Seoul"))
+        );
+        payments.saveAndFlush(payment);
+
+        performCallback(order, paymentKey)
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        org.hamcrest.Matchers.containsString("code=PAYMENT_409_5")
+                ));
+
+        Payment saved = payments.findById(payment.getPaymentId()).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(PaymentStatus.CONFIRMING);
+        verify(korpayClient, org.mockito.Mockito.never()).confirm(any());
+    }
+
+    @Test
+    void staleConfirmationIsChangedToUnknownForReconciliation() {
+        PaymentOrderResponse order = createOrder();
+        String paymentKey = "stale-confirming-key-" + SEQUENCE.incrementAndGet();
+        Payment payment = payments.findByOrderNumber(order.orderNumber()).orElseThrow();
+        payment.startConfirmation(
+                paymentKey,
+                "testmid",
+                LocalDateTime.ofInstant(NOW, ZoneId.of("Asia/Seoul"))
+                        .minusMinutes(11)
+        );
+        payments.saveAndFlush(payment);
+
+        processingService.markStaleConfirmationsUnknown();
+
+        Payment saved = payments.findById(payment.getPaymentId()).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+        assertThat(saved.getFailureMessage()).contains("PG 거래 확인");
+        verify(korpayClient, org.mockito.Mockito.never()).confirm(any());
+    }
+
+    @Test
     void unknownApprovalIsNotGrantedOrAutomaticallyConfirmedAgain() throws Exception {
         PaymentOrderResponse order = createOrder();
         String paymentKey = "unknown-key-" + SEQUENCE.incrementAndGet();
@@ -474,7 +519,11 @@ class PaymentIntegrationTest {
         );
         String paymentKey = "pass-key-" + sequence;
         Payment payment = payments.findByOrderNumber(order.orderNumber()).orElseThrow();
-        payment.recordAuthentication(paymentKey, "testmid");
+        payment.startConfirmation(
+                paymentKey,
+                "testmid",
+                LocalDateTime.now()
+        );
         payments.saveAndFlush(payment);
 
         processingService.processApprovedPayment(

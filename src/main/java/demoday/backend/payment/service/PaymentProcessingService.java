@@ -26,6 +26,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PaymentProcessingService {
 
+    private static final long CONFIRMATION_STALE_MINUTES = 10L;
+
     private static final DateTimeFormatter APPROVED_AT_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -70,6 +72,45 @@ public class PaymentProcessingService {
                         "[Payment] 미지급 승인 건 재처리 실패 - paymentId: {}",
                         paymentId,
                         exception
+                );
+            }
+        }
+    }
+
+    public void markStaleConfirmationsUnknown() {
+        LocalDateTime threshold = LocalDateTime.now(clock)
+                .minusMinutes(CONFIRMATION_STALE_MINUTES)
+                .truncatedTo(ChronoUnit.MICROS);
+
+        List<Long> paymentIds =
+                payments.findIdsByStatusAndConfirmationStartedAtBefore(
+                        PaymentStatus.CONFIRMING,
+                        threshold
+                );
+
+        for (Long paymentId : paymentIds) {
+            Boolean transitioned = transactionTemplate.execute(status -> {
+                Payment payment = payments.findByIdForUpdate(paymentId)
+                        .orElse(null);
+
+                if (payment == null
+                        || payment.getStatus() != PaymentStatus.CONFIRMING
+                        || payment.getConfirmationStartedAt() == null
+                        || payment.getConfirmationStartedAt().isAfter(threshold)) {
+                    return false;
+                }
+
+                payment.markUnknown(
+                        null,
+                        "승인 요청 처리 중단 가능성이 있어 PG 거래 확인이 필요합니다."
+                );
+                return true;
+            });
+
+            if (Boolean.TRUE.equals(transitioned)) {
+                log.warn(
+                        "[Payment] 장시간 승인 처리 건 UNKNOWN 전환 - paymentId: {}",
+                        paymentId
                 );
             }
         }

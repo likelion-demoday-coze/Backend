@@ -32,6 +32,8 @@ public class PaymentRecoveryScheduler {
     }
 
     private void recover(String trigger) {
+        // 승인 요청 직후 서버가 중단된 건은 재승인하지 않고 PG 조회 대상으로 전환한다.
+        paymentProcessingService.markStaleConfirmationsUnknown();
         paymentProcessingService.retryPendingFulfillments();
 
         long unknownCount = paymentRepository.countByStatus(

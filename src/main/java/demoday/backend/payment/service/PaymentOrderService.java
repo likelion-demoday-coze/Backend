@@ -53,8 +53,11 @@ public class PaymentOrderService {
     private static final List<PaymentStatus> UNKNOWN_STATUSES =
             List.of(PaymentStatus.UNKNOWN);
 
-    private static final List<PaymentStatus> READY_STATUSES =
-            List.of(PaymentStatus.READY);
+    private static final List<PaymentStatus> PENDING_STATUSES =
+            List.of(
+                    PaymentStatus.READY,
+                    PaymentStatus.CONFIRMING
+            );
 
     private final MemberRepository memberRepository;
     private final ProductRepository productRepository;
@@ -199,7 +202,7 @@ public class PaymentOrderService {
         boolean readyPaymentExists = paymentRepository.existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThanEqual(
                 memberId,
                 ProductType.PASS,
-                READY_STATUSES,
+                PENDING_STATUSES,
                 validRequestedAt
         );
 

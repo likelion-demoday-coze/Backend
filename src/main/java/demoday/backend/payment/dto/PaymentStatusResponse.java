@@ -26,7 +26,10 @@ public record PaymentStatusResponse(
         @Schema(description = "결제 금액", example = "1000")
         Integer amount,
 
-        @Schema(description = "결제 상태", example = "COMPLETED")
+        @Schema(
+                description = "결제 상태(READY, CONFIRMING, APPROVED, COMPLETED, FAILED, UNKNOWN, CANCELLED)",
+                example = "COMPLETED"
+        )
         PaymentStatus status,
 
         @Schema(description = "주문 생성 시각")

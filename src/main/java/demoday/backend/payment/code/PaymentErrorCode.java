@@ -45,6 +45,12 @@ public enum PaymentErrorCode implements BaseErrorCode {
             "이미 처리된 결제 거래입니다."
     ),
 
+    CONFIRM_IN_PROGRESS(
+            HttpStatus.CONFLICT,
+            "PAYMENT_409_5",
+            "결제 승인을 처리하고 있습니다."
+    ),
+
     INVALID_ORDER_NUMBER(
             HttpStatus.BAD_REQUEST,
             "PAYMENT_400_1",

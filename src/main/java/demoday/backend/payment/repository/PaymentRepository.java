@@ -40,6 +40,18 @@ public interface PaymentRepository
             @Param("status") PaymentStatus status
     );
 
+    @Query("""
+            SELECT p.paymentId
+            FROM Payment p
+            WHERE p.status = :status
+              AND p.confirmationStartedAt <= :threshold
+            ORDER BY p.confirmationStartedAt ASC, p.paymentId ASC
+            """)
+    List<Long> findIdsByStatusAndConfirmationStartedAtBefore(
+            @Param("status") PaymentStatus status,
+            @Param("threshold") LocalDateTime threshold
+    );
+
     long countByStatus(PaymentStatus status);
 
     boolean existsByMemberMemberIdAndProductProductTypeAndStatusIn(

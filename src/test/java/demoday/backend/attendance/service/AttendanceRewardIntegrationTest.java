@@ -237,7 +237,11 @@ class AttendanceRewardIntegrationTest {
                 "일주일 패스", 1900, null, 168, null, null, true));
         Payment payment = Payment.create(owner, product, UUID.randomUUID().toString().replace("-", ""),
                 1900, now.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")), now);
-        payment.recordAuthentication(UUID.randomUUID().toString(), "testmid");
+        payment.startConfirmation(
+                UUID.randomUUID().toString(),
+                "testmid",
+                LocalDateTime.now()
+        );
         payment.approve(UUID.randomUUID().toString(), "3001", "card", now);
         payments.saveAndFlush(payment);
         MemberPass pass = passes.saveAndFlush(MemberPass.create(owner, payment, PassType.SEVEN_DAY,

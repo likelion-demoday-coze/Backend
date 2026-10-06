@@ -108,6 +108,9 @@ public class Payment {
     @Column(name = "requested_at", nullable = false)
     private LocalDateTime requestedAt;
 
+    @Column(name = "confirmation_started_at")
+    private LocalDateTime confirmationStartedAt;
+
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
@@ -145,9 +148,10 @@ public class Payment {
                 .build();
     }
 
-    public void recordAuthentication(
+    public void startConfirmation(
             String paymentKey,
-            String merchantId
+            String merchantId,
+            LocalDateTime confirmationStartedAt
     ) {
         if (paymentKey == null || paymentKey.isBlank()) {
             throw new IllegalArgumentException(
@@ -161,10 +165,15 @@ public class Payment {
             );
         }
 
-        if (status != PaymentStatus.READY
-                && status != PaymentStatus.UNKNOWN) {
+        if (confirmationStartedAt == null) {
+            throw new IllegalArgumentException(
+                    "승인 요청 시작 시각은 필수입니다."
+            );
+        }
+
+        if (status != PaymentStatus.READY) {
             throw new IllegalStateException(
-                    "결제 인증 정보를 기록할 수 없는 상태입니다."
+                    "결제 승인을 시작할 수 없는 상태입니다."
             );
         }
 
@@ -177,6 +186,8 @@ public class Payment {
 
         this.paymentKey = paymentKey;
         this.merchantId = merchantId;
+        this.confirmationStartedAt = confirmationStartedAt;
+        this.status = PaymentStatus.CONFIRMING;
     }
 
     public void approve(
@@ -185,7 +196,7 @@ public class Payment {
             String payMethod,
             LocalDateTime approvedAt
     ) {
-        if (status != PaymentStatus.READY
+        if (status != PaymentStatus.CONFIRMING
                 && status != PaymentStatus.UNKNOWN) {
             throw new IllegalStateException(
                     "결제를 승인할 수 없는 상태입니다."

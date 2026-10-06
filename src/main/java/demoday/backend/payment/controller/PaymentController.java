@@ -126,7 +126,8 @@ public class PaymentController {
             summary = "내 결제 상태 조회",
             description = """
                 로그인 회원이 주문번호로 자신의 결제 상태를 조회합니다.
-                READY는 인증 대기, UNKNOWN은 승인 여부 확인 필요,
+                READY는 인증 대기, CONFIRMING은 승인 요청 처리 중,
+                UNKNOWN은 승인 여부 확인 필요,
                 APPROVED는 승인 완료 후 상품 지급 대기,
                 COMPLETED는 상품 지급까지 완료된 상태입니다.
                 다른 회원의 주문은 조회할 수 없습니다.

@@ -5,6 +5,9 @@ public enum PaymentStatus {
     // 서버에 주문이 생성되고 결제 인증을 기다리는 상태
     READY,
 
+    // 코페이 최종 승인 API 호출을 선점한 상태
+    CONFIRMING,
+
     // 코페이 승인 성공 코드 3001을 확인한 상태
     APPROVED,
 
