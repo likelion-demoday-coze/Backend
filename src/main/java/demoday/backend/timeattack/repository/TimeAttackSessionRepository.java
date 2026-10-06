@@ -1,5 +1,6 @@
 package demoday.backend.timeattack.repository;
 
+import demoday.backend.timeattack.code.TimeAttackStatus;
 import demoday.backend.timeattack.domain.TimeAttackSession;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -21,12 +22,23 @@ public interface TimeAttackSessionRepository extends JpaRepository<TimeAttackSes
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT s
-            FROM TimeAttackSession s 
+            FROM TimeAttackSession s
             WHERE s.timeAttackSessionId = :sessionId
                 AND s.member.memberId = :memberId
             """)
     Optional<TimeAttackSession> findByIdAndMemberIdForUpdate(
             @Param("sessionId") Long sessionId,
             @Param("memberId") Long memberId
+    );
+
+    @Query("""
+        SELECT MAX(s.correctCount)
+        FROM TimeAttackSession s
+        WHERE s.member.memberId = :memberId
+          AND s.status = :status
+        """)
+    Optional<Integer> findHighestCorrectCountByMemberIdAndStatus(
+            @Param("memberId") Long memberId,
+            @Param("status") TimeAttackStatus status
     );
 }

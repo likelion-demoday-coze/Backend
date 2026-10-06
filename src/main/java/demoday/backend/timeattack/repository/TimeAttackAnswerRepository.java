@@ -1,5 +1,6 @@
 package demoday.backend.timeattack.repository;
 
+import demoday.backend.member.repository.QuizStatisticsProjection;
 import demoday.backend.timeattack.domain.TimeAttackAnswer;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,5 +33,24 @@ public interface TimeAttackAnswerRepository extends JpaRepository<TimeAttackAnsw
         """)
     List<Boolean> findCorrectResultsBySessionIdOrderByLatest(
             @Param("sessionId") Long sessionId
+    );
+
+    @Query("""
+        SELECT
+            COUNT(a) AS totalCount,
+            COALESCE(
+                SUM(
+                    CASE
+                        WHEN a.correct = true THEN 1
+                        ELSE 0
+                    END
+                ),
+                0
+            ) AS correctCount
+        FROM TimeAttackAnswer a
+        WHERE a.timeAttackSession.member.memberId = :memberId
+        """)
+    QuizStatisticsProjection findStatisticsByMemberId(
+            @Param("memberId") Long memberId
     );
 }
