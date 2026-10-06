@@ -52,8 +52,8 @@ public record PaymentStatusResponse(
         return new PaymentStatusResponse(
                 payment.getPaymentId(),
                 payment.getOrderNumber(),
-                payment.getProduct().getProductCode(),
-                payment.getProduct().getName(),
+                payment.getOrderedProductCode(),
+                payment.getOrderedProductName(),
                 payment.getAmount(),
                 payment.getStatus(),
                 payment.getRequestedAt(),

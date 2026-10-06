@@ -10,7 +10,6 @@ import demoday.backend.payment.code.PassType;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.domain.MemberPass;
 import demoday.backend.payment.domain.Payment;
-import demoday.backend.payment.domain.Product;
 import demoday.backend.payment.repository.MemberPassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -37,22 +36,17 @@ public class PaymentFulfillmentService {
             );
         }
 
-        Product product = payment.getProduct();
-
-        switch (product.getProductType()) {
-            case FISH -> issueFish(payment, product);
-            case PASS -> issuePass(payment, product, approvedAt);
+        switch (payment.getOrderedProductType()) {
+            case FISH -> issueFish(payment);
+            case PASS -> issuePass(payment, approvedAt);
             default -> throw new ProjectException(
                     PaymentErrorCode.FULFILLMENT_FAILED
             );
         }
     }
 
-    private void issueFish(
-            Payment payment,
-            Product product
-    ) {
-        Integer fishAmount = product.getFishAmount();
+    private void issueFish(Payment payment) {
+        Integer fishAmount = payment.getOrderedFishAmount();
 
         if (fishAmount == null || fishAmount <= 0) {
             throw new ProjectException(
@@ -72,7 +66,6 @@ public class PaymentFulfillmentService {
 
     private void issuePass(
             Payment payment,
-            Product product,
             LocalDateTime approvedAt
     ) {
         Long memberId = payment.getMember().getMemberId();
@@ -92,8 +85,7 @@ public class PaymentFulfillmentService {
             );
         }
 
-        Integer durationHours =
-                product.getPassDurationHours();
+        Integer durationHours = payment.getOrderedPassDurationHours();
 
         if (durationHours == null || durationHours <= 0) {
             throw new ProjectException(

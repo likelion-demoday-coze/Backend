@@ -2,6 +2,7 @@ package demoday.backend.payment.domain;
 
 import demoday.backend.member.domain.Member;
 import demoday.backend.payment.code.PaymentStatus;
+import demoday.backend.payment.code.ProductType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -47,6 +48,22 @@ public class Payment {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
+
+    @Column(name = "ordered_product_code", nullable = false, length = 50)
+    private String orderedProductCode;
+
+    @Column(name = "ordered_product_name", nullable = false, length = 50)
+    private String orderedProductName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ordered_product_type", nullable = false, length = 20)
+    private ProductType orderedProductType;
+
+    @Column(name = "ordered_fish_amount")
+    private Integer orderedFishAmount;
+
+    @Column(name = "ordered_pass_duration_hours")
+    private Integer orderedPassDurationHours;
 
     @Column(
             name = "order_number",
@@ -140,6 +157,11 @@ public class Payment {
         return Payment.builder()
                 .member(member)
                 .product(product)
+                .orderedProductCode(product.getProductCode())
+                .orderedProductName(product.getName())
+                .orderedProductType(product.getProductType())
+                .orderedFishAmount(product.getFishAmount())
+                .orderedPassDurationHours(product.getPassDurationHours())
                 .orderNumber(orderNumber)
                 .amount(amount)
                 .ediDate(ediDate)

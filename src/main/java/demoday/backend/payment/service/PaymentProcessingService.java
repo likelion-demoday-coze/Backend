@@ -301,7 +301,7 @@ public class PaymentProcessingService {
             );
         }
 
-        if (!payment.getProduct().getName().equals(
+        if (!payment.getOrderedProductName().equals(
                 response.productName()
         )) {
             throw new ProjectException(

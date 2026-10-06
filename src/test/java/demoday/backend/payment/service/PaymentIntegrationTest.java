@@ -23,6 +23,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -77,6 +78,7 @@ class PaymentIntegrationTest {
     @Autowired private ProductRepository products;
     @Autowired private PaymentRepository payments;
     @Autowired private MemberPassRepository memberPasses;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockitoBean private KorpayClient korpayClient;
     @MockitoSpyBean private PaymentFulfillmentService fulfillmentService;
@@ -158,6 +160,37 @@ class PaymentIntegrationTest {
                 .get()
                 .extracting(Payment::getStatus)
                 .isEqualTo(PaymentStatus.READY);
+    }
+
+    @Test
+    void approvalAndFulfillmentUseProductTermsCapturedAtOrderTime() throws Exception {
+        PaymentOrderResponse order = createOrder();
+        String paymentKey = "snapshot-key-" + SEQUENCE.incrementAndGet();
+
+        jdbcTemplate.update(
+                "UPDATE product SET name = ?, fish_amount = ? WHERE product_id = ?",
+                "변경된 생선 상품",
+                999,
+                fishProduct.getProductId()
+        );
+        when(korpayClient.confirm(paymentKey)).thenReturn(
+                approvedResponse(order, paymentKey)
+        );
+
+        performCallback(order, paymentKey)
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        "http://localhost:3000/payment/success?orderNumber="
+                                + order.orderNumber()
+                ));
+
+        Payment saved = payments.findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+        assertThat(saved.getOrderedProductName()).isEqualTo("생선 100개");
+        assertThat(saved.getOrderedFishAmount()).isEqualTo(100);
+        assertThat(members.findById(member.getMemberId())
+                .orElseThrow().getFishBalance()).isEqualTo(100);
     }
 
     @Test
@@ -516,6 +549,11 @@ class PaymentIntegrationTest {
         PaymentOrderResponse order = orderService.createOrder(
                 member.getMemberId(),
                 passProduct.getProductCode()
+        );
+        jdbcTemplate.update(
+                "UPDATE product SET pass_duration_hours = ? WHERE product_id = ?",
+                336,
+                passProduct.getProductId()
         );
         String paymentKey = "pass-key-" + sequence;
         Payment payment = payments.findByOrderNumber(order.orderNumber()).orElseThrow();

@@ -78,7 +78,7 @@ public record PaymentOrderResponse(
                 payment.getPaymentId(),
                 merchantId,
                 payment.getOrderNumber(),
-                payment.getProduct().getName(),
+                payment.getOrderedProductName(),
                 payment.getAmount(),
                 payMethod,
                 returnUrl,
