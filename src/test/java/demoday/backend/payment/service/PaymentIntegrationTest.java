@@ -246,7 +246,7 @@ class PaymentIntegrationTest {
         Member other = members.saveAndFlush(
                 Member.create(
                         910000L + SEQUENCE.incrementAndGet(),
-                        "history" + SEQUENCE.incrementAndGet()
+                        "h" + SEQUENCE.incrementAndGet()
                 )
         );
         orderService.createOrder(
@@ -304,7 +304,7 @@ class PaymentIntegrationTest {
         Member other = members.saveAndFlush(
                 Member.create(
                         920000L + SEQUENCE.incrementAndGet(),
-                        "detail" + SEQUENCE.incrementAndGet()
+                        "d" + SEQUENCE.incrementAndGet()
                 )
         );
 
