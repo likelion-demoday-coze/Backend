@@ -10,6 +10,9 @@ import demoday.backend.trend.repository.TrendGenerationRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.RecoverableDataAccessException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Service;
 import java.time.*;
 
@@ -65,6 +68,10 @@ public class TrendGenerationService {
             return Result.SKIPPED;
         } catch (TrendGenerationException exception) {
             recordFailure(claim, exception.getFailure());
+            return Result.FAILED;
+        } catch (TransientDataAccessException | RecoverableDataAccessException | DataAccessResourceFailureException exception) {
+            // 잠금 충돌·연결 장애 등 인프라 오류는 다음 예약 슬롯에서 재시도한다.
+            recordFailure(claim, TrendGenerationFailure.STORAGE_UNAVAILABLE);
             return Result.FAILED;
         } catch (RuntimeException exception) {
             // SQL·외부 응답 원문은 로그와 오류 유형에 보존하지 않는다.

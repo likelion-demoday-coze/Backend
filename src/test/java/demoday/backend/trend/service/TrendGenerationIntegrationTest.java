@@ -8,12 +8,15 @@ import demoday.backend.trend.repository.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.dao.*;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.time.*;
 import java.util.List;
@@ -32,7 +35,7 @@ import static org.mockito.Mockito.*;
 class TrendGenerationIntegrationTest {
     private static final LocalDate DATE = LocalDate.of(2026, 10, 5);
     @Autowired private TrendGenerationService service;
-    @Autowired private TrendContentStorageService storage;
+    @MockitoSpyBean private TrendContentStorageService storage;
     @Autowired private TrendGenerationRepository generations;
     @Autowired private EconomicTrendRepository trends;
     @Autowired private JdbcTemplate jdbc;
@@ -40,6 +43,39 @@ class TrendGenerationIntegrationTest {
     @MockitoBean private LinerTrendClient client;
 
     @BeforeEach void setup() { clock.set("2026-10-04T23:00:00Z"); }
+    static java.util.stream.Stream<RuntimeException> temporaryStorageFailures() {
+        return java.util.stream.Stream.of(new CannotAcquireLockException("private SQL"),
+                new RecoverableDataAccessException("private SQL"),
+                new DataAccessResourceFailureException("private connection details"));
+    }
+
+    @ParameterizedTest @MethodSource("temporaryStorageFailures")
+    void temporaryStorageFailureRetriesAtNextSlot(RuntimeException failure) {
+        when(client.generate(DATE)).thenReturn(content());
+        doThrow(failure).doCallRealMethod().when(storage).saveForAttempt(anyLong(), anyInt(), any());
+
+        assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.FAILED);
+        assertThat(today().getLastErrorType()).isEqualTo("STORAGE_UNAVAILABLE");
+        assertThat(trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(today().getTrendGenerationId())).isEmpty();
+        assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.SKIPPED);
+        clock.set("2026-10-04T23:05:00Z");
+        assertThat(service.runSlot(2)).isEqualTo(TrendGenerationService.Result.SUCCESS);
+        assertThat(today().getAttemptCount()).isEqualTo(2);
+        assertThat(trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(today().getTrendGenerationId())).hasSize(3);
+        verify(client, times(2)).generate(DATE);
+    }
+
+    @Test void permanentStorageFailureDoesNotRetry() {
+        when(client.generate(DATE)).thenReturn(content());
+        doThrow(new DataIntegrityViolationException("private SQL"))
+                .when(storage).saveForAttempt(anyLong(), anyInt(), any());
+
+        assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.FAILED);
+        assertThat(today().getLastErrorType()).isEqualTo("STORAGE_ERROR");
+        clock.set("2026-10-04T23:05:00Z");
+        assertThat(service.runSlot(2)).isEqualTo(TrendGenerationService.Result.SKIPPED);
+        verify(client).generate(DATE);
+    }
     @AfterEach void clean() {
         var generation = generations.findByGenerationDate(DATE.atTime(8, 0));
         generation.ifPresent(g -> {
