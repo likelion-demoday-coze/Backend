@@ -61,7 +61,8 @@ public class EconomicTrendService {
             throw new ProjectException(TrendErrorCode.TREND_NOT_FOUND);
         }
         return new TrendDetailResponse(trend.getEconomicTrendId(), generation.getGenerationDate().toLocalDate(),
-                generation.getGenerationDate(), trend.getDisplayOrder(), trend.getTitle(), trend.getSummary(),
+                generation.getGenerationDate(), trend.getDisplayOrder(), trend.getTitle(),
+                TrendCategory.forLegacy(trend.getCategory()), TrendCategory.forLegacy(trend.getCategory()).getDisplayName(), trend.getSummary(),
                 terms.findAllByEconomicTrendEconomicTrendIdOrderByEconomicTermIdAsc(trendId)
                         .stream().map(TrendDetailResponse.TermResponse::from).toList(),
                 references.findAllByEconomicTrendEconomicTrendIdOrderByTrendReferenceIdAsc(trendId)

@@ -2,6 +2,7 @@ package demoday.backend.trend.dto;
 
 import demoday.backend.trend.domain.EconomicTerm;
 import demoday.backend.trend.domain.TrendReference;
+import demoday.backend.trend.code.TrendCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,6 +14,8 @@ public record TrendDetailResponse(
         @Schema(description = "저장된 생성 기준 시각 (KST)") LocalDateTime generatedAt,
         Integer displayOrder,
         String title,
+        @Schema(description = "경제 분야 8개 또는 OTHER. 기존 미분류 콘텐츠는 OTHER") TrendCategory category,
+        @Schema(description = "카테고리 한글 표시명") String categoryName,
         String summary,
         List<TermResponse> terms,
         List<ReferenceResponse> references

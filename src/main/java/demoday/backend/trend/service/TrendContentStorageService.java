@@ -42,7 +42,7 @@ public class TrendContentStorageService {
             validator.validate(content, generation.getGenerationDate().toLocalDate());
             int order = 1;
             for (var item : content.items()) {
-                var trend = trends.save(EconomicTrend.create(generation, order++, item.title(), item.summary()));
+                var trend = trends.save(EconomicTrend.create(generation, order++, item.title(), item.summary(), item.category()));
                 for (var term : item.terms()) terms.save(EconomicTerm.create(trend, term.name(), term.description()));
                 for (var reference : item.references()) references.save(TrendReference.create(trend,
                         reference.title(), reference.url(), reference.publisher(), reference.publishedDate()));

@@ -15,6 +15,7 @@ public class TrendContentValidator {
         var titles = new HashSet<String>();
         for (var item : content.items()) {
             require(item != null);
+            require(item.category() != null);
             text(item.title(), 200); text(item.summary(), 10_000);
             require(titles.add(item.title().strip()));
             require(item.terms() != null && !item.terms().isEmpty() && item.terms().size() <= 20);
