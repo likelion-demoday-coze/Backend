@@ -150,13 +150,13 @@ class EconomicTrendIntegrationTest {
         mvc.perform(get("/api/v1/economic-trends/today").with(auth(member.getMemberId(), "ROLE_GUEST")))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/economic-trends/today").with(auth(Long.MAX_VALUE, "ROLE_MEMBER")))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/economic-trends/today").param("memberId", Long.MAX_VALUE + "")
                         .with(auth(member.getMemberId(), "ROLE_MEMBER"))).andExpect(status().isOk());
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", member.getMemberId());
         entityManager.clear();
         mvc.perform(get("/api/v1/economic-trends/today").with(auth(member.getMemberId(), "ROLE_MEMBER")))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("TREND_403_1"));
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("COMMON_401"));
     }
 
     @Test
@@ -235,7 +235,7 @@ class EconomicTrendIntegrationTest {
         mvc.perform(get("/api/v1/economic-trends/{trendId}", id).with(auth(member.getMemberId(), "ROLE_GUEST")))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/economic-trends/{trendId}", id).with(auth(Long.MAX_VALUE, "ROLE_MEMBER")))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isUnauthorized());
         for (String invalid : List.of("0", "-1", "invalid")) {
             mvc.perform(get("/api/v1/economic-trends/" + invalid).with(auth(member.getMemberId(), "ROLE_MEMBER")))
                     .andExpect(status().isBadRequest());
@@ -245,7 +245,7 @@ class EconomicTrendIntegrationTest {
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", member.getMemberId());
         entityManager.clear();
         mvc.perform(get("/api/v1/economic-trends/{trendId}", id).with(auth(member.getMemberId(), "ROLE_MEMBER")))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("TREND_403_1"));
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("COMMON_401"));
     }
 
     private TrendGeneration create(LocalDateTime date, TrendGenerationStatus status, int count) {
