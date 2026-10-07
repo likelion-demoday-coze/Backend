@@ -116,4 +116,24 @@ public interface PaymentRepository
             Long paymentId,
             Long memberId
     );
+
+    @Query("""
+        SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END
+        FROM Payment p
+        WHERE p.member.memberId = :memberId
+          AND (
+              p.status IN :unresolvedStatuses
+              OR (
+                  p.status = :readyStatus
+                  AND p.requestedAt > :validRequestedAt
+              )
+          )
+        """)
+    boolean existsBlockingWithdrawalPayment(
+            @Param("memberId") Long memberId,
+            @Param("unresolvedStatuses")
+            Collection<PaymentStatus> unresolvedStatuses,
+            @Param("readyStatus") PaymentStatus readyStatus,
+            @Param("validRequestedAt") LocalDateTime validRequestedAt
+    );
 }

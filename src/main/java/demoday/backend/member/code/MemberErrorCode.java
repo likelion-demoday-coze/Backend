@@ -61,6 +61,11 @@ public enum MemberErrorCode implements BaseErrorCode {
             HttpStatus.CONFLICT,
             "MEMBER_409_4",
             "이미 탈퇴한 회원입니다."
+    ),
+    WITHDRAWAL_BLOCKED_BY_PENDING_PAYMENT(
+            HttpStatus.CONFLICT,
+            "MEMBER_409_5",
+            "처리 중인 결제가 있어 회원 탈퇴를 진행할 수 없습니다."
     );
 
     private final HttpStatus status;
