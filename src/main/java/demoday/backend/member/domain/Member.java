@@ -216,4 +216,14 @@ public class Member {
     public boolean isWithdrawn() {
         return status == MemberStatus.WITHDRAWN;
     }
+
+    public void completeTutorial() {
+        if (status != MemberStatus.ACTIVE) {
+            throw new ProjectException(
+                    MemberErrorCode.INACTIVE_MEMBER
+            );
+        }
+
+        this.tutorialCompleted = true;
+    }
 }

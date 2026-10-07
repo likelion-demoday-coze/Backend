@@ -158,4 +158,24 @@ public class MemberService {
 
         member.withdraw(now);
     }
+
+    @Transactional
+    public MemberResponse completeTutorial(Long memberId) {
+        if (memberId == null) {
+            throw new ProjectException(
+                    GeneralErrorCode.UNAUTHORIZED
+            );
+        }
+
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() ->
+                        new ProjectException(
+                                GeneralErrorCode.NOT_FOUND
+                        )
+                );
+
+        member.completeTutorial();
+
+        return MemberResponse.from(member);
+    }
 }

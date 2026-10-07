@@ -87,4 +87,18 @@ public class MemberController {
 
         return ResponseEntity.noContent().build();
     }
+
+    @Operation(
+            summary = "최초 튜토리얼 완료",
+            description = "로그인 회원의 최초 튜토리얼을 완료 처리합니다. 여러 번 호출해도 동일하게 성공합니다."
+    )
+    @PatchMapping("/me/tutorial")
+    public ApiResponse<MemberResponse> completeTutorial(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                memberService.completeTutorial(memberId)
+        );
+    }
 }
