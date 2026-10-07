@@ -2,9 +2,12 @@ package demoday.backend.trend.client;
 
 import com.sun.net.httpserver.HttpServer;
 import demoday.backend.trend.code.TrendGenerationFailure;
+import demoday.backend.trend.code.TrendCategory;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -39,15 +42,17 @@ class LinerTrendClientTest {
     }
     @AfterEach void tearDown() { server.stop(0); }
 
-    @Test void sendsNonStreamingRequestAndParsesGroundedAnswer() {
+    @ParameterizedTest @EnumSource(TrendCategory.class)
+    void sendsNonStreamingRequestAndParsesGroundedAnswer(TrendCategory category) {
         String answer = """
-                {"items":[{"title":"금리","summary":"요약","terms":[],
+                {"items":[{"category":"%s","title":"금리","summary":"요약","terms":[],
                 "references":[{"title":"발표","url":"https://example.com/news","publisher":"기관","publishedDate":"2026-10-04"}]}]}
-                """;
+                """.formatted(category.name());
         response = mapper.writeValueAsString(Map.of("answer", answer,
                 "references", List.of(Map.of("url", "https://example.com/news"))));
         var content = client().generate(LocalDate.of(2026, 10, 5));
         assertThat(content.items().get(0).title()).isEqualTo("금리");
+        assertThat(content.items().get(0).category()).isEqualTo(category);
         assertThat(content.items().get(0).references().get(0).publishedDate()).isEqualTo(LocalDate.of(2026, 10, 4));
         assertThat(receivedKey.get()).isEqualTo("test-key");
         var request = mapper.readTree(receivedBody.get());
@@ -64,7 +69,7 @@ class LinerTrendClientTest {
     @Test void rejectsInvalidOrUngroundedAnswer() {
         response = "{\"answer\":\"not json\"}";
         assertInvalid();
-        response = mapper.writeValueAsString(Map.of("answer", "{\"items\":[{\"references\":[{\"url\":\"https://invented.com\"}]}]}",
+        response = mapper.writeValueAsString(Map.of("answer", "{\"items\":[{\"category\":\"OTHER\",\"references\":[{\"url\":\"https://invented.com\"}]}]}",
                 "references", List.of(Map.of("url", "https://real.com"))));
         assertInvalid();
     }
@@ -73,6 +78,19 @@ class LinerTrendClientTest {
                 .isInstanceOfSatisfying(TrendGenerationException.class,
                         ex -> assertThat(ex.getFailure()).isEqualTo(TrendGenerationFailure.NOT_CONFIGURED));
         assertThat(receivedBody.get()).isNull();
+    }
+    @ParameterizedTest @ValueSource(strings = {"null", "\"UNKNOWN\"", "\"PREVIEW\"", "0", "\"macro_economy\""})
+    void rejectsInvalidCategoryCodes(String categoryJson) {
+        response = mapper.writeValueAsString(Map.of("answer",
+                "{\"items\":[{\"category\":" + categoryJson + ",\"title\":\"이슈\",\"references\":[]}]}",
+                "references", List.of()));
+        assertInvalid();
+    }
+
+    @Test void rejectsMissingCategory() {
+        response = mapper.writeValueAsString(Map.of("answer", "{\"items\":[{\"title\":\"이슈\",\"references\":[]}]}",
+                "references", List.of()));
+        assertInvalid();
     }
     @Test void respectsProvidersNonRetryableServerError() {
         status = 502; response = "{\"error\":{\"retryable\":false}}";

@@ -171,7 +171,7 @@ class TrendGenerationIntegrationTest {
     private TrendGeneration today() { return generations.findByGenerationDate(DATE.atTime(8, 0)).orElseThrow(); }
     private GeneratedTrendContent content() {
         return new GeneratedTrendContent(java.util.stream.IntStream.rangeClosed(1, 3).mapToObj(i ->
-                new GeneratedTrendContent.Item("이슈 " + i, "요약", List.of(new GeneratedTrendContent.Term("금리", "설명")),
+                new GeneratedTrendContent.Item(demoday.backend.trend.code.TrendCategory.OTHER, "이슈 " + i, "요약", List.of(new GeneratedTrendContent.Term("금리", "설명")),
                         List.of(new GeneratedTrendContent.Reference("출처", "https://example.com/" + i, "기관", DATE)))).toList());
     }
     static class MovingClock extends Clock {

@@ -6,6 +6,8 @@ import demoday.backend.trend.code.*;
 import demoday.backend.trend.domain.*;
 import demoday.backend.trend.repository.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -49,6 +51,34 @@ class EconomicTrendIntegrationTest {
 
     @BeforeEach
     void setUp() { member = members.saveAndFlush(Member.create(81001L, "trend")); }
+
+    @ParameterizedTest @EnumSource(TrendCategory.class)
+    void categoryCodeAndKoreanNameAreReturnedInListAndDetail(TrendCategory category) throws Exception {
+        var generation = create(NOW, TrendGenerationStatus.SUCCESS, 0);
+        for (int order = 1; order <= 3; order++)
+            trends.saveAndFlush(EconomicTrend.create(generation, order, "분류 이슈 " + order, "요약", category));
+        var first = trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(generation.getTrendGenerationId()).get(0);
+        mvc.perform(get("/api/v1/economic-trends/today").with(auth(member.getMemberId(), "ROLE_MEMBER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.items[0].category").value(category.name()))
+                .andExpect(jsonPath("$.result.items[0].categoryName").value(category.getDisplayName()));
+        mvc.perform(get("/api/v1/economic-trends/{trendId}", first.getEconomicTrendId()).with(auth(member.getMemberId(), "ROLE_MEMBER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.category").value(category.name()))
+                .andExpect(jsonPath("$.result.categoryName").value(category.getDisplayName()));
+    }
+
+    @Test void legacyNullCategoryIsShownAsOtherInListAndDetail() throws Exception {
+        var generation = create(NOW, TrendGenerationStatus.SUCCESS, 3);
+        var first = trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(generation.getTrendGenerationId()).get(0);
+        Long trendId = first.getEconomicTrendId();
+        jdbc.update("update economic_trend set category=null where economic_trend_id=?", trendId);
+        entityManager.clear();
+        mvc.perform(get("/api/v1/economic-trends/today").with(auth(member.getMemberId(), "ROLE_MEMBER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.items[0].category").value("OTHER"))
+                .andExpect(jsonPath("$.result.items[0].categoryName").value("기타"));
+        mvc.perform(get("/api/v1/economic-trends/{trendId}", trendId).with(auth(member.getMemberId(), "ROLE_MEMBER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.category").value("OTHER"))
+                .andExpect(jsonPath("$.result.categoryName").value("기타"));
+    }
 
     @Test
     void todayContentUsesKstDateAndDisplayOrder() throws Exception {

@@ -2,10 +2,13 @@ package demoday.backend.trend.service;
 
 import demoday.backend.trend.client.TrendGenerationException;
 import demoday.backend.trend.code.TrendGenerationStatus;
+import demoday.backend.trend.code.TrendCategory;
 import demoday.backend.trend.domain.*;
 import demoday.backend.trend.dto.GeneratedTrendContent;
 import demoday.backend.trend.repository.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -55,8 +58,24 @@ class TrendContentStorageIntegrationTest {
     }
     @Test void invalidLastItemRejectsWholeBundle() {
         var invalid = new GeneratedTrendContent(List.of(valid().items().get(0), valid().items().get(1),
-                new GeneratedTrendContent.Item("", "요약", List.of(), List.of())));
+                new GeneratedTrendContent.Item(demoday.backend.trend.code.TrendCategory.OTHER, "", "요약", List.of(), List.of())));
         assertThatThrownBy(() -> storage.saveValidated(generation.getTrendGenerationId(), invalid))
+                .isInstanceOf(TrendGenerationException.class);
+        assertThat(trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(generation.getTrendGenerationId())).isEmpty();
+        assertProcessing();
+    }
+    @ParameterizedTest @EnumSource(TrendCategory.class)
+    void persistsEachAllowedCategory(TrendCategory category) {
+        storage.saveValidated(generation.getTrendGenerationId(), valid(category));
+        assertThat(trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(generation.getTrendGenerationId()))
+                .extracting(EconomicTrend::getCategory).containsExactly(category, category, category);
+    }
+
+    @Test void missingCategoryInLastItemRejectsWholeBundle() {
+        var items = new java.util.ArrayList<>(valid().items());
+        var last = items.get(2);
+        items.set(2, new GeneratedTrendContent.Item(null, last.title(), last.summary(), last.terms(), last.references()));
+        assertThatThrownBy(() -> storage.saveValidated(generation.getTrendGenerationId(), new GeneratedTrendContent(items)))
                 .isInstanceOf(TrendGenerationException.class);
         assertThat(trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(generation.getTrendGenerationId())).isEmpty();
         assertProcessing();
@@ -76,9 +95,9 @@ class TrendContentStorageIntegrationTest {
         var original = valid().items().get(0);
         var reference = original.references().get(0);
         for (var invalidItem : List.of(
-                new GeneratedTrendContent.Item("이슈", "요약", List.of(original.terms().get(0), original.terms().get(0)), original.references()),
-                new GeneratedTrendContent.Item("이슈", "요약", original.terms(), List.of(new GeneratedTrendContent.Reference("출처", "javascript:alert(1)", "기관", date))),
-                new GeneratedTrendContent.Item("이슈", "요약", original.terms(), List.of(new GeneratedTrendContent.Reference("출처", reference.url(), "기관", date.plusDays(1)))))) {
+                new GeneratedTrendContent.Item(demoday.backend.trend.code.TrendCategory.OTHER, "이슈", "요약", List.of(original.terms().get(0), original.terms().get(0)), original.references()),
+                new GeneratedTrendContent.Item(demoday.backend.trend.code.TrendCategory.OTHER, "이슈", "요약", original.terms(), List.of(new GeneratedTrendContent.Reference("출처", "javascript:alert(1)", "기관", date))),
+                new GeneratedTrendContent.Item(demoday.backend.trend.code.TrendCategory.OTHER, "이슈", "요약", original.terms(), List.of(new GeneratedTrendContent.Reference("출처", reference.url(), "기관", date.plusDays(1)))))) {
             assertThatThrownBy(() -> validator.validate(new GeneratedTrendContent(List.of(invalidItem, valid().items().get(1), valid().items().get(2))), date))
                     .isInstanceOf(TrendGenerationException.class);
         }
@@ -87,8 +106,11 @@ class TrendContentStorageIntegrationTest {
         assertThat(generations.findById(generation.getTrendGenerationId()).orElseThrow().getStatus()).isEqualTo(TrendGenerationStatus.PROCESSING);
     }
     private GeneratedTrendContent valid() {
+        return valid(TrendCategory.OTHER);
+    }
+    private GeneratedTrendContent valid(TrendCategory category) {
         return new GeneratedTrendContent(java.util.stream.IntStream.rangeClosed(1, 3).mapToObj(i ->
-                new GeneratedTrendContent.Item("이슈 " + i, "상세 요약", List.of(new GeneratedTrendContent.Term("금리", "금리 설명")),
+                new GeneratedTrendContent.Item(category, "이슈 " + i, "상세 요약", List.of(new GeneratedTrendContent.Term("금리", "금리 설명")),
                         List.of(new GeneratedTrendContent.Reference("출처", "https://example.com/news/" + i, "기관", date.minusDays(1))))).toList());
     }
 }
