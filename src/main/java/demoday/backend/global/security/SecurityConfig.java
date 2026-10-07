@@ -6,6 +6,7 @@ import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.member.domain.Member;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,7 +39,8 @@ public class SecurityConfig {
             FrontendRedirectService frontendRedirectService,
             HttpSessionSecurityContextRepository contextRepository,
             ObjectMapper objectMapper,
-            @Value("${app.frontend-login-success-path:/home}") String loginSuccessPath
+            @Value("${app.frontend-login-success-path:/home}") String loginSuccessPath,
+            ActiveMemberFilter activeMemberFilter
     ) throws Exception {
 
         return http
@@ -71,6 +74,10 @@ public class SecurityConfig {
                                 "/api/v1/preview-quizzes/**"
                         ).permitAll()
                         .anyRequest().hasRole("MEMBER"))
+                .addFilterAfter(
+                        activeMemberFilter,
+                        SecurityContextHolderFilter.class
+                )
                 .oauth2Login(oauth2 -> oauth2
                         .authorizationEndpoint(authorization -> authorization
                                 .baseUri("/api/v1/auth/oauth2/authorization"))
@@ -86,20 +93,38 @@ public class SecurityConfig {
                             Optional<Member> member =
                                     kakaoAuthService.findMemberByKakaoUserId(kakaoUserId);
 
+                            if (member.isPresent() && member.get().isWithdrawn()) {
+                                HttpSession session = request.getSession(false);
+
+                                String frontendUrl = session == null
+                                        ? frontendRedirectService.validate(null)
+                                        : frontendRedirectService.consume(session);
+
+                                SecurityContextHolder.clearContext();
+
+                                if (session != null) {
+                                    session.invalidate();
+                                }
+
+                                response.sendRedirect(
+                                        frontendUrl + "/login?error=withdrawn_member"
+                                );
+                                return;
+                            }
+
                             if (member.isEmpty()) {
                                 SecurityContextHolder.clearContext();
-                                request.getSession().removeAttribute(
-                                        HttpSessionSecurityContextRepository
-                                                .SPRING_SECURITY_CONTEXT_KEY
+
+                                HttpSession session = request.getSession(true);
+                                session.removeAttribute(
+                                        HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY
                                 );
-                                request.getSession().setAttribute(
+                                session.setAttribute(
                                         KakaoAuthService.PENDING_KAKAO_USER_ID,
                                         kakaoUserId
                                 );
 
-                                String frontendUrl = frontendRedirectService.consume(
-                                        request.getSession()
-                                );
+                                String frontendUrl = frontendRedirectService.consume(session);
                                 response.sendRedirect(frontendUrl + "/signup");
                                 return;
                             }

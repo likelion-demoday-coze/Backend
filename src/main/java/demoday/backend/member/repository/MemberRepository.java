@@ -91,4 +91,9 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             @Param("closedAt") LocalDateTime closedAt,
             @Param("memberIds") List<Long> memberIds
     );
+
+    boolean existsByMemberIdAndStatus(
+            Long memberId,
+            MemberStatus status
+    );
 }

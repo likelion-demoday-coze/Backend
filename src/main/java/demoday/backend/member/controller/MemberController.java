@@ -8,11 +8,16 @@ import demoday.backend.member.dto.NicknameUpdateRequest;
 import demoday.backend.member.service.MemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -70,13 +75,16 @@ public class MemberController {
             description = "로그인 회원을 탈퇴 처리합니다. CSRF 토큰이 필요합니다."
     )
     @DeleteMapping("/me")
-    public ApiResponse<Void> withdraw(
-            @AuthenticationPrincipal Long memberId
+    public ResponseEntity<Void> withdraw(
+            @AuthenticationPrincipal Long memberId,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Authentication auth
     ) {
         memberService.withdraw(memberId);
 
-        return ApiResponse.onSuccess(
-                GeneralSuccessCode.OK
-        );
+        new SecurityContextLogoutHandler().logout(request, response, auth);
+
+        return ResponseEntity.noContent().build();
     }
 }

@@ -208,4 +208,12 @@ public class Member {
             );
         }
     }
+
+    public boolean isActive() {
+        return status == MemberStatus.ACTIVE;
+    }
+
+    public boolean isWithdrawn() {
+        return status == MemberStatus.WITHDRAWN;
+    }
 }
