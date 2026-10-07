@@ -230,11 +230,11 @@ class CharacterServiceIntegrationTest {
         mvc.perform(get("/api/v1/characters/me").with(authentication(auth)).param("memberId", Long.MAX_VALUE + ""))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.stage").value("BEGINNER"));
         var missing = new UsernamePasswordAuthenticationToken(Long.MAX_VALUE, null, List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
-        mvc.perform(get("/api/v1/characters/me").with(authentication(missing))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/characters/me").with(authentication(missing))).andExpect(status().isUnauthorized());
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", member.getMemberId());
         // 기존 영속 객체 대신 새 읽기에서 탈퇴 상태를 검사한다.
         entityManager.clear();
-        mvc.perform(get("/api/v1/characters/me").with(authentication(auth))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/characters/me").with(authentication(auth))).andExpect(status().isUnauthorized());
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/characters/me'].get").exists());
     }

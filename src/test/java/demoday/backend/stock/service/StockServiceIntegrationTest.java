@@ -106,22 +106,22 @@ class StockServiceIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/graph", "/api/v1/stocks/me/history"})
-    @DisplayName("탈퇴 회원의 조회는 거절한다")
+    @DisplayName("탈퇴 회원의 기존 인증은 401로 거절한다")
     void withdrawnMember(String path) throws Exception {
         jdbcTemplate.update("update member set status = 'WITHDRAWN' where member_id = ?", memberId);
 
         mockMvc.perform(get(path).with(memberAuthentication(memberId)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("STOCK_403_1"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON_401"));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/stocks/me", "/api/v1/stocks/me/graph", "/api/v1/stocks/me/history"})
-    @DisplayName("인증 정보의 회원이 DB에 없으면 404를 반환한다")
+    @DisplayName("인증 정보의 회원이 DB에 없으면 401을 반환한다")
     void missingMember(String path) throws Exception {
         mockMvc.perform(get(path).with(memberAuthentication(Long.MAX_VALUE)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("COMMON_404"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON_401"));
     }
 
     @ParameterizedTest

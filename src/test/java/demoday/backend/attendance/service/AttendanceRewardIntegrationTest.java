@@ -217,10 +217,10 @@ class AttendanceRewardIntegrationTest {
         assertThatThrownBy(() -> service.claim(null)).isInstanceOfSatisfying(ProjectException.class,
                 ex -> assertThat(ex.getErrorCode()).isEqualTo(GeneralErrorCode.UNAUTHORIZED));
         mvc.perform(post("/api/v1/attendance-rewards").with(auth(Long.MAX_VALUE)).with(csrf()))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isUnauthorized());
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", memberId);
-        mvc.perform(get("/api/v1/attendance-rewards/today").with(auth(memberId))).andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/attendance-rewards").with(auth(memberId)).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/attendance-rewards/today").with(auth(memberId))).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/attendance-rewards").with(auth(memberId)).with(csrf())).andExpect(status().isUnauthorized());
         assertThat(rewardCount()).isZero();
     }
 

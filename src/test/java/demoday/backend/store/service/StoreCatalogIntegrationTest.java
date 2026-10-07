@@ -92,8 +92,8 @@ class StoreCatalogIntegrationTest {
                 List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
         for (String route : List.of("/api/v1/store/items", "/api/v1/members/me/items")) {
             mvc.perform(get(route).with(auth("ROLE_MEMBER")))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("STORE_403_1"));
-            mvc.perform(get(route).with(authentication(missing))).andExpect(status().isNotFound());
+                    .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("COMMON_401"));
+            mvc.perform(get(route).with(authentication(missing))).andExpect(status().isUnauthorized());
         }
     }
 

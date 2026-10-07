@@ -205,9 +205,9 @@ class StreakPenaltyNotificationIntegrationTest {
         mvc.perform(get("/api/v1/streaks/penalty-notification").with(authentication(auth)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result").isEmpty());
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", memberId);
-        mvc.perform(get("/api/v1/streaks/penalty-notification").with(authentication(auth))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/streaks/penalty-notification").with(authentication(auth))).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/streaks/penalty-notifications/{id}/acknowledgment", eventId)
-                .with(authentication(auth)).with(csrf())).andExpect(status().isForbidden());
+                .with(authentication(auth)).with(csrf())).andExpect(status().isUnauthorized());
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/streaks/penalty-notification'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/streaks/penalty-notifications/{eventId}/acknowledgment'].post").exists());
