@@ -1,6 +1,7 @@
 package demoday.backend.payment.service;
 
 import demoday.backend.global.exception.ProjectException;
+import demoday.backend.member.code.MemberErrorCode;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.client.KorpayClient;
@@ -30,6 +31,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -39,6 +41,11 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,6 +86,7 @@ class PaymentIntegrationTest {
     @Autowired private PaymentRepository payments;
     @Autowired private MemberPassRepository memberPasses;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private TransactionTemplate transactionTemplate;
 
     @MockitoBean private KorpayClient korpayClient;
     @MockitoSpyBean private PaymentFulfillmentService fulfillmentService;
@@ -160,6 +168,69 @@ class PaymentIntegrationTest {
                 .get()
                 .extracting(Payment::getStatus)
                 .isEqualTo(PaymentStatus.READY);
+    }
+
+    @Test
+    void withdrawalCompletedBeforeMemberLockPreventsNewOrder() throws Exception {
+        long paymentCountBefore = payments.count();
+        CountDownLatch withdrawalLocked = new CountDownLatch(1);
+        CountDownLatch allowWithdrawalCommit = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            var withdrawalFuture = executor.submit(() -> {
+                transactionTemplate.executeWithoutResult(status -> {
+                    Member lockedMember = members
+                            .findByIdForUpdate(member.getMemberId())
+                            .orElseThrow();
+                    lockedMember.withdraw(LocalDateTime.now());
+                    members.saveAndFlush(lockedMember);
+                    withdrawalLocked.countDown();
+
+                    try {
+                        if (!allowWithdrawalCommit.await(5, TimeUnit.SECONDS)) {
+                            throw new IllegalStateException(
+                                    "탈퇴 트랜잭션 커밋 신호를 기다리지 못했습니다."
+                            );
+                        }
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(exception);
+                    }
+                });
+            });
+
+            assertThat(withdrawalLocked.await(5, TimeUnit.SECONDS)).isTrue();
+
+            var orderFuture = executor.submit(() ->
+                    orderService.createOrder(
+                            member.getMemberId(),
+                            fishProduct.getProductCode()
+                    )
+            );
+
+            allowWithdrawalCommit.countDown();
+            withdrawalFuture.get(5, TimeUnit.SECONDS);
+
+            assertThatThrownBy(() -> orderFuture.get(5, TimeUnit.SECONDS))
+                    .isInstanceOfSatisfying(
+                            ExecutionException.class,
+                            exception -> assertThat(exception.getCause())
+                                    .isInstanceOfSatisfying(
+                                            ProjectException.class,
+                                            projectException -> assertThat(
+                                                    projectException.getErrorCode()
+                                            ).isEqualTo(
+                                                    MemberErrorCode.INACTIVE_MEMBER
+                                            )
+                                    )
+                    );
+
+            assertThat(payments.count()).isEqualTo(paymentCountBefore);
+        } finally {
+            allowWithdrawalCommit.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test
