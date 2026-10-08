@@ -60,6 +60,9 @@ public class Member {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    private static final java.util.regex.Pattern NICKNAME_PATTERN =
+            java.util.regex.Pattern.compile("^[가-힣A-Za-z0-9]{2,8}$");
+
     @PrePersist
     private void recordCreatedAt() {
         if (createdAt == null) {
@@ -69,6 +72,8 @@ public class Member {
     }
 
     public static Member create(Long kakaoUserId, String nickname) {
+        validateNickname(nickname);
+
         return Member.builder()
                 .kakaoUserId(kakaoUserId)
                 .nickname(nickname)
@@ -164,5 +169,61 @@ public class Member {
         }
 
         currentStreak = 1;
+    }
+
+    public void changeNickname(String nickname) {
+        validateNickname(nickname);
+
+        if (this.status != MemberStatus.ACTIVE) {
+            throw new ProjectException(
+                    MemberErrorCode.INACTIVE_MEMBER
+            );
+        }
+
+        this.nickname = nickname;
+    }
+
+    public void withdraw(LocalDateTime deletedAt) {
+        if (this.status == MemberStatus.WITHDRAWN) {
+            throw new ProjectException(
+                    MemberErrorCode.ALREADY_WITHDRAWN
+            );
+        }
+
+        if (deletedAt == null) {
+            throw new IllegalArgumentException(
+                    "회원 탈퇴 시각은 필수입니다."
+            );
+        }
+
+        this.status = MemberStatus.WITHDRAWN;
+        this.deletedAt = deletedAt;
+    }
+
+    private static void validateNickname(String nickname) {
+        if (nickname == null
+                || !NICKNAME_PATTERN.matcher(nickname).matches()) {
+            throw new ProjectException(
+                    MemberErrorCode.INVALID_NICKNAME
+            );
+        }
+    }
+
+    public boolean isActive() {
+        return status == MemberStatus.ACTIVE;
+    }
+
+    public boolean isWithdrawn() {
+        return status == MemberStatus.WITHDRAWN;
+    }
+
+    public void completeTutorial() {
+        if (status != MemberStatus.ACTIVE) {
+            throw new ProjectException(
+                    MemberErrorCode.INACTIVE_MEMBER
+            );
+        }
+
+        this.tutorialCompleted = true;
     }
 }

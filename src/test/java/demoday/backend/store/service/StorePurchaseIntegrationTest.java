@@ -279,11 +279,11 @@ class StorePurchaseIntegrationTest {
         String body = "{\"quantity\":1,\"requestId\":\"" + UUID.randomUUID() + "\"}";
         String route = "/api/v1/store/items/" + item.getItemId() + "/purchase";
         mvc.perform(post(route).with(auth(Long.MAX_VALUE, "ROLE_MEMBER")).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNotFound());
+                        .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", memberId);
         mvc.perform(post(route).with(auth(memberId, "ROLE_MEMBER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("STORE_403_1"));
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("COMMON_401"));
         assertThat(count("store_purchase")).isZero();
     }
 

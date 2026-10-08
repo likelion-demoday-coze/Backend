@@ -152,7 +152,7 @@ class StreakServiceIntegrationTest {
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", member.getMemberId());
         entityManager.clear();
         mvc.perform(get("/api/v1/streaks/me").with(authentication(auth)))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("STREAK_403_1"));
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("COMMON_401"));
     }
 
     @Test

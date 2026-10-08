@@ -3,6 +3,8 @@ package demoday.backend.payment.service;
 import demoday.backend.auth.service.FrontendRedirectService;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
+import demoday.backend.member.code.MemberErrorCode;
+import demoday.backend.member.code.MemberStatus;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.code.PaymentErrorCode;
@@ -91,6 +93,12 @@ public class PaymentOrderService {
                                 GeneralErrorCode.NOT_FOUND
                         )
                 );
+
+        // 인증 필터 통과 후 탈퇴가 먼저 완료될 수 있으므로,
+        // 회원 행 잠금을 획득한 시점의 최신 상태를 다시 확인한다.
+        if (member.getStatus() != MemberStatus.ACTIVE) {
+            throw new ProjectException(MemberErrorCode.INACTIVE_MEMBER);
+        }
 
         Product product = productRepository.findByProductCode(productCode)
                 .orElseThrow(() ->

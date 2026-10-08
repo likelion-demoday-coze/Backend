@@ -429,7 +429,7 @@ class StreakRecoveryIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.status").value("PENDING"));
         assertThat(quantity()).isZero();
         jdbc.update("update member set status='WITHDRAWN' where member_id=?", memberId);
-        mvc.perform(get("/api/v1/streaks/recovery").with(authentication(auth))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/streaks/recovery").with(authentication(auth))).andExpect(status().isUnauthorized());
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/streaks/recoveries/{eventId}'].post").exists());
     }
