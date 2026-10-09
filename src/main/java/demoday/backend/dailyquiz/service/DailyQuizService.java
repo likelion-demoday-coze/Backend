@@ -59,16 +59,16 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
+import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.ENTRY_FISH_COST;
+import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.MAX_STOCK_INCREASE_PERCENT;
+import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.MIN_STOCK_INCREASE_PERCENT;
+import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.QUESTIONS_PER_SESSION;
+import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.stockOpportunityQuestionLimit;
+
 @Service
 @RequiredArgsConstructor
 public class DailyQuizService {
 
-    private static final int DAILY_QUIZ_QUESTION_COUNT = 5;
-    private static final long DAILY_QUIZ_FISH_COST = 50L;
-    private static final int NORMAL_STOCK_OPPORTUNITY_LIMIT = 10;
-    private static final int PASS_STOCK_OPPORTUNITY_LIMIT = 15;
-    private static final int MIN_STOCK_INCREASE_PERCENT = 1;
-    private static final int MAX_STOCK_INCREASE_PERCENT = 10;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private static final EnumSet<DailyQuizSessionStatus> ACTIVE_STATUSES =
@@ -139,7 +139,7 @@ public class DailyQuizService {
 
         // 없다면 생선 50개 보유 여부 확인
         if (!passApplied
-                && member.getFishBalance() < DAILY_QUIZ_FISH_COST) {
+                && member.getFishBalance() < ENTRY_FISH_COST) {
             throw new ProjectException(
                     DailyQuizErrorCode.INSUFFICIENT_FISH
             );
@@ -152,12 +152,12 @@ public class DailyQuizService {
                         request.category(),
                         PageRequest.of(
                                 0,
-                                DAILY_QUIZ_QUESTION_COUNT
+                                QUESTIONS_PER_SESSION
                         )
                 );
 
         // 문제가 5개보다 적으면 INSUFFICIENT_QUESTIONS
-        if (questions.size() < DAILY_QUIZ_QUESTION_COUNT) {
+        if (questions.size() < QUESTIONS_PER_SESSION) {
             throw new ProjectException(
                     DailyQuizErrorCode.INSUFFICIENT_QUESTIONS
             );
@@ -191,7 +191,7 @@ public class DailyQuizService {
         if (!passApplied) {
             fishService.debit(
                     memberId,
-                    DAILY_QUIZ_FISH_COST,
+                    ENTRY_FISH_COST,
                     FishTransactionType.DAILY_QUIZ_COST,
                     session.getDailyQuizSessionId(),
                     "DAILY_QUIZ_SESSION:" + session.getDailyQuizSessionId()
@@ -257,7 +257,7 @@ public class DailyQuizService {
         return DailyQuizActiveSessionResponse.of(
                 session,
                 answeredCount,
-                DAILY_QUIZ_QUESTION_COUNT
+                QUESTIONS_PER_SESSION
         );
     }
 
@@ -295,7 +295,7 @@ public class DailyQuizService {
 
         // 문제 5개 존재 여부 확인
         if (sessionQuestions.size()
-                != DAILY_QUIZ_QUESTION_COUNT) {
+                != QUESTIONS_PER_SESSION) {
             throw new ProjectException(
                     DailyQuizErrorCode.INVALID_SESSION_QUESTION_COUNT
             );
@@ -527,9 +527,9 @@ public class DailyQuizService {
                         );
 
         // 주가 상승 기회 제한 결정
-        int stockOpportunityLimit = Boolean.TRUE.equals(session.getPassApplied())
-                ? PASS_STOCK_OPPORTUNITY_LIMIT
-                : NORMAL_STOCK_OPPORTUNITY_LIMIT;
+        int stockOpportunityLimit = stockOpportunityQuestionLimit(
+                Boolean.TRUE.equals(session.getPassApplied())
+        );
 
         // 원본 답안 횟수 및 상승 기회 기록
         boolean stockOpportunityAvailable =
@@ -590,7 +590,7 @@ public class DailyQuizService {
                 );
 
         // 원본 문제 5개를 모두 제출한 경우
-        if (answeredCount == DAILY_QUIZ_QUESTION_COUNT) {
+        if (answeredCount == QUESTIONS_PER_SESSION) {
             session.completeOriginal(
                     member.getCurrentStock()
             );
@@ -642,7 +642,7 @@ public class DailyQuizService {
                 sessionQuestion.getQuestion().getExplanation(),
                 member.getCurrentStock(),
                 answeredCount,
-                DAILY_QUIZ_QUESTION_COUNT,
+                QUESTIONS_PER_SESSION,
                 session.getStatus()
         );
     }
@@ -683,7 +683,7 @@ public class DailyQuizService {
                         .getExplanation(),
                 existingAttempt.getStockAfter(),
                 answeredCount,
-                DAILY_QUIZ_QUESTION_COUNT,
+                QUESTIONS_PER_SESSION,
                 session.getStatus()
         );
     }
@@ -930,7 +930,7 @@ public class DailyQuizService {
                         DailyQuizAttemptType.ORIGINAL
                 );
 
-        if (originalAttempts.size() != DAILY_QUIZ_QUESTION_COUNT) {
+        if (originalAttempts.size() != QUESTIONS_PER_SESSION) {
             throw new ProjectException(
                     DailyQuizErrorCode.INVALID_SESSION_QUESTION_COUNT
             );
@@ -979,7 +979,7 @@ public class DailyQuizService {
                         );
 
         if (correctOptionByQuestionId.size()
-                != DAILY_QUIZ_QUESTION_COUNT) {
+                != QUESTIONS_PER_SESSION) {
             throw new ProjectException(
                     DailyQuizErrorCode.CORRECT_OPTION_NOT_FOUND
             );
@@ -1016,7 +1016,7 @@ public class DailyQuizService {
                 .filter(attempt -> Boolean.TRUE.equals(attempt.getCorrect()))
                 .count();
 
-        int incorrectCount = DAILY_QUIZ_QUESTION_COUNT - correctCount;
+        int incorrectCount = QUESTIONS_PER_SESSION - correctCount;
 
         BigDecimal endStock = session.getEndStock();
 
