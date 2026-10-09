@@ -36,4 +36,5 @@ public interface DailyQuizSessionRepository extends JpaRepository<DailyQuizSessi
             @Param("sessionId") Long sessionId,
             @Param("memberId") Long memberId
     );
+
 }

@@ -8,6 +8,7 @@ import demoday.backend.dailyquiz.dto.session.DailyQuizActiveSessionResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionDetailResponse;
+import demoday.backend.dailyquiz.dto.session.DailyQuizTodayResponse;
 import demoday.backend.dailyquiz.service.DailyQuizService;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
@@ -32,6 +33,23 @@ import java.util.List;
 public class DailyQuizController {
 
     private final DailyQuizService dailyQuizService;
+
+    @Operation(
+            summary = "오늘의 정규장 주가 반영 가능 횟수 조회",
+            description = """
+                    오늘 제출한 정규장 원본 답안을 기준으로 사용 횟수와 남은 횟수를 조회합니다.
+                    일반 회원은 하루 2회, 패스 회원은 하루 3회까지 주가에 반영됩니다.
+                    """
+    )
+    @GetMapping("/today")
+    public ApiResponse<DailyQuizTodayResponse> getTodayAvailability(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                dailyQuizService.getTodayAvailability(memberId)
+        );
+    }
 
     @Operation(
             summary = "퀴즈 카테고리 목록 조회",
