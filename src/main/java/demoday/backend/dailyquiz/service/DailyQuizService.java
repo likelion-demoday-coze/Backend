@@ -22,6 +22,7 @@ import demoday.backend.dailyquiz.dto.session.DailyQuizActiveSessionResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionDetailResponse;
+import demoday.backend.dailyquiz.dto.session.DailyQuizTodayResponse;
 import demoday.backend.dailyquiz.repository.DailyQuizAttemptRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionRepository;
@@ -53,6 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -63,6 +65,8 @@ import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.ENTRY_FISH_COST;
 import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.MAX_STOCK_INCREASE_PERCENT;
 import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.MIN_STOCK_INCREASE_PERCENT;
 import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.QUESTIONS_PER_SESSION;
+import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.entryFishCost;
+import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.stockReflectionLimit;
 import static demoday.backend.dailyquiz.policy.DailyQuizPolicy.stockOpportunityQuestionLimit;
 
 @Service
@@ -99,6 +103,44 @@ public class DailyQuizService {
                 .filter(category -> !category.isPreview())
                 .map(DailyQuizCategoryResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public DailyQuizTodayResponse getTodayAvailability(Long memberId) {
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
+        LocalDate today = now.toLocalDate();
+        LocalDateTime startedAtFrom = today.atStartOfDay();
+        LocalDateTime startedAtTo = today.plusDays(1).atStartOfDay();
+
+        boolean passApplied = memberPassRepository.findActivePass(
+                memberId,
+                PassStatus.ACTIVE,
+                now
+        ).isPresent();
+
+        int reflectionLimit = stockReflectionLimit(passApplied);
+        long todaySessionCount = dailyQuizSessionRepository
+                .countByMemberMemberIdAndStartedAtGreaterThanEqualAndStartedAtLessThan(
+                        memberId,
+                        startedAtFrom,
+                        startedAtTo
+                );
+        int usedReflectionCount = (int) Math.min(
+                todaySessionCount,
+                reflectionLimit
+        );
+        int remainingReflectionCount = Math.max(
+                reflectionLimit - usedReflectionCount,
+                0
+        );
+
+        return new DailyQuizTodayResponse(
+                passApplied,
+                reflectionLimit,
+                usedReflectionCount,
+                remainingReflectionCount,
+                entryFishCost(passApplied)
+        );
     }
 
     public DailyQuizSessionCreateResponse createSession(

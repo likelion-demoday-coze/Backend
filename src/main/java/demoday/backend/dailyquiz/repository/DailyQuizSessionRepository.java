@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Optional;
 
@@ -35,5 +36,11 @@ public interface DailyQuizSessionRepository extends JpaRepository<DailyQuizSessi
     Optional<DailyQuizSession> findByIdAndMemberIdForUpdate(
             @Param("sessionId") Long sessionId,
             @Param("memberId") Long memberId
+    );
+
+    long countByMemberMemberIdAndStartedAtGreaterThanEqualAndStartedAtLessThan(
+            Long memberId,
+            LocalDateTime startedAtFrom,
+            LocalDateTime startedAtTo
     );
 }

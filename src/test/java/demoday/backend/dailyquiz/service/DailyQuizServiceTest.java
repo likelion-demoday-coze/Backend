@@ -7,6 +7,7 @@ import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerRequest;
 import demoday.backend.dailyquiz.dto.category.DailyQuizCategoryResponse;
 import demoday.backend.dailyquiz.domain.DailyQuizSession;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
+import demoday.backend.dailyquiz.dto.session.DailyQuizTodayResponse;
 import demoday.backend.dailyquiz.repository.DailyQuizAttemptRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionRepository;
@@ -45,6 +46,7 @@ import java.util.function.Supplier;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -102,6 +104,56 @@ class DailyQuizServiceTest {
 
     @InjectMocks
     private DailyQuizService dailyQuizService;
+
+    @Test
+    @DisplayName("일반 회원의 오늘 정규장 주가 반영 가능 횟수를 조회한다")
+    void getTodayAvailabilityWithoutPass() {
+        when(memberPassRepository.findActivePass(
+                eq(1L),
+                eq(PassStatus.ACTIVE),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.empty());
+        when(dailyQuizSessionRepository
+                .countByMemberMemberIdAndStartedAtGreaterThanEqualAndStartedAtLessThan(
+                        eq(1L),
+                        any(LocalDateTime.class),
+                        any(LocalDateTime.class)
+                )).thenReturn(1L);
+
+        DailyQuizTodayResponse result =
+                dailyQuizService.getTodayAvailability(1L);
+
+        assertThat(result.passApplied()).isFalse();
+        assertThat(result.stockReflectionLimit()).isEqualTo(2);
+        assertThat(result.usedStockReflectionCount()).isEqualTo(1);
+        assertThat(result.remainingStockReflectionCount()).isEqualTo(1);
+        assertThat(result.fishCost()).isEqualTo(50L);
+    }
+
+    @Test
+    @DisplayName("패스 회원의 사용 횟수는 주가 반영 한도를 초과하지 않는다")
+    void getTodayAvailabilityWithPass() {
+        when(memberPassRepository.findActivePass(
+                eq(1L),
+                eq(PassStatus.ACTIVE),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.of(mock(MemberPass.class)));
+        when(dailyQuizSessionRepository
+                .countByMemberMemberIdAndStartedAtGreaterThanEqualAndStartedAtLessThan(
+                        eq(1L),
+                        any(LocalDateTime.class),
+                        any(LocalDateTime.class)
+                )).thenReturn(4L);
+
+        DailyQuizTodayResponse result =
+                dailyQuizService.getTodayAvailability(1L);
+
+        assertThat(result.passApplied()).isTrue();
+        assertThat(result.stockReflectionLimit()).isEqualTo(3);
+        assertThat(result.usedStockReflectionCount()).isEqualTo(3);
+        assertThat(result.remainingStockReflectionCount()).isZero();
+        assertThat(result.fishCost()).isZero();
+    }
 
     @ParameterizedTest
     @org.junit.jupiter.params.provider.EnumSource(DailyQuizAttemptType.class)
