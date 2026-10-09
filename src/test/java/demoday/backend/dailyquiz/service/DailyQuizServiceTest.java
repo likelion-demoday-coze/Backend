@@ -113,21 +113,47 @@ class DailyQuizServiceTest {
                 eq(PassStatus.ACTIVE),
                 any(LocalDateTime.class)
         )).thenReturn(Optional.empty());
-        when(dailyQuizSessionRepository
-                .countByMemberMemberIdAndStartedAtGreaterThanEqualAndStartedAtLessThan(
+        when(dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionMemberMemberIdAndAttemptTypeAndAnsweredAtGreaterThanEqualAndAnsweredAtLessThan(
                         eq(1L),
+                        eq(DailyQuizAttemptType.ORIGINAL),
                         any(LocalDateTime.class),
                         any(LocalDateTime.class)
-                )).thenReturn(1L);
+                )).thenReturn(4L);
 
         DailyQuizTodayResponse result =
                 dailyQuizService.getTodayAvailability(1L);
 
         assertThat(result.passApplied()).isFalse();
         assertThat(result.stockReflectionLimit()).isEqualTo(2);
+        assertThat(result.todayOriginalAnswerCount()).isEqualTo(4);
         assertThat(result.usedStockReflectionCount()).isEqualTo(1);
         assertThat(result.remainingStockReflectionCount()).isEqualTo(1);
         assertThat(result.fishCost()).isEqualTo(50L);
+    }
+
+    @Test
+    @DisplayName("오늘 제출한 원본 답안이 없으면 주가 반영 사용 횟수는 0회다")
+    void getTodayAvailabilityWithoutOriginalAnswer() {
+        when(memberPassRepository.findActivePass(
+                eq(1L),
+                eq(PassStatus.ACTIVE),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.empty());
+        when(dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionMemberMemberIdAndAttemptTypeAndAnsweredAtGreaterThanEqualAndAnsweredAtLessThan(
+                        eq(1L),
+                        eq(DailyQuizAttemptType.ORIGINAL),
+                        any(LocalDateTime.class),
+                        any(LocalDateTime.class)
+                )).thenReturn(0L);
+
+        DailyQuizTodayResponse result =
+                dailyQuizService.getTodayAvailability(1L);
+
+        assertThat(result.todayOriginalAnswerCount()).isZero();
+        assertThat(result.usedStockReflectionCount()).isZero();
+        assertThat(result.remainingStockReflectionCount()).isEqualTo(2);
     }
 
     @Test
@@ -138,18 +164,20 @@ class DailyQuizServiceTest {
                 eq(PassStatus.ACTIVE),
                 any(LocalDateTime.class)
         )).thenReturn(Optional.of(mock(MemberPass.class)));
-        when(dailyQuizSessionRepository
-                .countByMemberMemberIdAndStartedAtGreaterThanEqualAndStartedAtLessThan(
+        when(dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionMemberMemberIdAndAttemptTypeAndAnsweredAtGreaterThanEqualAndAnsweredAtLessThan(
                         eq(1L),
+                        eq(DailyQuizAttemptType.ORIGINAL),
                         any(LocalDateTime.class),
                         any(LocalDateTime.class)
-                )).thenReturn(4L);
+                )).thenReturn(16L);
 
         DailyQuizTodayResponse result =
                 dailyQuizService.getTodayAvailability(1L);
 
         assertThat(result.passApplied()).isTrue();
         assertThat(result.stockReflectionLimit()).isEqualTo(3);
+        assertThat(result.todayOriginalAnswerCount()).isEqualTo(16);
         assertThat(result.usedStockReflectionCount()).isEqualTo(3);
         assertThat(result.remainingStockReflectionCount()).isZero();
         assertThat(result.fishCost()).isZero();

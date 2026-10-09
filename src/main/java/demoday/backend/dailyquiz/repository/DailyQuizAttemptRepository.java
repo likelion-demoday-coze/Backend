@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 public interface DailyQuizAttemptRepository extends JpaRepository<DailyQuizAttempt, Long> {
 
@@ -28,6 +29,13 @@ public interface DailyQuizAttemptRepository extends JpaRepository<DailyQuizAttem
     long countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptType(
             Long dailyQuizSessionId,
             DailyQuizAttemptType attemptType
+    );
+
+    long countBySessionQuestionDailyQuizSessionMemberMemberIdAndAttemptTypeAndAnsweredAtGreaterThanEqualAndAnsweredAtLessThan(
+            Long memberId,
+            DailyQuizAttemptType attemptType,
+            LocalDateTime answeredAtFrom,
+            LocalDateTime answeredAtTo
     );
 
     long countBySessionQuestionDailyQuizSessionDailyQuizSessionIdAndAttemptTypeAndCorrectFalse(

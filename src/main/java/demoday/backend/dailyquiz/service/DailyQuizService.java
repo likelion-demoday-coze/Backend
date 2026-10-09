@@ -119,14 +119,16 @@ public class DailyQuizService {
         ).isPresent();
 
         int reflectionLimit = stockReflectionLimit(passApplied);
-        long todaySessionCount = dailyQuizSessionRepository
-                .countByMemberMemberIdAndStartedAtGreaterThanEqualAndStartedAtLessThan(
+        long todayOriginalAnswerCount = dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionMemberMemberIdAndAttemptTypeAndAnsweredAtGreaterThanEqualAndAnsweredAtLessThan(
                         memberId,
+                        DailyQuizAttemptType.ORIGINAL,
                         startedAtFrom,
                         startedAtTo
                 );
         int usedReflectionCount = (int) Math.min(
-                todaySessionCount,
+                (todayOriginalAnswerCount + QUESTIONS_PER_SESSION - 1)
+                        / QUESTIONS_PER_SESSION,
                 reflectionLimit
         );
         int remainingReflectionCount = Math.max(
@@ -137,6 +139,7 @@ public class DailyQuizService {
         return new DailyQuizTodayResponse(
                 passApplied,
                 reflectionLimit,
+                Math.toIntExact(todayOriginalAnswerCount),
                 usedReflectionCount,
                 remainingReflectionCount,
                 entryFishCost(passApplied)
