@@ -67,6 +67,23 @@ public enum PaymentErrorCode implements BaseErrorCode {
             HttpStatus.INTERNAL_SERVER_ERROR,
             "PAYMENT_500_1",
             "결제는 승인되었지만 상품 지급에 실패했습니다."
+    ),
+    PAYAPP_REQUEST_FAILED(
+            HttpStatus.BAD_GATEWAY,
+            "PAYMENT_502_3",
+            "결제 요청이 거절되었습니다."
+    ),
+
+    INVALID_PG_RESPONSE(
+            HttpStatus.BAD_GATEWAY,
+            "PAYMENT_502_4",
+            "결제사의 응답을 처리할 수 없습니다."
+    ),
+
+    PG_TIMEOUT(
+            HttpStatus.GATEWAY_TIMEOUT,
+            "PAYMENT_504_1",
+            "결제사 응답 시간이 초과되었습니다."
     );
 
     private final HttpStatus status;
