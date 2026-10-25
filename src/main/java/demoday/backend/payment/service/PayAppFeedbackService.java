@@ -25,6 +25,8 @@ public class PayAppFeedbackService {
     private static final String COMPLETED_STATE = "4";
     private static final Set<String> CANCELLED_STATES =
             Set.of("9", "64");
+    private static final Set<String> UNPAID_CANCELLED_STATES =
+            Set.of("8", "16", "32");
     private static final String CARD_PAY_TYPE = "1";
 
     private static final List<DateTimeFormatter> APPROVED_AT_FORMATTERS =
@@ -38,6 +40,7 @@ public class PayAppFeedbackService {
     private final PaymentProcessingTransactionService transactionService;
     private final PaymentCancellationTransactionService
             cancellationTransactionService;
+    private final PaymentCancellationService cancellationService;
 
     public void process(PayAppFeedbackRequest request) {
         validateRequiredValues(request);
@@ -65,6 +68,11 @@ public class PayAppFeedbackService {
             return;
         }
 
+        if (UNPAID_CANCELLED_STATES.contains(request.payState())) {
+            transactionService.recordUnpaidCancellation(request);
+            return;
+        }
+
         if (!COMPLETED_STATE.equals(request.payState())) {
             log.info(
                     "[Payment] 비완료 Feedback 확인 - orderNumber: {}, transactionId: {}, payState: {}",
@@ -82,18 +90,32 @@ public class PayAppFeedbackService {
 
         // 승인 저장은 별도 트랜잭션으로 먼저 확정
         // 이후 상품 지급이 실패해도 APPROVED 상태가 유지
-        Long paymentId = transactionService.recordApproval(
+        var processingResult = transactionService.recordApproval(
                 request,
                 approvedAt
         );
 
+        if (processingResult.lateRefundRequired()) {
+            cancellationService.cancelLateApprovedPayment(
+                    processingResult.paymentId(),
+                    processingResult.providerTransactionId()
+            );
+            return;
+        }
+
+        if (!processingResult.fulfillmentRequired()) {
+            return;
+        }
+
         // 패스 지급과 COMPLETED 전환은 하나의 별도 트랜잭션
         try {
-            transactionService.fulfill(paymentId);
+            transactionService.fulfill(
+                    processingResult.paymentId()
+            );
         } catch (RuntimeException exception) {
             // 지급 롤백 이후 별도 트랜잭션으로 실패 사유를 보존한다.
             transactionService.recordFulfillmentFailure(
-                    paymentId,
+                    processingResult.paymentId(),
                     "Feedback 수신 후 패스 지급에 실패했습니다."
             );
             throw exception;

@@ -33,7 +33,7 @@ public class PaymentProcessingTransactionService {
     private final Clock clock;
 
     @Transactional
-    public Long recordApproval(
+    public ApprovalProcessingResult recordApproval(
             PayAppFeedbackRequest request,
             LocalDateTime approvedAt
     ) {
@@ -50,7 +50,38 @@ public class PaymentProcessingTransactionService {
         // 동일 Feedback 재수신 시 승인 정보를 다시 변경하지 않음
         if (payment.getStatus() == PaymentStatus.COMPLETED
                 || payment.getStatus() == PaymentStatus.APPROVED) {
-            return payment.getPaymentId();
+            return ApprovalProcessingResult.fulfillment(
+                    payment.getPaymentId()
+            );
+        }
+
+        if (payment.getStatus() == PaymentStatus.CANCEL_REQUESTED) {
+            return ApprovalProcessingResult.alreadyProcessing(
+                    payment.getPaymentId()
+            );
+        }
+
+        if (payment.isExpiredOrder()) {
+            payment.approveLateAndRequestCancellation(
+                    request.transactionId(),
+                    SUCCESS_RESULT_CODE,
+                    CARD_PAY_METHOD,
+                    approvedAt
+            );
+
+            log.warn(
+                    "[Payment] 만료 후 결제 승인 감지 - paymentId: {}, orderNumber: {}, transactionId: {}",
+                    payment.getPaymentId(),
+                    payment.getOrderNumber(),
+                    PaymentLogSupport.maskTransactionId(
+                            request.transactionId()
+                    )
+            );
+
+            return ApprovalProcessingResult.lateRefund(
+                    payment.getPaymentId(),
+                    request.transactionId()
+            );
         }
 
         if (payment.getStatus() != PaymentStatus.READY
@@ -80,7 +111,39 @@ public class PaymentProcessingTransactionService {
                 payment.getStatus()
         );
 
-        return payment.getPaymentId();
+        return ApprovalProcessingResult.fulfillment(
+                payment.getPaymentId()
+        );
+    }
+
+    @Transactional
+    public void recordUnpaidCancellation(
+            PayAppFeedbackRequest request
+    ) {
+        Payment payment = paymentRepository
+                .findByOrderNumberForUpdate(request.orderNumber())
+                .orElseThrow(() -> new ProjectException(
+                        PaymentErrorCode.ORDER_NOT_FOUND
+                ));
+
+        validateTransactionAndAmount(payment, request);
+
+        if (payment.getStatus() == PaymentStatus.FAILED) {
+            return;
+        }
+
+        if (payment.getStatus() != PaymentStatus.READY
+                && payment.getStatus()
+                != PaymentStatus.PAYMENT_REQUESTED) {
+            throw new ProjectException(
+                    PaymentErrorCode.PAYMENT_ALREADY_PROCESSED
+            );
+        }
+
+        payment.fail(
+                request.payState(),
+                "결제 요청이 완료 전에 취소되었습니다."
+        );
     }
 
     @Transactional
@@ -168,6 +231,30 @@ public class PaymentProcessingTransactionService {
         }
     }
 
+    private void validateTransactionAndAmount(
+            Payment payment,
+            PayAppFeedbackRequest request
+    ) {
+        int feedbackAmount;
+
+        try {
+            feedbackAmount = Integer.parseInt(request.price());
+        } catch (NumberFormatException exception) {
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_FEEDBACK
+            );
+        }
+
+        if (payment.getProviderTransactionId() == null
+                || !payment.getProviderTransactionId().equals(
+                request.transactionId()
+        ) || payment.getAmount() != feedbackAmount) {
+            throw new ProjectException(
+                    PaymentErrorCode.PAYMENT_INFORMATION_MISMATCH
+            );
+        }
+    }
+
     @Transactional
     public void recordFulfillmentFailure(
             Long paymentId,
@@ -182,6 +269,40 @@ public class PaymentProcessingTransactionService {
         if (payment.getStatus() == PaymentStatus.APPROVED) {
             payment.recordFulfillmentFailure(
                     failureMessage
+            );
+        }
+    }
+
+    public record ApprovalProcessingResult(
+            Long paymentId,
+            boolean fulfillmentRequired,
+            boolean lateRefundRequired,
+            String providerTransactionId
+    ) {
+
+        static ApprovalProcessingResult fulfillment(Long paymentId) {
+            return new ApprovalProcessingResult(
+                    paymentId, true, false, null
+            );
+        }
+
+        static ApprovalProcessingResult lateRefund(
+                Long paymentId,
+                String providerTransactionId
+        ) {
+            return new ApprovalProcessingResult(
+                    paymentId,
+                    false,
+                    true,
+                    providerTransactionId
+            );
+        }
+
+        static ApprovalProcessingResult alreadyProcessing(
+                Long paymentId
+        ) {
+            return new ApprovalProcessingResult(
+                    paymentId, false, false, null
             );
         }
     }

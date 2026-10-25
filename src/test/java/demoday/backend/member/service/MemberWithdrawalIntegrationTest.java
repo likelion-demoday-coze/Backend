@@ -106,12 +106,36 @@ class MemberWithdrawalIntegrationTest {
     @ParameterizedTest(name = "{0} 결제가 있으면 탈퇴할 수 없다")
     @EnumSource(
             value = PaymentStatus.class,
-            names = {"PAYMENT_REQUESTED", "APPROVED", "CANCEL_REQUESTED"}
+            names = {"APPROVED", "CANCEL_REQUESTED"}
     )
     void unresolvedPaymentBlocksWithdrawal(PaymentStatus paymentStatus) {
         savePayment(paymentStatus, NOW_LOCAL.minusMinutes(1));
 
         assertWithdrawalBlocked();
+    }
+
+    @Test
+    @DisplayName("유효 시간이 남은 PAYMENT_REQUESTED 결제가 있으면 탈퇴할 수 없다")
+    void activePaymentRequestedBlocksWithdrawal() {
+        savePayment(
+                PaymentStatus.PAYMENT_REQUESTED,
+                NOW_LOCAL.minusMinutes(29)
+        );
+
+        assertWithdrawalBlocked();
+    }
+
+    @Test
+    @DisplayName("유효 시간이 지난 PAYMENT_REQUESTED 결제는 탈퇴를 막지 않는다")
+    void expiredPaymentRequestedAllowsWithdrawal() {
+        savePayment(
+                PaymentStatus.PAYMENT_REQUESTED,
+                NOW_LOCAL.minusMinutes(31)
+        );
+
+        memberService.withdraw(member.getMemberId());
+
+        assertWithdrawn();
     }
 
     @ParameterizedTest(name = "{0} 결제만 있으면 탈퇴할 수 있다")

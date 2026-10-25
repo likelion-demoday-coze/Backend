@@ -38,6 +38,18 @@ public interface PaymentRepository
             @Param("status") PaymentStatus status
     );
 
+    @Query("""
+            SELECT p.paymentId
+            FROM Payment p
+            WHERE p.status IN :statuses
+              AND p.requestedAt <= :expiredBefore
+            ORDER BY p.requestedAt ASC, p.paymentId ASC
+            """)
+    List<Long> findExpiredOrderIds(
+            @Param("statuses") Collection<PaymentStatus> statuses,
+            @Param("expiredBefore") LocalDateTime expiredBefore
+    );
+
     boolean existsByMemberMemberIdAndProductProductTypeAndStatusIn(
             Long memberId,
             ProductType productType,
@@ -57,7 +69,7 @@ public interface PaymentRepository
             String orderNumber
     );
 
-    boolean existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThanEqual(
+    boolean existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThan(
             Long memberId,
             ProductType productType,
             Collection<PaymentStatus> statuses,
@@ -104,19 +116,16 @@ public interface PaymentRepository
         SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END
         FROM Payment p
         WHERE p.member.memberId = :memberId
-          AND (
-              p.status IN :unresolvedStatuses
-              OR (
-                  p.status = :readyStatus
-                  AND p.requestedAt > :validRequestedAt
-              )
-          )
+          AND (p.status IN :unresolvedStatuses
+               OR (p.status IN :expirableStatuses
+                   AND p.requestedAt > :validRequestedAt))
         """)
     boolean existsBlockingWithdrawalPayment(
             @Param("memberId") Long memberId,
             @Param("unresolvedStatuses")
             Collection<PaymentStatus> unresolvedStatuses,
-            @Param("readyStatus") PaymentStatus readyStatus,
+            @Param("expirableStatuses")
+            Collection<PaymentStatus> expirableStatuses,
             @Param("validRequestedAt") LocalDateTime validRequestedAt
     );
 }

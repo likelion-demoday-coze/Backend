@@ -29,6 +29,9 @@ import java.util.regex.Pattern;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Payment {
 
+    private static final String ORDER_EXPIRED_RESULT_CODE =
+            "ORDER_EXPIRED";
+
     private static final Pattern ORDER_NUMBER_PATTERN =
             Pattern.compile("^[A-Za-z0-9]{1,40}$");
 
@@ -244,6 +247,58 @@ public class Payment {
         this.resultCode = resultCode;
         this.failureMessage = normalizeMessage(failureMessage);
         this.status = PaymentStatus.FAILED;
+    }
+
+    public void expire() {
+        if (status == PaymentStatus.FAILED
+                && ORDER_EXPIRED_RESULT_CODE.equals(resultCode)) {
+            return;
+        }
+
+        if (status != PaymentStatus.READY
+                && status != PaymentStatus.PAYMENT_REQUESTED) {
+            throw new IllegalStateException(
+                    "결제 대기 중인 주문만 만료할 수 있습니다."
+            );
+        }
+
+        this.resultCode = ORDER_EXPIRED_RESULT_CODE;
+        this.failureMessage = "결제 주문 유효 시간이 만료되었습니다.";
+        this.status = PaymentStatus.FAILED;
+    }
+
+    public boolean isExpiredOrder() {
+        return status == PaymentStatus.FAILED
+                && ORDER_EXPIRED_RESULT_CODE.equals(resultCode);
+    }
+
+    public void approveLateAndRequestCancellation(
+            String providerTransactionId,
+            String resultCode,
+            String payMethod,
+            LocalDateTime approvedAt
+    ) {
+        if (!isExpiredOrder()) {
+            throw new IllegalStateException(
+                    "만료된 결제 주문만 지연 승인을 처리할 수 있습니다."
+            );
+        }
+
+        if (providerTransactionId == null
+                || providerTransactionId.isBlank()
+                || approvedAt == null) {
+            throw new IllegalArgumentException(
+                    "지연 승인 정보가 올바르지 않습니다."
+            );
+        }
+
+        this.providerTransactionId = providerTransactionId;
+        this.resultCode = resultCode;
+        this.payMethod = payMethod;
+        this.approvedAt = approvedAt;
+        this.failureMessage =
+                "만료 후 승인되어 전액 취소 결과를 확인하고 있습니다.";
+        this.status = PaymentStatus.CANCEL_REQUESTED;
     }
 
     public void cancel(LocalDateTime cancelledAt) {

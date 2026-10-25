@@ -103,6 +103,40 @@ public class PaymentCancellationService {
         return response;
     }
 
+    public void cancelLateApprovedPayment(
+            Long paymentId,
+            String providerTransactionId
+    ) {
+        PayAppCancelResponse response = payAppClient.cancelPayment(
+                providerTransactionId,
+                "만료된 주문의 지연 승인 자동 취소"
+        );
+
+        if (!response.success()) {
+            log.error(
+                    "[Payment] 지연 승인 자동 취소 실패 - paymentId: {}, transactionId: {}, errorCode: {}",
+                    paymentId,
+                    PaymentLogSupport.maskTransactionId(
+                            providerTransactionId
+                    ),
+                    response.errorCode()
+            );
+            throw new ProjectException(
+                    PaymentErrorCode.PAYAPP_CANCEL_FAILED
+            );
+        }
+
+        transactionService.completeRefund(paymentId, now());
+
+        log.info(
+                "[Payment] 지연 승인 자동 환불 완료 - paymentId: {}, transactionId: {}",
+                paymentId,
+                PaymentLogSupport.maskTransactionId(
+                        providerTransactionId
+                )
+        );
+    }
+
     private LocalDateTime now() {
         return LocalDateTime.now(clock.withZone(KST))
                 .truncatedTo(ChronoUnit.MICROS);

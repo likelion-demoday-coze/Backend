@@ -86,6 +86,7 @@ class PaymentFlowIntegrationTest {
     @Autowired private PayAppFeedbackService feedbackService;
     @Autowired private PaymentFulfillmentRetryService retryService;
     @Autowired private PaymentCancellationService cancellationService;
+    @Autowired private PaymentOrderExpirationService expirationService;
     @Autowired private MemberPassQueryService passQueryService;
     @Autowired private MemberRepository memberRepository;
     @Autowired private ProductRepository productRepository;
@@ -398,6 +399,74 @@ class PaymentFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("30분이 지난 결제창 주문을 만료시키고 재구매를 허용한다")
+    void expiresAbandonedOrderAndAllowsRepurchase() {
+        Payment abandoned = savePendingOrder(
+                NOW_KST.minusMinutes(31)
+        );
+
+        expirationService.expirePendingOrders();
+
+        assertThat(paymentRepository.findById(abandoned.getPaymentId())
+                .orElseThrow()
+                .isExpiredOrder()).isTrue();
+        assertThat(createOrder().status())
+                .isEqualTo(PaymentStatus.PAYMENT_REQUESTED);
+    }
+
+    @Test
+    @DisplayName("만료된 주문의 늦은 결제 완료 통보는 패스 대신 전액 환불한다")
+    void refundsLateApprovalForExpiredOrder() {
+        Payment expired = savePendingOrder(
+                NOW_KST.minusMinutes(31)
+        );
+        expirationService.expirePendingOrders();
+
+        feedbackService.process(feedback(expired.getOrderNumber()));
+
+        Payment refunded = paymentRepository
+                .findById(expired.getPaymentId())
+                .orElseThrow();
+
+        assertThat(refunded.getStatus())
+                .isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(memberPassRepository
+                .findByPaymentPaymentId(expired.getPaymentId()))
+                .isEmpty();
+        verify(payAppClient, times(1))
+                .cancelPayment(
+                        transactionId(expired.getOrderNumber()),
+                        "만료된 주문의 지연 승인 자동 취소"
+                );
+    }
+
+    @Test
+    @DisplayName("결제 완료 전 취소 Feedback은 주문을 실패 처리한다")
+    void unpaidCancellationFeedbackFailsOrder() {
+        var order = createOrder();
+        PayAppFeedbackRequest cancelled = new PayAppFeedbackRequest(
+                "test-user",
+                "test-link-key",
+                "test-link-value",
+                "일주일 패스",
+                "1900",
+                null,
+                "1",
+                "8",
+                order.orderNumber(),
+                transactionId(order.orderNumber()),
+                "0"
+        );
+
+        feedbackService.process(cancelled);
+
+        assertThat(paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow()
+                .getStatus()).isEqualTo(PaymentStatus.FAILED);
+    }
+
+    @Test
     @DisplayName("활성 패스가 있으면 새 결제 주문을 생성할 수 없다")
     void activePassBlocksNewOrder() {
         var order = createOrder();
@@ -673,6 +742,20 @@ class PaymentFlowIntegrationTest {
                         "01012345678"
                 )
         );
+    }
+
+    private Payment savePendingOrder(LocalDateTime requestedAt) {
+        long sequence = SEQUENCE.incrementAndGet();
+        String orderNumber = "PENDING" + sequence;
+        Payment payment = Payment.create(
+                member,
+                product,
+                orderNumber,
+                product.getPrice(),
+                requestedAt
+        );
+        payment.markPaymentRequested(transactionId(orderNumber));
+        return paymentRepository.saveAndFlush(payment);
     }
 
     private PayAppFeedbackRequest feedback(String orderNumber) {

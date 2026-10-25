@@ -10,6 +10,7 @@ import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.code.ProductType;
 import demoday.backend.payment.config.PassPolicyProperties;
+import demoday.backend.payment.config.PaymentOrderPolicyProperties;
 import demoday.backend.payment.config.ServicePeriodProperties;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.domain.Product;
@@ -27,10 +28,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PaymentOrderTransactionService {
 
-    private static final List<PaymentStatus> IN_PROGRESS_STATUSES = List.of(
+    private static final List<PaymentStatus> EXPIRABLE_STATUSES = List.of(
             PaymentStatus.READY,
-            PaymentStatus.PAYMENT_REQUESTED,
-            PaymentStatus.APPROVED
+            PaymentStatus.PAYMENT_REQUESTED
+    );
+
+    private static final List<PaymentStatus> UNRESOLVED_STATUSES = List.of(
+            PaymentStatus.APPROVED,
+            PaymentStatus.CANCEL_REQUESTED
     );
 
     private final MemberRepository memberRepository;
@@ -39,6 +44,7 @@ public class PaymentOrderTransactionService {
     private final MemberPassRepository memberPassRepository;
     private final ServicePeriodProperties servicePeriodProperties;
     private final PassPolicyProperties passPolicyProperties;
+    private final PaymentOrderPolicyProperties orderPolicyProperties;
 
     @Transactional
     public Payment createReadyOrder(
@@ -80,12 +86,24 @@ public class PaymentOrderTransactionService {
             );
         }
 
-        if (paymentRepository
+        boolean unresolvedPaymentExists = paymentRepository
                 .existsByMemberMemberIdAndProductProductTypeAndStatusIn(
                         memberId,
                         ProductType.PASS,
-                        IN_PROGRESS_STATUSES
-                )) {
+                        UNRESOLVED_STATUSES
+                );
+
+        boolean validPendingOrderExists = paymentRepository
+                .existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThan(
+                        memberId,
+                        ProductType.PASS,
+                        EXPIRABLE_STATUSES,
+                        requestedAt.minus(
+                                orderPolicyProperties.expiration()
+                        )
+                );
+
+        if (unresolvedPaymentExists || validPendingOrderExists) {
             throw new ProjectException(
                     PaymentErrorCode.PAYMENT_IN_PROGRESS
             );

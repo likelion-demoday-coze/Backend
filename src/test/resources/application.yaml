@@ -32,6 +32,9 @@ app:
     settlement-start-date: 2026-10-31
 
   payment:
+    order:
+      expiration: 30m
+      expiration-scan-delay-ms: 60000
     payapp:
       user-id: test-user
       link-key: test-link-key

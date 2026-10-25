@@ -33,9 +33,14 @@ public class MemberService {
 
     private static final List<PaymentStatus>
             WITHDRAWAL_BLOCKING_PAYMENT_STATUSES = List.of(
-            PaymentStatus.PAYMENT_REQUESTED,
             PaymentStatus.APPROVED,
             PaymentStatus.CANCEL_REQUESTED
+    );
+
+    private static final List<PaymentStatus>
+            EXPIRABLE_PAYMENT_STATUSES = List.of(
+            PaymentStatus.READY,
+            PaymentStatus.PAYMENT_REQUESTED
     );
 
     public NicknameAvailabilityResponse checkNickname(String nickname) {
@@ -143,7 +148,7 @@ public class MemberService {
                 paymentRepository.existsBlockingWithdrawalPayment(
                         memberId,
                         WITHDRAWAL_BLOCKING_PAYMENT_STATUSES,
-                        PaymentStatus.READY,
+                        EXPIRABLE_PAYMENT_STATUSES,
                         now.minusMinutes(
                                 PAYMENT_AUTHENTICATION_MINUTES
                         )
