@@ -69,4 +69,19 @@ public class MemberPass {
                 && !now.isBefore(startedAt)
                 && now.isBefore(expiresAt);
     }
+
+    public void cancel(LocalDateTime cancelledAt) {
+        if (status == PassStatus.CANCELLED) {
+            return;
+        }
+
+        if (status != PassStatus.ACTIVE || cancelledAt == null) {
+            throw new IllegalStateException(
+                    "활성 패스만 취소할 수 있습니다."
+            );
+        }
+
+        this.status = PassStatus.CANCELLED;
+        this.cancelledAt = cancelledAt;
+    }
 }

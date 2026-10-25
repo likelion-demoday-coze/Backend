@@ -4,9 +4,11 @@ import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.client.PayAppClient;
+import demoday.backend.payment.client.dto.PayAppCancelResponse;
 import demoday.backend.payment.client.dto.PayAppPaymentResponse;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.code.PaymentStatus;
+import demoday.backend.payment.code.PassStatus;
 import demoday.backend.payment.code.ProductType;
 import demoday.backend.payment.domain.MemberPass;
 import demoday.backend.payment.domain.Payment;
@@ -48,8 +50,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -80,6 +85,7 @@ class PaymentFlowIntegrationTest {
     @Autowired private PaymentOrderService orderService;
     @Autowired private PayAppFeedbackService feedbackService;
     @Autowired private PaymentFulfillmentRetryService retryService;
+    @Autowired private PaymentCancellationService cancellationService;
     @Autowired private MemberPassQueryService passQueryService;
     @Autowired private MemberRepository memberRepository;
     @Autowired private ProductRepository productRepository;
@@ -137,6 +143,13 @@ class PaymentFlowIntegrationTest {
                             "https://payapp.test/pay/" + request.orderNumber()
                     );
                 });
+
+        when(payAppClient.cancelPayment(anyString(), anyString()))
+                .thenReturn(new PayAppCancelResponse(
+                        true,
+                        null,
+                        null
+                ));
     }
 
     @Test
@@ -358,6 +371,174 @@ class PaymentFlowIntegrationTest {
 
         assertThat(results).containsExactlyInAnyOrder(true, false);
         assertThat(paymentRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("지급 완료된 패스를 전액 환불하면 결제와 패스를 함께 종료한다")
+    void refundsCompletedPaymentAndCancelsPass() {
+        var order = createOrder();
+        feedbackService.process(feedback(order.orderNumber()));
+
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        var response = cancellationService.cancel(
+                member.getMemberId(),
+                payment.getPaymentId()
+        );
+
+        Payment refunded = paymentRepository
+                .findById(payment.getPaymentId())
+                .orElseThrow();
+        MemberPass cancelledPass = memberPassRepository
+                .findByPaymentPaymentId(payment.getPaymentId())
+                .orElseThrow();
+
+        assertThat(response.status())
+                .isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(refunded.getStatus())
+                .isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(refunded.getCancelledAt()).isEqualTo(NOW_KST);
+        assertThat(cancelledPass.getStatus())
+                .isEqualTo(PassStatus.CANCELLED);
+        assertThat(cancelledPass.getCancelledAt())
+                .isEqualTo(NOW_KST);
+    }
+
+    @Test
+    @DisplayName("동일 결제를 다시 취소해도 페이앱 취소 API는 한 번만 호출한다")
+    void duplicateCancellationIsIdempotent() {
+        var order = createOrder();
+        feedbackService.process(feedback(order.orderNumber()));
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        cancellationService.cancel(
+                member.getMemberId(),
+                payment.getPaymentId()
+        );
+        var duplicate = cancellationService.cancel(
+                member.getMemberId(),
+                payment.getPaymentId()
+        );
+
+        assertThat(duplicate.status())
+                .isEqualTo(PaymentStatus.REFUNDED);
+        verify(payAppClient, times(1))
+                .cancelPayment(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("페이앱이 취소를 거절하면 결제와 패스 상태를 유지한다")
+    void restoresPaymentWhenProviderRejectsCancellation() {
+        var order = createOrder();
+        feedbackService.process(feedback(order.orderNumber()));
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        when(payAppClient.cancelPayment(anyString(), anyString()))
+                .thenReturn(new PayAppCancelResponse(
+                        false,
+                        "CANCEL_REJECTED",
+                        "취소 거절"
+                ));
+
+        assertThatThrownBy(() -> cancellationService.cancel(
+                member.getMemberId(),
+                payment.getPaymentId()
+        )).isInstanceOfSatisfying(
+                ProjectException.class,
+                exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(
+                                PaymentErrorCode.PAYAPP_CANCEL_FAILED
+                        )
+        );
+
+        assertThat(paymentRepository.findById(payment.getPaymentId())
+                .orElseThrow()
+                .getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+        assertThat(memberPassRepository
+                .findByPaymentPaymentId(payment.getPaymentId())
+                .orElseThrow()
+                .getStatus()).isEqualTo(PassStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("이미 만료된 패스 결제는 환불할 수 없다")
+    void rejectsRefundForExpiredPass() {
+        long sequence = SEQUENCE.incrementAndGet();
+        Payment payment = Payment.create(
+                member,
+                product,
+                "EXPIRED" + sequence,
+                product.getPrice(),
+                NOW_KST.minusDays(9)
+        );
+        payment.approve(
+                "expired-tx-" + sequence,
+                "4",
+                "card",
+                NOW_KST.minusDays(8)
+        );
+        payment.complete(NOW_KST.minusDays(8));
+        paymentRepository.saveAndFlush(payment);
+        memberPassRepository.saveAndFlush(MemberPass.create(
+                member,
+                payment,
+                demoday.backend.payment.code.PassType.SEVEN_DAY,
+                NOW_KST.minusDays(8),
+                NOW_KST.minusDays(1)
+        ));
+
+        assertThatThrownBy(() -> cancellationService.cancel(
+                member.getMemberId(),
+                payment.getPaymentId()
+        )).isInstanceOfSatisfying(
+                ProjectException.class,
+                exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(
+                                PaymentErrorCode.PASS_ALREADY_EXPIRED
+                        )
+        );
+
+        verify(payAppClient, times(0))
+                .cancelPayment(anyString(), anyString());
+    }
+
+    @Test
+    @Timeout(30)
+    @DisplayName("동시에 취소를 요청해도 페이앱 취소 API는 한 번만 호출한다")
+    void concurrentCancellationCallsProviderOnce() throws Exception {
+        var order = createOrder();
+        feedbackService.process(feedback(order.orderNumber()));
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        List<Boolean> results = runConcurrently(() -> {
+            try {
+                cancellationService.cancel(
+                        member.getMemberId(),
+                        payment.getPaymentId()
+                );
+                return true;
+            } catch (ProjectException exception) {
+                assertThat(exception.getErrorCode())
+                        .isEqualTo(
+                                PaymentErrorCode
+                                        .CANCELLATION_IN_PROGRESS
+                        );
+                return false;
+            }
+        });
+
+        assertThat(results.stream().filter(Boolean::booleanValue).count())
+                .isGreaterThanOrEqualTo(1);
+        verify(payAppClient, times(1))
+                .cancelPayment(anyString(), anyString());
     }
 
     private demoday.backend.payment.dto.PaymentOrderResponse createOrder() {

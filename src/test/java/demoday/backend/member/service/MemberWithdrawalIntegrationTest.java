@@ -106,7 +106,7 @@ class MemberWithdrawalIntegrationTest {
     @ParameterizedTest(name = "{0} 결제가 있으면 탈퇴할 수 없다")
     @EnumSource(
             value = PaymentStatus.class,
-            names = {"PAYMENT_REQUESTED", "APPROVED"}
+            names = {"PAYMENT_REQUESTED", "APPROVED", "CANCEL_REQUESTED"}
     )
     void unresolvedPaymentBlocksWithdrawal(PaymentStatus paymentStatus) {
         savePayment(paymentStatus, NOW_LOCAL.minusMinutes(1));
@@ -117,7 +117,7 @@ class MemberWithdrawalIntegrationTest {
     @ParameterizedTest(name = "{0} 결제만 있으면 탈퇴할 수 있다")
     @EnumSource(
             value = PaymentStatus.class,
-            names = {"COMPLETED", "FAILED", "CANCELLED"}
+            names = {"COMPLETED", "REFUNDED", "FAILED", "CANCELLED"}
     )
     void terminalPaymentAllowsWithdrawal(PaymentStatus paymentStatus) {
         savePayment(paymentStatus, NOW_LOCAL.minusMinutes(1));
@@ -174,6 +174,15 @@ class MemberWithdrawalIntegrationTest {
             case COMPLETED -> {
                 approve(payment, sequence);
                 payment.complete(NOW_LOCAL);
+            }
+            case CANCEL_REQUESTED -> {
+                approve(payment, sequence);
+                payment.requestCancellation();
+            }
+            case REFUNDED -> {
+                approve(payment, sequence);
+                payment.requestCancellation();
+                payment.refund(NOW_LOCAL);
             }
             case FAILED -> payment.fail("A001", "결제 인증 실패");
             case CANCELLED -> {

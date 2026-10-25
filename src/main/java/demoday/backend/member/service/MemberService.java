@@ -34,7 +34,8 @@ public class MemberService {
     private static final List<PaymentStatus>
             WITHDRAWAL_BLOCKING_PAYMENT_STATUSES = List.of(
             PaymentStatus.PAYMENT_REQUESTED,
-            PaymentStatus.APPROVED
+            PaymentStatus.APPROVED,
+            PaymentStatus.CANCEL_REQUESTED
     );
 
     public NicknameAvailabilityResponse checkNickname(String nickname) {

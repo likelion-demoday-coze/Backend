@@ -3,6 +3,7 @@ package demoday.backend.payment.service;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.payment.code.PaymentErrorCode;
+import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.dto.PaymentHistoryPageResponse;
 import demoday.backend.payment.dto.PaymentStatusResponse;
@@ -13,10 +14,19 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PaymentQueryService {
+
+    private static final List<PaymentStatus>
+            HISTORY_VISIBLE_STATUSES = List.of(
+            PaymentStatus.COMPLETED,
+            PaymentStatus.APPROVED,
+            PaymentStatus.REFUNDED
+    );
 
     private final PaymentRepository paymentRepository;
 
@@ -59,8 +69,9 @@ public class PaymentQueryService {
         validateMember(memberId);
 
         Page<Payment> payments =
-                paymentRepository.findAllByMemberMemberIdOrderByRequestedAtDescPaymentIdDesc(
+                paymentRepository.findAllByMemberMemberIdAndStatusInOrderByRequestedAtDescPaymentIdDesc(
                         memberId,
+                        HISTORY_VISIBLE_STATUSES,
                         pageable
                 );
 

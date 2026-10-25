@@ -76,14 +76,28 @@ public interface PaymentRepository
             @Param("paymentId") Long paymentId
     );
 
-    Page<Payment> findAllByMemberMemberIdOrderByRequestedAtDescPaymentIdDesc(
+    Page<Payment> findAllByMemberMemberIdAndStatusInOrderByRequestedAtDescPaymentIdDesc(
             Long memberId,
+            Collection<PaymentStatus> statuses,
             Pageable pageable
     );
 
     Optional<Payment> findByPaymentIdAndMemberMemberId(
             Long paymentId,
             Long memberId
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT p
+            FROM Payment p
+            JOIN FETCH p.member
+            WHERE p.paymentId = :paymentId
+              AND p.member.memberId = :memberId
+            """)
+    Optional<Payment> findByPaymentIdAndMemberIdForUpdate(
+            @Param("paymentId") Long paymentId,
+            @Param("memberId") Long memberId
     );
 
     @Query("""

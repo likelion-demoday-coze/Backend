@@ -215,6 +215,8 @@ public class Payment {
     ) {
         if (status == PaymentStatus.APPROVED
                 || status == PaymentStatus.COMPLETED
+                || status == PaymentStatus.CANCEL_REQUESTED
+                || status == PaymentStatus.REFUNDED
                 || status == PaymentStatus.CANCELLED) {
             throw new IllegalStateException(
                     "실패 상태로 변경할 수 없는 결제입니다."
@@ -246,6 +248,55 @@ public class Payment {
 
         this.cancelledAt = cancelledAt;
         this.status = PaymentStatus.CANCELLED;
+    }
+
+    public PaymentStatus requestCancellation() {
+        if (status != PaymentStatus.APPROVED
+                && status != PaymentStatus.COMPLETED) {
+            throw new IllegalStateException(
+                    "승인 또는 지급 완료 결제만 환불을 요청할 수 있습니다."
+            );
+        }
+
+        PaymentStatus previousStatus = status;
+        this.status = PaymentStatus.CANCEL_REQUESTED;
+        return previousStatus;
+    }
+
+    public void restoreAfterCancellationFailure(
+            PaymentStatus previousStatus
+    ) {
+        if (status != PaymentStatus.CANCEL_REQUESTED
+                || (previousStatus != PaymentStatus.APPROVED
+                && previousStatus != PaymentStatus.COMPLETED)) {
+            throw new IllegalStateException(
+                    "결제 취소 요청 상태를 복구할 수 없습니다."
+            );
+        }
+
+        this.status = previousStatus;
+    }
+
+    public void refund(LocalDateTime refundedAt) {
+        if (status == PaymentStatus.REFUNDED) {
+            return;
+        }
+
+        if (status != PaymentStatus.CANCEL_REQUESTED) {
+            throw new IllegalStateException(
+                    "취소 요청 중인 결제만 환불 완료할 수 있습니다."
+            );
+        }
+
+        if (refundedAt == null) {
+            throw new IllegalArgumentException(
+                    "환불 완료 시각은 필수입니다."
+            );
+        }
+
+        this.cancelledAt = refundedAt;
+        this.failureMessage = null;
+        this.status = PaymentStatus.REFUNDED;
     }
 
     private static void validateRequiredValues(
@@ -319,5 +370,9 @@ public class Payment {
 
     public void clearFailureMessage() {
         this.failureMessage = null;
+    }
+
+    public void recordCancellationFailure(String message) {
+        this.failureMessage = normalizeMessage(message);
     }
 }

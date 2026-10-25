@@ -14,6 +14,12 @@ public enum PaymentStatus {
     // 결제 승인 정보 저장과 상품 지급까지 완료된 상태
     COMPLETED,
 
+    // 페이앱 전액 취소를 요청했으며 결과 확정 전인 상태
+    CANCEL_REQUESTED,
+
+    // 페이앱 전액 취소와 패스 회수가 완료된 상태
+    REFUNDED,
+
     // 인증 또는 승인이 명확하게 실패한 상태
     FAILED,
 

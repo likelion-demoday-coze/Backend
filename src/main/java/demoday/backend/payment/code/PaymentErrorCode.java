@@ -104,6 +104,30 @@ public enum PaymentErrorCode implements BaseErrorCode {
             "주문 정보와 결제 통보가 일치하지 않습니다."
     ),
 
+    PAYMENT_NOT_CANCELLABLE(
+            HttpStatus.CONFLICT,
+            "PAYMENT_409_6",
+            "현재 취소할 수 없는 결제입니다."
+    ),
+
+    PASS_ALREADY_EXPIRED(
+            HttpStatus.CONFLICT,
+            "PAYMENT_409_7",
+            "이미 만료된 패스는 환불할 수 없습니다."
+    ),
+
+    CANCELLATION_IN_PROGRESS(
+            HttpStatus.CONFLICT,
+            "PAYMENT_409_8",
+            "결제 취소 결과를 확인하고 있습니다."
+    ),
+
+    PAYAPP_CANCEL_FAILED(
+            HttpStatus.BAD_GATEWAY,
+            "PAYMENT_502_5",
+            "결제 취소 요청이 거절되었습니다."
+    ),
+
     PG_TIMEOUT(
             HttpStatus.GATEWAY_TIMEOUT,
             "PAYMENT_504_1",

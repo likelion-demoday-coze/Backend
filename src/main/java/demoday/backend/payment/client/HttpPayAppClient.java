@@ -3,6 +3,7 @@ package demoday.backend.payment.client;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.payment.client.dto.PayAppPaymentRequest;
 import demoday.backend.payment.client.dto.PayAppPaymentResponse;
+import demoday.backend.payment.client.dto.PayAppCancelResponse;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.config.PayAppProperties;
 import demoday.backend.payment.logging.PaymentLogSupport;
@@ -39,6 +40,107 @@ public class HttpPayAppClient implements PayAppClient {
     ) {
         this.restClient = restClient;
         this.properties = properties;
+    }
+
+    @Override
+    public PayAppCancelResponse cancelPayment(
+            String transactionId,
+            String cancellationMemo
+    ) {
+        MultiValueMap<String, String> form =
+                new LinkedMultiValueMap<>();
+
+        form.add("cmd", "paycancel");
+        form.add("userid", properties.userId());
+        form.add("linkkey", properties.linkKey());
+        form.add("mul_no", transactionId);
+        form.add("cancelmemo", cancellationMemo);
+        form.add("partcancel", "0");
+
+        try {
+            String responseBody = restClient.post()
+                    .uri(properties.requestPath())
+                    .contentType(
+                            MediaType.APPLICATION_FORM_URLENCODED
+                    )
+                    .body(form)
+                    .retrieve()
+                    .body(String.class);
+
+            if (responseBody == null || responseBody.isBlank()) {
+                throw new ProjectException(
+                        PaymentErrorCode.INVALID_PG_RESPONSE
+                );
+            }
+
+            Map<String, String> values =
+                    parseUrlEncodedResponse(responseBody);
+
+            String state = values.get("state");
+
+            if (state == null || state.isBlank()) {
+                throw new ProjectException(
+                        PaymentErrorCode.INVALID_PG_RESPONSE
+                );
+            }
+
+            PayAppCancelResponse response = new PayAppCancelResponse(
+                    SUCCESS_STATE.equals(state),
+                    values.get("errno"),
+                    values.get("errorMessage")
+            );
+
+            if (!response.success()) {
+                log.warn(
+                        "[Payment] 페이앱 결제 취소 거절 - transactionId: {}, errorCode: {}",
+                        PaymentLogSupport.maskTransactionId(transactionId),
+                        normalizeErrorCode(response.errorCode())
+                );
+            }
+
+            return response;
+        } catch (ProjectException exception) {
+            throw exception;
+        } catch (ResourceAccessException exception) {
+            if (isTimeout(exception)) {
+                log.error(
+                        "[Payment] 페이앱 결제 취소 시간 초과 - transactionId: {}",
+                        PaymentLogSupport.maskTransactionId(transactionId),
+                        exception
+                );
+                throw new ProjectException(
+                        PaymentErrorCode.PG_TIMEOUT
+                );
+            }
+
+            log.error(
+                    "[Payment] 페이앱 결제 취소 통신 실패 - transactionId: {}",
+                    PaymentLogSupport.maskTransactionId(transactionId),
+                    exception
+            );
+            throw new ProjectException(
+                    PaymentErrorCode.PG_COMMUNICATION_FAILED
+            );
+        } catch (RestClientResponseException exception) {
+            log.error(
+                    "[Payment] 페이앱 결제 취소 오류 응답 - transactionId: {}, httpStatus: {}",
+                    PaymentLogSupport.maskTransactionId(transactionId),
+                    exception.getStatusCode(),
+                    exception
+            );
+            throw new ProjectException(
+                    PaymentErrorCode.PG_COMMUNICATION_FAILED
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "[Payment] 페이앱 결제 취소 응답 처리 실패 - transactionId: {}",
+                    PaymentLogSupport.maskTransactionId(transactionId),
+                    exception
+            );
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_PG_RESPONSE
+            );
+        }
     }
 
     @Override
