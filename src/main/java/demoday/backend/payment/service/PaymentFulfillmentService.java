@@ -4,6 +4,7 @@ import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
+import demoday.backend.payment.code.PassStatus;
 import demoday.backend.payment.code.PassType;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.domain.MemberPass;
@@ -21,8 +22,8 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class PaymentFulfillmentService {
 
-    private final MemberRepository members;
-    private final MemberPassRepository memberPasses;
+    private final MemberRepository memberRepository;
+    private final MemberPassRepository memberPassRepository;
 
     @Transactional
     public void fulfill(
@@ -42,8 +43,8 @@ public class PaymentFulfillmentService {
             Payment payment,
             LocalDateTime approvedAt
     ) {
-        // 같은 Feedback이 반복되거나 과거 지급 성공 건을 재처리해도 패스를 중복 지급하지 않는다.
-        if (memberPasses.findByPaymentPaymentId(
+        // 동일 결제의 Feedback 또는 재처리가 반복되어도 패스를 중복 지급하지 않는다.
+        if (memberPassRepository.findByPaymentPaymentId(
                 payment.getPaymentId()
         ).isPresent()) {
             return;
@@ -51,17 +52,21 @@ public class PaymentFulfillmentService {
 
         Long memberId = payment.getMember().getMemberId();
 
-        // 서로 다른 결제 주문이 동시에 승인되는 경우에도 동일 회원에게 패스가 두 번 발급되지 않도록 회원 행을 잠금
-        Member member = members.findByIdForUpdate(memberId)
-                .orElseThrow(() ->
-                        new ProjectException(
-                                GeneralErrorCode.NOT_FOUND
-                        )
-                );
+        // 서로 다른 결제의 동시 지급을 직렬화한다.
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new ProjectException(
+                        GeneralErrorCode.NOT_FOUND
+                ));
 
-        if (memberPasses.findActivePass(
+        if (!member.isActive()) {
+            throw new ProjectException(
+                    PaymentErrorCode.FULFILLMENT_FAILED
+            );
+        }
+
+        if (memberPassRepository.findActivePass(
                 memberId,
-                demoday.backend.payment.code.PassStatus.ACTIVE,
+                PassStatus.ACTIVE,
                 approvedAt
         ).isPresent()) {
             throw new ProjectException(
@@ -69,7 +74,8 @@ public class PaymentFulfillmentService {
             );
         }
 
-        Integer durationHours = payment.getOrderedPassDurationHours();
+        Integer durationHours =
+                payment.getOrderedPassDurationHours();
 
         if (durationHours == null || durationHours <= 0) {
             throw new ProjectException(
@@ -77,8 +83,7 @@ public class PaymentFulfillmentService {
             );
         }
 
-        // 서버 처리 시각이 아니라 PG 결제 승인 시각부터 주문에 저장된 기간만큼 패스를 활성화
-        MemberPass memberPass = memberPasses.save(
+        MemberPass memberPass = memberPassRepository.save(
                 MemberPass.create(
                         member,
                         payment,

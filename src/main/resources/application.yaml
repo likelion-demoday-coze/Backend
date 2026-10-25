@@ -63,6 +63,7 @@ app:
   ranking:
     settlement-start-date: ${RANKING_SETTLEMENT_START_DATE:2026-10-31}
   payment:
+    fulfillment-retry-delay-ms: ${PAYMENT_FULFILLMENT_RETRY_DELAY_MS:300000}
     payapp:
       user-id: ${PAYAPP_USER_ID}
       link-key: ${PAYAPP_LINK_KEY}
