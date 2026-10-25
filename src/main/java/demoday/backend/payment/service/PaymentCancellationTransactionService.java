@@ -6,6 +6,7 @@ import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.domain.MemberPass;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.dto.PaymentCancelResponse;
+import demoday.backend.payment.dto.PayAppFeedbackRequest;
 import demoday.backend.payment.repository.MemberPassRepository;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
@@ -118,7 +119,46 @@ public class PaymentCancellationTransactionService {
             return PaymentCancelResponse.from(payment);
         }
 
-        memberPassRepository.findByPaymentPaymentId(paymentId)
+        return completeRefundLocked(payment, refundedAt);
+    }
+
+    @Transactional
+    public PaymentCancelResponse completeRefundFromFeedback(
+            PayAppFeedbackRequest request,
+            LocalDateTime refundedAt
+    ) {
+        Payment payment = paymentRepository
+                .findByOrderNumberForUpdate(request.orderNumber())
+                .orElseThrow(() -> new ProjectException(
+                        PaymentErrorCode.ORDER_NOT_FOUND
+                ));
+
+        validateCancellationFeedback(payment, request);
+
+        if (payment.getStatus() == PaymentStatus.REFUNDED) {
+            return PaymentCancelResponse.from(payment);
+        }
+
+        if (payment.getStatus() == PaymentStatus.APPROVED
+                || payment.getStatus() == PaymentStatus.COMPLETED) {
+            payment.requestCancellation();
+        } else if (payment.getStatus()
+                != PaymentStatus.CANCEL_REQUESTED) {
+            throw new ProjectException(
+                    PaymentErrorCode.PAYMENT_ALREADY_PROCESSED
+            );
+        }
+
+        return completeRefundLocked(payment, refundedAt);
+    }
+
+    private PaymentCancelResponse completeRefundLocked(
+            Payment payment,
+            LocalDateTime refundedAt
+    ) {
+        memberPassRepository.findByPaymentPaymentId(
+                        payment.getPaymentId()
+                )
                 .filter(memberPass ->
                         memberPass.getStatus()
                         == demoday.backend.payment.code.PassStatus.ACTIVE
@@ -129,6 +169,30 @@ public class PaymentCancellationTransactionService {
 
         payment.refund(refundedAt);
         return PaymentCancelResponse.from(payment);
+    }
+
+    private void validateCancellationFeedback(
+            Payment payment,
+            PayAppFeedbackRequest request
+    ) {
+        int feedbackAmount;
+
+        try {
+            feedbackAmount = Integer.parseInt(request.price());
+        } catch (NumberFormatException exception) {
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_FEEDBACK
+            );
+        }
+
+        if (payment.getProviderTransactionId() == null
+                || !payment.getProviderTransactionId().equals(
+                request.transactionId()
+        ) || payment.getAmount() != feedbackAmount) {
+            throw new ProjectException(
+                    PaymentErrorCode.PAYMENT_INFORMATION_MISMATCH
+            );
+        }
     }
 
     public record CancellationPreparation(

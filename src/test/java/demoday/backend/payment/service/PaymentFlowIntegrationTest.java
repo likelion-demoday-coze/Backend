@@ -614,6 +614,57 @@ class PaymentFlowIntegrationTest {
                 .cancelPayment(anyString(), anyString());
     }
 
+    @Test
+    @DisplayName("취소 API 결과가 불명확해도 승인취소 Feedback으로 환불을 확정한다")
+    void cancellationFeedbackReconcilesRequestedCancellation() {
+        var order = createOrder();
+        feedbackService.process(feedback(order.orderNumber()));
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        when(payAppClient.cancelPayment(anyString(), anyString()))
+                .thenThrow(new ProjectException(
+                        PaymentErrorCode.PG_TIMEOUT
+                ));
+
+        assertThatThrownBy(() -> cancellationService.cancel(
+                member.getMemberId(),
+                payment.getPaymentId()
+        )).isInstanceOfSatisfying(
+                ProjectException.class,
+                exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(PaymentErrorCode.PG_TIMEOUT)
+        );
+
+        assertThat(paymentRepository.findById(payment.getPaymentId())
+                .orElseThrow()
+                .getStatus()).isEqualTo(
+                PaymentStatus.CANCEL_REQUESTED
+        );
+
+        PayAppFeedbackRequest cancellationFeedback =
+                cancellationFeedback(order.orderNumber(), "9");
+        feedbackService.process(cancellationFeedback);
+        feedbackService.process(cancellationFeedback);
+
+        Payment refunded = paymentRepository
+                .findById(payment.getPaymentId())
+                .orElseThrow();
+        MemberPass cancelledPass = memberPassRepository
+                .findByPaymentPaymentId(payment.getPaymentId())
+                .orElseThrow();
+
+        assertThat(refunded.getStatus())
+                .isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(refunded.getCancelledAt())
+                .isEqualTo(LocalDateTime.of(
+                        2026, 10, 25, 12, 5
+                ));
+        assertThat(cancelledPass.getStatus())
+                .isEqualTo(PassStatus.CANCELLED);
+    }
+
     private demoday.backend.payment.dto.PaymentOrderResponse createOrder() {
         return orderService.createOrder(
                 member.getMemberId(),
@@ -657,6 +708,26 @@ class PaymentFlowIntegrationTest {
                 source.orderNumber(),
                 source.transactionId(),
                 source.feedbackType()
+        );
+    }
+
+    private PayAppFeedbackRequest cancellationFeedback(
+            String orderNumber,
+            String payState
+    ) {
+        return new PayAppFeedbackRequest(
+                "test-user",
+                "test-link-key",
+                "test-link-value",
+                "일주일 패스",
+                "1900",
+                "2026-10-25 12:00:00",
+                "1",
+                payState,
+                orderNumber,
+                transactionId(orderNumber),
+                "0",
+                "2026-10-25 12:05:00"
         );
     }
 

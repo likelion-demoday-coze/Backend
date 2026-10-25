@@ -13,8 +13,38 @@ public record PayAppFeedbackRequest(
         String payState,
         String orderNumber,
         String transactionId,
-        String feedbackType
+        String feedbackType,
+        String cancelledAt
 ) {
+
+    public PayAppFeedbackRequest(
+            String userId,
+            String linkKey,
+            String linkValue,
+            String productName,
+            String price,
+            String approvedAt,
+            String payType,
+            String payState,
+            String orderNumber,
+            String transactionId,
+            String feedbackType
+    ) {
+        this(
+                userId,
+                linkKey,
+                linkValue,
+                productName,
+                price,
+                approvedAt,
+                payType,
+                payState,
+                orderNumber,
+                transactionId,
+                feedbackType,
+                null
+        );
+    }
 
     public static PayAppFeedbackRequest from(
             Map<String, String> parameters
@@ -30,7 +60,8 @@ public record PayAppFeedbackRequest(
                 parameters.get("pay_state"),
                 parameters.get("var1"),
                 parameters.get("mul_no"),
-                parameters.get("feedbacktype")
+                parameters.get("feedbacktype"),
+                parameters.get("canceldate")
         );
     }
 }

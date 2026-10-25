@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -22,6 +23,8 @@ import java.util.List;
 public class PayAppFeedbackService {
 
     private static final String COMPLETED_STATE = "4";
+    private static final Set<String> CANCELLED_STATES =
+            Set.of("9", "64");
     private static final String CARD_PAY_TYPE = "1";
 
     private static final List<DateTimeFormatter> APPROVED_AT_FORMATTERS =
@@ -33,10 +36,34 @@ public class PayAppFeedbackService {
 
     private final PayAppProperties properties;
     private final PaymentProcessingTransactionService transactionService;
+    private final PaymentCancellationTransactionService
+            cancellationTransactionService;
 
     public void process(PayAppFeedbackRequest request) {
         validateRequiredValues(request);
         validateAuthentication(request);
+
+        if (CANCELLED_STATES.contains(request.payState())) {
+            LocalDateTime cancelledAt = parsePaymentDate(
+                    request.cancelledAt()
+            );
+
+            cancellationTransactionService
+                    .completeRefundFromFeedback(
+                            request,
+                            cancelledAt
+                    );
+
+            log.info(
+                    "[Payment] 취소 완료 Feedback 반영 - orderNumber: {}, transactionId: {}, payState: {}",
+                    request.orderNumber(),
+                    PaymentLogSupport.maskTransactionId(
+                            request.transactionId()
+                    ),
+                    request.payState()
+            );
+            return;
+        }
 
         if (!COMPLETED_STATE.equals(request.payState())) {
             log.info(
@@ -51,7 +78,7 @@ public class PayAppFeedbackService {
         }
 
         LocalDateTime approvedAt =
-                parseApprovedAt(request.approvedAt());
+                parsePaymentDate(request.approvedAt());
 
         // 승인 저장은 별도 트랜잭션으로 먼저 확정
         // 이후 상품 지급이 실패해도 APPROVED 상태가 유지
@@ -97,6 +124,13 @@ public class PayAppFeedbackService {
                     PaymentErrorCode.INVALID_FEEDBACK
             );
         }
+
+        if (CANCELLED_STATES.contains(request.payState())
+                && isBlank(request.cancelledAt())) {
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_FEEDBACK
+            );
+        }
     }
 
     private void validateAuthentication(
@@ -118,7 +152,13 @@ public class PayAppFeedbackService {
         }
     }
 
-    private LocalDateTime parseApprovedAt(String value) {
+    private LocalDateTime parsePaymentDate(String value) {
+        if (isBlank(value)) {
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_FEEDBACK
+            );
+        }
+
         for (DateTimeFormatter formatter : APPROVED_AT_FORMATTERS) {
             try {
                 return LocalDateTime.parse(value, formatter);
