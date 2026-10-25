@@ -10,11 +10,13 @@ import demoday.backend.payment.domain.MemberPass;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.repository.MemberPassRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentFulfillmentService {
@@ -68,15 +70,24 @@ public class PaymentFulfillmentService {
             );
         }
 
-        // 서버 콜백 처리 시각이 아니라 코페이가 반환한 실제 승인 시각부터 상품에 설정된 시간만큼 패스를 활성화
-        MemberPass memberPass = MemberPass.create(
-                member,
-                payment,
-                PassType.SEVEN_DAY,
-                approvedAt,
-                approvedAt.plusHours(durationHours)
+        // 서버 처리 시각이 아니라 PG 결제 승인 시각부터 주문에 저장된 기간만큼 패스를 활성화
+        MemberPass memberPass = memberPasses.save(
+                MemberPass.create(
+                        member,
+                        payment,
+                        PassType.SEVEN_DAY,
+                        approvedAt,
+                        approvedAt.plusHours(durationHours)
+                )
         );
 
-        memberPasses.save(memberPass);
+        log.info(
+                "[Payment] 패스 지급 완료 - paymentId: {}, orderNumber: {}, memberId: {}, memberPassId: {}, expiresAt: {}",
+                payment.getPaymentId(),
+                payment.getOrderNumber(),
+                memberId,
+                memberPass.getMemberPassId(),
+                memberPass.getExpiresAt()
+        );
     }
 }

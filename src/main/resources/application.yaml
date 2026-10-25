@@ -36,8 +36,12 @@ management:
         include: health,info
 
 logging:
+  level:
+    root: INFO
+    demoday.backend.payment: INFO
+
   pattern:
-    level: "%5p [requestId:%X{requestId:-}]"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [requestId:%X{requestId:-}] %logger{36} - %msg%n"
 
 springdoc:
   swagger-ui:
