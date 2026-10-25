@@ -267,10 +267,10 @@ class StreakRecoveryIntegrationTest {
         assertThat(recoveries.getLatest(memberId).status()).isEqualTo(StreakRecoveryStatus.EXPIRED);
         assertThat(recoveries.getLatest(memberId).requestable()).isFalse();
         scheduler.applyAtMidnight();
+        assertThat(events.findById(eventId).orElseThrow().getStatus()).isEqualTo(StreakRecoveryStatus.EXPIRED);
         assertThat(recoveries.request(memberId, eventId).status()).isEqualTo(StreakRecoveryStatus.EXPIRED);
         assertThat(quantity()).isEqualTo(1);
         assertThat(member().getCurrentStock()).isEqualByComparingTo("80");
-        assertThat(events.findById(eventId).orElseThrow().getStatus()).isEqualTo(StreakRecoveryStatus.EXPIRED);
     }
 
     @Test
