@@ -115,6 +115,24 @@ public class Payment {
             Integer amount,
             LocalDateTime requestedAt
     ) {
+        return create(
+                member,
+                product,
+                orderNumber,
+                amount,
+                product == null ? null : product.getPassDurationHours(),
+                requestedAt
+        );
+    }
+
+    public static Payment create(
+            Member member,
+            Product product,
+            String orderNumber,
+            Integer amount,
+            Integer orderedPassDurationHours,
+            LocalDateTime requestedAt
+    ) {
         validateRequiredValues(
                 member,
                 product,
@@ -129,7 +147,7 @@ public class Payment {
                 .orderedProductCode(product.getProductCode())
                 .orderedProductName(product.getName())
                 .orderedProductType(product.getProductType())
-                .orderedPassDurationHours(product.getPassDurationHours())
+                .orderedPassDurationHours(orderedPassDurationHours)
                 .orderNumber(orderNumber)
                 .amount(amount)
                 .status(PaymentStatus.READY)

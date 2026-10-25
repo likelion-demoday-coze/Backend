@@ -52,6 +52,11 @@ liner:
   timeout-seconds: ${LINER_TIMEOUT_SECONDS:120}
 
 app:
+  service:
+    sales-end-at: ${SALES_END_AT:2026-11-15T00:00:00+09:00}
+    service-end-at: ${SERVICE_END_AT:2026-11-21T23:59:59+09:00}
+  pass:
+    duration: ${PASS_DURATION:168h}
   economic-trends:
     enabled: ${ECONOMIC_TRENDS_ENABLED:false}
     local-generate-on-startup: ${ECONOMIC_TRENDS_LOCAL_GENERATE_ON_STARTUP:false}

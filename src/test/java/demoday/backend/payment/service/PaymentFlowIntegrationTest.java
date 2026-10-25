@@ -374,6 +374,55 @@ class PaymentFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("활성 패스가 있으면 새 결제 주문을 생성할 수 없다")
+    void activePassBlocksNewOrder() {
+        var order = createOrder();
+        feedbackService.process(feedback(order.orderNumber()));
+
+        assertThatThrownBy(this::createOrder)
+                .isInstanceOfSatisfying(
+                        ProjectException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(
+                                        PaymentErrorCode.ACTIVE_PASS_EXISTS
+                                )
+                );
+    }
+
+    @Test
+    @DisplayName("기존 패스가 만료되면 다시 구매할 수 있다")
+    void expiredPassAllowsNewOrder() {
+        long sequence = SEQUENCE.incrementAndGet();
+        Payment previousPayment = Payment.create(
+                member,
+                product,
+                "PREVIOUS" + sequence,
+                product.getPrice(),
+                NOW_KST.minusDays(8)
+        );
+        previousPayment.approve(
+                "previous-tx-" + sequence,
+                "4",
+                "card",
+                NOW_KST.minusDays(8)
+        );
+        previousPayment.complete(NOW_KST.minusDays(8));
+        paymentRepository.saveAndFlush(previousPayment);
+        memberPassRepository.saveAndFlush(MemberPass.create(
+                member,
+                previousPayment,
+                demoday.backend.payment.code.PassType.SEVEN_DAY,
+                NOW_KST.minusDays(8),
+                NOW_KST.minusDays(1)
+        ));
+
+        var newOrder = createOrder();
+
+        assertThat(newOrder.status())
+                .isEqualTo(PaymentStatus.PAYMENT_REQUESTED);
+    }
+
+    @Test
     @DisplayName("지급 완료된 패스를 전액 환불하면 결제와 패스를 함께 종료한다")
     void refundsCompletedPaymentAndCancelsPass() {
         var order = createOrder();

@@ -9,6 +9,8 @@ import demoday.backend.payment.code.PassStatus;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.code.ProductType;
+import demoday.backend.payment.config.PassPolicyProperties;
+import demoday.backend.payment.config.ServicePeriodProperties;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.domain.Product;
 import demoday.backend.payment.repository.MemberPassRepository;
@@ -35,6 +37,8 @@ public class PaymentOrderTransactionService {
     private final ProductRepository productRepository;
     private final PaymentRepository paymentRepository;
     private final MemberPassRepository memberPassRepository;
+    private final ServicePeriodProperties servicePeriodProperties;
+    private final PassPolicyProperties passPolicyProperties;
 
     @Transactional
     public Payment createReadyOrder(
@@ -58,7 +62,8 @@ public class PaymentOrderTransactionService {
                         PaymentErrorCode.PRODUCT_NOT_FOUND
                 ));
 
-        if (product.getProductType() != ProductType.PASS
+        if (!servicePeriodProperties.isSalesOpenAt(requestedAt)
+                || product.getProductType() != ProductType.PASS
                 || !product.isAvailableAt(requestedAt)) {
             throw new ProjectException(
                     PaymentErrorCode.PRODUCT_NOT_AVAILABLE
@@ -92,6 +97,7 @@ public class PaymentOrderTransactionService {
                         product,
                         orderNumber,
                         product.getPrice(),
+                        passPolicyProperties.durationHours(),
                         requestedAt
                 )
         );
