@@ -137,13 +137,20 @@ public class Payment {
                 .build();
     }
 
-    public void markPaymentRequested() {
+    public void markPaymentRequested(String providerTransactionId) {
         if (status != PaymentStatus.READY) {
             throw new IllegalStateException(
                     "결제 요청 상태로 변경할 수 없습니다."
             );
         }
 
+        if (providerTransactionId == null || providerTransactionId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "PG 거래번호는 필수입니다."
+            );
+        }
+
+        this.providerTransactionId = providerTransactionId;
         this.status = PaymentStatus.PAYMENT_REQUESTED;
     }
 

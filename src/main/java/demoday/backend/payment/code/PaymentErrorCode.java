@@ -39,6 +39,12 @@ public enum PaymentErrorCode implements BaseErrorCode {
             "이미 처리된 결제 주문입니다."
     ),
 
+    PAYMENT_IN_PROGRESS(
+            HttpStatus.CONFLICT,
+            "PAYMENT_409_5",
+            "이미 진행 중인 결제가 있습니다."
+    ),
+
     DUPLICATE_TRANSACTION(
             HttpStatus.CONFLICT,
             "PAYMENT_409_4",
