@@ -25,6 +25,7 @@ public class PaymentQueryService {
             HISTORY_VISIBLE_STATUSES = List.of(
             PaymentStatus.COMPLETED,
             PaymentStatus.APPROVED,
+            PaymentStatus.CANCEL_REQUESTED,
             PaymentStatus.REFUNDED
     );
 

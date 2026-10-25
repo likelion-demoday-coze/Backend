@@ -685,7 +685,8 @@ class PaymentFlowIntegrationTest {
 
     @Test
     @DisplayName("취소 API 결과가 불명확해도 승인취소 Feedback으로 환불을 확정한다")
-    void cancellationFeedbackReconcilesRequestedCancellation() {
+    void cancellationFeedbackReconcilesRequestedCancellation()
+            throws Exception {
         var order = createOrder();
         feedbackService.process(feedback(order.orderNumber()));
         Payment payment = paymentRepository
@@ -711,6 +712,14 @@ class PaymentFlowIntegrationTest {
                 .getStatus()).isEqualTo(
                 PaymentStatus.CANCEL_REQUESTED
         );
+
+        mockMvc.perform(
+                        get("/api/v1/payments")
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.payments[0].status")
+                        .value("CANCEL_REQUESTED"));
 
         PayAppFeedbackRequest cancellationFeedback =
                 cancellationFeedback(order.orderNumber(), "9");

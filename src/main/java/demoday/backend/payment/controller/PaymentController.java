@@ -50,7 +50,10 @@ public class PaymentController {
         );
     }
 
-    @Operation(summary = "내 결제 내역 목록 조회")
+    @Operation(
+            summary = "내 결제 내역 목록 조회",
+            description = "결제 완료, 지급 대기, 취소 처리 중, 환불 완료 내역을 조회합니다."
+    )
     @GetMapping
     public ApiResponse<PaymentHistoryPageResponse> getPaymentHistories(
             @Parameter(hidden = true)
