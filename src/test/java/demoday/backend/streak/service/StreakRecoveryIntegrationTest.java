@@ -30,6 +30,7 @@ import demoday.backend.store.domain.StoreItem;
 import demoday.backend.store.repository.MemberItemRepository;
 import demoday.backend.store.repository.StoreItemRepository;
 import demoday.backend.streak.code.StreakErrorCode;
+import demoday.backend.streak.code.StreakRecoveryMethod;
 import demoday.backend.streak.code.StreakRecoveryStatus;
 import demoday.backend.streak.domain.StreakRecoveryEvent;
 import demoday.backend.streak.repository.StreakRecoveryEventRepository;
@@ -392,7 +393,14 @@ class StreakRecoveryIntegrationTest {
     void anotherEventCannotConsumeASecondItemOnTheSameDay() {
         Long eventId = breakStreak(2);
         giveItems(2);
-        recoveries.request(memberId, eventId);
+        // 이전 정책으로 당일 이미 사용한 기록을 구성한다. 현재 정책은 이틀 미학습 신청을 허용하지 않는다.
+        transactions.execute(() -> {
+            var owned = inventory.findByMemberMemberIdAndItemItemCode(memberId, "STREAK_RECOVERY").orElseThrow();
+            owned.useOne();
+            events.findById(eventId).orElseThrow().requestRecovery(StreakRecoveryMethod.ITEM,
+                    TODAY.atTime(11, 0), owned.getMemberItemId(), owned.getQuantity());
+            return null;
+        });
         Long anotherEventId = transactions.execute(() -> events.saveAndFlush(
                 demoday.backend.streak.domain.StreakRecoveryEvent.create(
                         members.findByIdForUpdate(memberId).orElseThrow(), TODAY.minusDays(1), 1,
