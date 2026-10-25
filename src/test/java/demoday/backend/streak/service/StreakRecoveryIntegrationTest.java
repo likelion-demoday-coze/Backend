@@ -30,7 +30,9 @@ import demoday.backend.store.domain.StoreItem;
 import demoday.backend.store.repository.MemberItemRepository;
 import demoday.backend.store.repository.StoreItemRepository;
 import demoday.backend.streak.code.StreakErrorCode;
+import demoday.backend.streak.code.StreakRecoveryMethod;
 import demoday.backend.streak.code.StreakRecoveryStatus;
+import demoday.backend.streak.domain.StreakRecoveryEvent;
 import demoday.backend.streak.repository.StreakRecoveryEventRepository;
 import demoday.backend.streak.scheduler.StreakPenaltyScheduler;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,6 +77,7 @@ class StreakRecoveryIntegrationTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 5);
     private static final AtomicLong SEQUENCE = new AtomicLong();
     @Autowired private StreakRecoveryService recoveries;
+    @Autowired private StreakService streaks;
     @Autowired private StreakPenaltyService penalties;
     @Autowired private StreakPenaltyScheduler scheduler;
     @Autowired private MemberRepository members;
@@ -148,7 +151,7 @@ class StreakRecoveryIntegrationTest {
     }
 
     @Test
-    void requestConsumesOneThenFifthAnswerRestoresStockAndFiveDayStreak() {
+    void requestConsumesOneThenFifthAnswerRestoresStockAndFourDayStreak() {
         Long eventId = breakStreak(1);
         giveItems(2);
         assertThat(recoveries.request(memberId, eventId).status()).isEqualTo(StreakRecoveryStatus.PENDING);
@@ -160,7 +163,7 @@ class StreakRecoveryIntegrationTest {
         var result = recoveries.getLatest(memberId);
         assertThat(result.status()).isEqualTo(StreakRecoveryStatus.RECOVERED);
         assertThat(result.stockAfterRecovery()).isEqualByComparingTo("110");
-        assertThat(result.streakAfterRecovery()).isEqualTo(5);
+        assertThat(result.streakAfterRecovery()).isEqualTo(4);
         assertThat(recoveries.request(memberId, eventId)).isEqualTo(result);
         assertThat(quantity()).isEqualTo(1);
         assertThat(recoveryCount()).isEqualTo(1);
@@ -168,7 +171,7 @@ class StreakRecoveryIntegrationTest {
                 String.class, memberId, TODAY.minusDays(1))).isEqualTo("RECOVERED");
         clock.set("2026-10-06T03:00:00Z");
         completeRegularQuiz();
-        assertThat(member().getCurrentStreak()).isEqualTo(6);
+        assertThat(member().getCurrentStreak()).isEqualTo(5);
         assertThat(recoveryCount()).isEqualTo(1);
     }
 
@@ -179,29 +182,31 @@ class StreakRecoveryIntegrationTest {
         completeRegularQuiz();
         assertThat(member().getCurrentStreak()).isEqualTo(1);
         var result = recoveries.request(memberId, eventId);
-        assertThat(result.streakAfterRecovery()).isEqualTo(5);
+        assertThat(result.streakAfterRecovery()).isEqualTo(4);
         assertThat(result.status()).isEqualTo(StreakRecoveryStatus.RECOVERED);
         assertThat(recoveries.request(memberId, eventId)).isEqualTo(result);
         assertThat(quantity()).isEqualTo(1);
     }
 
     @Test
-    void twoMissedDaysRestartAtTwoAndTenDaysAreAlsoRecoverable() {
+    void twoMissedDaysCannotRecoverAndRestartAtOne() {
         Long eventId = breakStreak(2);
         giveItems(1);
-        recoveries.request(memberId, eventId);
+        assertThat(recoveries.request(memberId, eventId).status()).isEqualTo(StreakRecoveryStatus.EXPIRED);
         completeRegularQuiz();
-        assertThat(member().getCurrentStreak()).isEqualTo(2);
+        assertThat(member().getCurrentStreak()).isEqualTo(1);
+        assertThat(quantity()).isEqualTo(1);
     }
 
     @Test
-    void longAbsenceHasNoRequestDeadline() {
+    void longAbsenceCannotRecoverAndPreservesItem() {
         Long eventId = breakStreak(10);
         giveItems(1);
-        recoveries.request(memberId, eventId);
+        assertThat(recoveries.request(memberId, eventId).status()).isEqualTo(StreakRecoveryStatus.EXPIRED);
         completeRegularQuiz();
-        assertThat(member().getCurrentStreak()).isEqualTo(2);
-        assertThat(member().getCurrentStock()).isEqualByComparingTo("100");
+        assertThat(member().getCurrentStreak()).isEqualTo(1);
+        assertThat(member().getCurrentStock()).isEqualByComparingTo("80");
+        assertThat(quantity()).isEqualTo(1);
     }
 
     @Test
@@ -255,6 +260,51 @@ class StreakRecoveryIntegrationTest {
     }
 
     @Test
+    void unusedRecoveryExpiresAtNextMidnightWithoutConsumingItem() {
+        Long eventId = breakStreak(1);
+        giveItems(1);
+        clock.set("2026-10-05T15:00:00Z");
+        assertThat(recoveries.getLatest(memberId).status()).isEqualTo(StreakRecoveryStatus.EXPIRED);
+        assertThat(recoveries.getLatest(memberId).requestable()).isFalse();
+        scheduler.applyAtMidnight();
+        assertThat(events.findById(eventId).orElseThrow().getStatus()).isEqualTo(StreakRecoveryStatus.EXPIRED);
+        assertThat(recoveries.request(memberId, eventId).status()).isEqualTo(StreakRecoveryStatus.EXPIRED);
+        assertThat(quantity()).isEqualTo(1);
+        assertThat(member().getCurrentStock()).isEqualByComparingTo("80");
+    }
+
+    @Test
+    void weeklyCalendarShowsFourStatesAndRecoveredDayDoesNotIncreaseHighestStreak() throws Exception {
+        clock.set("2026-10-08T03:00:00Z"); // KST 목요일 12시
+        var owner = member();
+        for (LocalDate day : List.of(LocalDate.of(2026, 10, 3), LocalDate.of(2026, 10, 4), LocalDate.of(2026, 10, 6))) {
+            var activity = MemberDailyActivity.create(owner, day);
+            activity.completeLearning(day.atTime(12, 0));
+            activities.saveAndFlush(activity);
+        }
+        var bridge = MemberDailyActivity.create(owner, LocalDate.of(2026, 10, 5));
+        bridge.recoverLearning(LocalDateTime.of(2026, 10, 6, 12, 0));
+        activities.saveAndFlush(bridge);
+        var pending = StreakRecoveryEvent.create(owner, LocalDate.of(2026, 10, 7), 3,
+                new BigDecimal("100"), new BigDecimal("80"), LocalDateTime.of(2026, 10, 8, 0, 0));
+        pending.requestRecovery(demoday.backend.streak.code.StreakRecoveryMethod.PASS,
+                LocalDateTime.of(2026, 10, 8, 12, 0), null, null);
+        events.saveAndFlush(pending);
+        var auth = new UsernamePasswordAuthenticationToken(memberId, null, List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
+        mvc.perform(get("/api/v1/streaks/me").with(authentication(auth)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.highestStreak").value(3))
+                .andExpect(jsonPath("$.result.weekStart").value("2026-10-05"))
+                .andExpect(jsonPath("$.result.days.length()").value(7))
+                .andExpect(jsonPath("$.result.days[0].status").value("RECOVERY_COMPLETED"))
+                .andExpect(jsonPath("$.result.days[1].status").value("COMPLETED"))
+                .andExpect(jsonPath("$.result.days[2].status").value("RECOVERY_PENDING"))
+                .andExpect(jsonPath("$.result.days[3].status").value("INCOMPLETE"))
+                .andExpect(jsonPath("$.result.days[4].future").value(true));
+        clock.set("2026-10-08T15:00:00Z");
+        assertThat(streaks.getCurrent(memberId).days().get(2).status().name()).isEqualTo("INCOMPLETE");
+    }
+
+    @Test
     void yesterdayRestartedLearningMakesOldEventUnavailable() {
         Long eventId = breakStreak(3);
         giveItems(1);
@@ -262,8 +312,7 @@ class StreakRecoveryIntegrationTest {
             members.findByIdForUpdate(memberId).orElseThrow().completeLearning(false, TODAY.minusDays(1));
             return null;
         });
-        assertThatThrownBy(() -> recoveries.request(memberId, eventId)).isInstanceOfSatisfying(ProjectException.class,
-                ex -> assertThat(ex.getErrorCode()).isEqualTo(StreakErrorCode.STALE_RECOVERY));
+        assertThat(recoveries.request(memberId, eventId).status()).isEqualTo(StreakRecoveryStatus.EXPIRED);
         assertThat(recoveries.getLatest(memberId).requestable()).isFalse();
         assertThat(quantity()).isEqualTo(1);
     }
@@ -313,12 +362,12 @@ class StreakRecoveryIntegrationTest {
         mvc.perform(get("/api/v1/streaks/recovery").with(authentication(auth)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.requestable").value(false));
         mvc.perform(post("/api/v1/streaks/recoveries/{id}", eventId).with(authentication(auth)).with(csrf()))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STREAK_409_3"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.status").value("EXPIRED"));
         assertThat(quantity()).isEqualTo(1);
         assertThat(member().getCurrentStock()).isEqualByComparingTo("80");
         assertThat(member().getCurrentStreak()).isEqualTo(2);
         assertThat(recoveryCount()).isZero();
-        assertThat(events.findById(eventId).orElseThrow().getStatus()).isEqualTo(StreakRecoveryStatus.AVAILABLE);
+        assertThat(events.findById(eventId).orElseThrow().getStatus()).isEqualTo(StreakRecoveryStatus.EXPIRED);
         assertThat(jdbc.queryForObject("select learning_status from member_daily_activity where member_id=? and activity_date=?",
                 String.class, memberId, TODAY.minusDays(1))).isEqualTo("COMPLETED");
     }
@@ -344,7 +393,14 @@ class StreakRecoveryIntegrationTest {
     void anotherEventCannotConsumeASecondItemOnTheSameDay() {
         Long eventId = breakStreak(2);
         giveItems(2);
-        recoveries.request(memberId, eventId);
+        // 이전 정책으로 당일 이미 사용한 기록을 구성한다. 현재 정책은 이틀 미학습 신청을 허용하지 않는다.
+        transactions.execute(() -> {
+            var owned = inventory.findByMemberMemberIdAndItemItemCode(memberId, "STREAK_RECOVERY").orElseThrow();
+            owned.useOne();
+            events.findById(eventId).orElseThrow().requestRecovery(StreakRecoveryMethod.ITEM,
+                    TODAY.atTime(11, 0), owned.getMemberItemId(), owned.getQuantity());
+            return null;
+        });
         Long anotherEventId = transactions.execute(() -> events.saveAndFlush(
                 demoday.backend.streak.domain.StreakRecoveryEvent.create(
                         members.findByIdForUpdate(memberId).orElseThrow(), TODAY.minusDays(1), 1,
@@ -405,7 +461,7 @@ class StreakRecoveryIntegrationTest {
         assertThat(recoveries.getLatest(memberId).status()).isEqualTo(StreakRecoveryStatus.PENDING);
         assertThat(recoveryCount()).isZero();
         completeRegularQuiz();
-        assertThat(member().getCurrentStreak()).isEqualTo(5);
+        assertThat(member().getCurrentStreak()).isEqualTo(4);
     }
 
     @Test

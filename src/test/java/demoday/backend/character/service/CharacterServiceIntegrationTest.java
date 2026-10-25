@@ -216,7 +216,7 @@ class CharacterServiceIntegrationTest {
         }
         var response = characters.getCurrent(memberId);
         assertThat(response.stage()).isEqualTo(before);
-        assertThat(response.currentStreak()).isEqualTo(5);
+        assertThat(response.currentStreak()).isEqualTo(4);
         assertThat(response.effects()).containsExactly(CharacterEffect.GLOWING_BASE);
     }
 

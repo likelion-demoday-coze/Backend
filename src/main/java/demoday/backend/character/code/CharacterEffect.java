@@ -9,7 +9,7 @@ public enum CharacterEffect {
     GLOWING_BASE("빛나는 받침", 3),
     AURA("은은한 오라", 7),
     GOLDEN_HALO("금빛 후광", 14),
-    COIN_BACKGROUND("배경 금화 패턴", 21);
+    COIN_BACKGROUND("시크릿", 21);
 
     private final String displayName;
     private final int minimumStreak;

@@ -10,8 +10,10 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.List;
 
 public interface MemberDailyActivityRepository extends JpaRepository<MemberDailyActivity, Long> {
+    List<MemberDailyActivity> findAllByMemberMemberIdAndActivityDateLessThanEqualOrderByActivityDateAsc(Long memberId, LocalDate date);
 
     Optional<MemberDailyActivity> findByMemberMemberIdAndActivityDate(
             Long memberId,

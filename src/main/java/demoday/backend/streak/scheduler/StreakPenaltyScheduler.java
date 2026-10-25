@@ -40,7 +40,9 @@ public class StreakPenaltyScheduler {
     /** 한 회원의 실패로 다른 회원의 처리가 중단되지 않도록 트랜잭션을 분리한다. */
     public void applyDuePenalties() {
         LocalDate yesterday = LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))).minusDays(1);
-        for (Long memberId : events.findOverdueMemberIds(StreakRecoveryStatus.PENDING, yesterday.plusDays(1).atStartOfDay())) {
+        var overdue = new java.util.TreeSet<>(events.findOverdueMemberIds(StreakRecoveryStatus.PENDING, yesterday.plusDays(1).atStartOfDay()));
+        overdue.addAll(events.findOverdueAvailableMemberIds(StreakRecoveryStatus.AVAILABLE, yesterday));
+        for (Long memberId : overdue) {
             try {
                 recoveries.expirePending(memberId);
             } catch (Exception exception) {
