@@ -306,6 +306,30 @@ class PaymentFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("결제와 패스 내역 API는 잘못된 페이지 요청을 400으로 거절한다")
+    void rejectsInvalidHistoryPageRequests() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/payments")
+                                .param("page", "-1")
+                                .param("size", "20")
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("PAYMENT_400_2"));
+
+        mockMvc.perform(
+                        get("/api/v1/passes/me")
+                                .param("page", "0")
+                                .param("size", "0")
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("PAYMENT_400_2"));
+    }
+
+    @Test
     @DisplayName("Feedback 엔드포인트는 CSRF 없이 평문 SUCCESS를 반환한다")
     void feedbackEndpointReturnsPlainSuccess() throws Exception {
         var order = createOrder();

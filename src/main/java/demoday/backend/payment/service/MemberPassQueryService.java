@@ -5,13 +5,14 @@ import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.code.MemberStatus;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.code.PassStatus;
+import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.domain.MemberPass;
 import demoday.backend.payment.dto.CurrentMemberPassResponse;
 import demoday.backend.payment.dto.MemberPassHistoryPageResponse;
 import demoday.backend.payment.repository.MemberPassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,9 +58,11 @@ public class MemberPassQueryService {
 
     public MemberPassHistoryPageResponse getHistories(
             Long memberId,
-            Pageable pageable
+            int page,
+            int size
     ) {
         validateActiveMember(memberId);
+        validatePageRequest(page, size);
 
         LocalDateTime now = LocalDateTime.now(
                 clock.withZone(KST)
@@ -68,7 +71,7 @@ public class MemberPassQueryService {
         Page<MemberPass> memberPasses = memberPassRepository
                 .findAllByMemberMemberIdOrderByStartedAtDescMemberPassIdDesc(
                         memberId,
-                        pageable
+                        PageRequest.of(page, size)
                 );
 
         return MemberPassHistoryPageResponse.from(
@@ -90,6 +93,14 @@ public class MemberPassQueryService {
         )) {
             throw new ProjectException(
                     GeneralErrorCode.UNAUTHORIZED
+            );
+        }
+    }
+
+    private void validatePageRequest(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_PAGE_REQUEST
             );
         }
     }

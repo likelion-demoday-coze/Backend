@@ -57,6 +57,12 @@ public enum PaymentErrorCode implements BaseErrorCode {
             "유효하지 않은 주문번호입니다."
     ),
 
+    INVALID_PAGE_REQUEST(
+            HttpStatus.BAD_REQUEST,
+            "PAYMENT_400_2",
+            "페이지는 0 이상, 페이지 크기는 1~100이어야 합니다."
+    ),
+
     AMOUNT_MISMATCH(
             HttpStatus.BAD_REQUEST,
             "PAYMENT_400_7",

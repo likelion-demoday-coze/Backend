@@ -10,7 +10,7 @@ import demoday.backend.payment.dto.PaymentStatusResponse;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,15 +64,17 @@ public class PaymentQueryService {
 
     public PaymentHistoryPageResponse getHistories(
             Long memberId,
-            Pageable pageable
+            int page,
+            int size
     ) {
         validateMember(memberId);
+        validatePageRequest(page, size);
 
         Page<Payment> payments =
                 paymentRepository.findAllByMemberMemberIdAndStatusInOrderByRequestedAtDescPaymentIdDesc(
                         memberId,
                         HISTORY_VISIBLE_STATUSES,
-                        pageable
+                        PageRequest.of(page, size)
                 );
 
         return PaymentHistoryPageResponse.from(payments);
@@ -100,6 +102,14 @@ public class PaymentQueryService {
     private void validateMember(Long memberId) {
         if (memberId == null) {
             throw new ProjectException(GeneralErrorCode.UNAUTHORIZED);
+        }
+    }
+
+    private void validatePageRequest(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_PAGE_REQUEST
+            );
         }
     }
 }

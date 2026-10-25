@@ -9,11 +9,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Pass", description = "일주일 패스 API")
@@ -48,14 +47,18 @@ public class MemberPassController {
             @Parameter(hidden = true)
             @AuthenticationPrincipal Long memberId,
 
-            @PageableDefault(size = 20)
-            Pageable pageable
+            @Parameter(description = "0부터 시작하는 페이지 번호")
+            @RequestParam(defaultValue = "0") int page,
+
+            @Parameter(description = "페이지 크기 (1~100, 기본 20)")
+            @RequestParam(defaultValue = "20") int size
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
                 memberPassQueryService.getHistories(
                         memberId,
-                        pageable
+                        page,
+                        size
                 )
         );
     }
