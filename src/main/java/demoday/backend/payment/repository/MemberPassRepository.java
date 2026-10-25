@@ -26,6 +26,4 @@ public interface MemberPassRepository extends JpaRepository<MemberPass, Long> {
             @Param("status") PassStatus status,
             @Param("now") LocalDateTime now
     );
-
-    boolean existsByMemberMemberId(Long memberId);
 }

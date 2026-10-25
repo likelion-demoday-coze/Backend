@@ -28,10 +28,6 @@ public interface PaymentRepository
             Long memberId
     );
 
-    Optional<Payment> findByPaymentKey(
-            String paymentKey
-    );
-
     @Query("""
             SELECT p.paymentId
             FROM Payment p
@@ -41,20 +37,6 @@ public interface PaymentRepository
     List<Long> findIdsByStatus(
             @Param("status") PaymentStatus status
     );
-
-    @Query("""
-            SELECT p.paymentId
-            FROM Payment p
-            WHERE p.status = :status
-              AND p.confirmationStartedAt <= :threshold
-            ORDER BY p.confirmationStartedAt ASC, p.paymentId ASC
-            """)
-    List<Long> findIdsByStatusAndConfirmationStartedAtBefore(
-            @Param("status") PaymentStatus status,
-            @Param("threshold") LocalDateTime threshold
-    );
-
-    long countByStatus(PaymentStatus status);
 
     boolean existsByMemberMemberIdAndProductProductTypeAndStatusIn(
             Long memberId,
@@ -73,19 +55,6 @@ public interface PaymentRepository
     Optional<Payment> findByOrderNumberForUpdate(
             @Param("orderNumber")
             String orderNumber
-    );
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            SELECT p
-            FROM Payment p
-            JOIN FETCH p.member
-            JOIN FETCH p.product
-            WHERE p.paymentKey = :paymentKey
-            """)
-    Optional<Payment> findByPaymentKeyForUpdate(
-            @Param("paymentKey")
-            String paymentKey
     );
 
     boolean existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThanEqual(

@@ -9,20 +9,17 @@ public record PaymentProductResponse(
         @Schema(description = "상품 ID", example = "1")
         Long productId,
 
-        @Schema(description = "상품 코드", example = "FISH_100")
+        @Schema(description = "상품 코드", example = "WEEK_PASS")
         String productCode,
 
-        @Schema(description = "상품 유형", example = "FISH")
+        @Schema(description = "상품 유형", example = "PASS")
         ProductType productType,
 
-        @Schema(description = "상품명", example = "생선 100개")
+        @Schema(description = "상품명", example = "일주일 패스")
         String name,
 
-        @Schema(description = "가격", example = "500")
+        @Schema(description = "가격", example = "1900")
         Integer price,
-
-        @Schema(description = "지급 생선 수량", nullable = true, example = "100")
-        Integer fishAmount,
 
         @Schema(description = "패스 유효 시간", nullable = true, example = "168")
         Integer passDurationHours
@@ -35,7 +32,6 @@ public record PaymentProductResponse(
                 product.getProductType(),
                 product.getName(),
                 product.getPrice(),
-                product.getFishAmount(),
                 product.getPassDurationHours()
         );
     }

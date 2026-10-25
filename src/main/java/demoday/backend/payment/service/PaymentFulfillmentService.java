@@ -1,7 +1,5 @@
 package demoday.backend.payment.service;
 
-import demoday.backend.fish.code.FishTransactionType;
-import demoday.backend.fish.service.FishService;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.domain.Member;
@@ -23,7 +21,6 @@ public class PaymentFulfillmentService {
 
     private final MemberRepository members;
     private final MemberPassRepository memberPasses;
-    private final FishService fishService;
 
     @Transactional
     public void fulfill(
@@ -36,32 +33,7 @@ public class PaymentFulfillmentService {
             );
         }
 
-        switch (payment.getOrderedProductType()) {
-            case FISH -> issueFish(payment);
-            case PASS -> issuePass(payment, approvedAt);
-            default -> throw new ProjectException(
-                    PaymentErrorCode.FULFILLMENT_FAILED
-            );
-        }
-    }
-
-    private void issueFish(Payment payment) {
-        Integer fishAmount = payment.getOrderedFishAmount();
-
-        if (fishAmount == null || fishAmount <= 0) {
-            throw new ProjectException(
-                    PaymentErrorCode.FULFILLMENT_FAILED
-            );
-        }
-
-        // paymentId를 멱등키와 참조 ID로 사용, 같은 승인 콜백이 다시 처리되어도 생선이 중복 적립되지 않음
-        fishService.credit(
-                payment.getMember().getMemberId(),
-                fishAmount.longValue(),
-                FishTransactionType.PAID_CHARGE,
-                payment.getPaymentId(),
-                createFishIdempotencyKey(payment)
-        );
+        issuePass(payment, approvedAt);
     }
 
     private void issuePass(
@@ -78,10 +50,13 @@ public class PaymentFulfillmentService {
                         )
                 );
 
-        // 일주일 패스는 회원당 평생 한 번만 구매 가능
-        if (memberPasses.existsByMemberMemberId(memberId)) {
+        if (memberPasses.findActivePass(
+                memberId,
+                demoday.backend.payment.code.PassStatus.ACTIVE,
+                approvedAt
+        ).isPresent()) {
             throw new ProjectException(
-                    PaymentErrorCode.PASS_ALREADY_PURCHASED
+                    PaymentErrorCode.ACTIVE_PASS_EXISTS
             );
         }
 
@@ -103,12 +78,5 @@ public class PaymentFulfillmentService {
         );
 
         memberPasses.save(memberPass);
-    }
-
-    private String createFishIdempotencyKey(
-            Payment payment
-    ) {
-        return "PAYMENT:FISH:"
-                + payment.getPaymentId();
     }
 }

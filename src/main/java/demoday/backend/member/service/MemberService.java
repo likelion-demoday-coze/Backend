@@ -33,8 +33,7 @@ public class MemberService {
 
     private static final List<PaymentStatus>
             WITHDRAWAL_BLOCKING_PAYMENT_STATUSES = List.of(
-            PaymentStatus.CONFIRMING,
-            PaymentStatus.UNKNOWN,
+            PaymentStatus.PAYMENT_REQUESTED,
             PaymentStatus.APPROVED
     );
 

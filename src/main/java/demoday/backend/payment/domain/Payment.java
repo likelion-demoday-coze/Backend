@@ -19,12 +19,8 @@ import java.util.regex.Pattern;
                         columnNames = "order_number"
                 ),
                 @UniqueConstraint(
-                        name = "uk_payment_payment_key",
-                        columnNames = "payment_key"
-                ),
-                @UniqueConstraint(
-                        name = "uk_payment_tid",
-                        columnNames = "tid"
+                        name = "uk_payment_provider_transaction_id",
+                        columnNames = "provider_transaction_id"
                 )
         }
 )
@@ -59,9 +55,6 @@ public class Payment {
     @Column(name = "ordered_product_type", nullable = false, length = 20)
     private ProductType orderedProductType;
 
-    @Column(name = "ordered_fish_amount")
-    private Integer orderedFishAmount;
-
     @Column(name = "ordered_pass_duration_hours")
     private Integer orderedPassDurationHours;
 
@@ -73,22 +66,10 @@ public class Payment {
     private String orderNumber;
 
     @Column(
-            name = "payment_key",
-            length = 255
-    )
-    private String paymentKey;
-
-    @Column(
-            name = "tid",
+            name = "provider_transaction_id",
             length = 100
     )
-    private String tid;
-
-    @Column(
-            name = "merchant_id",
-            length = 10
-    )
-    private String merchantId;
+    private String providerTransactionId;
 
     @Column(
             nullable = false,
@@ -98,13 +79,6 @@ public class Payment {
             )
     )
     private Integer amount;
-
-    @Column(
-            name = "edi_date",
-            nullable = false,
-            length = 14
-    )
-    private String ediDate;
 
     @Column(
             name = "pay_method",
@@ -125,9 +99,6 @@ public class Payment {
     @Column(name = "requested_at", nullable = false)
     private LocalDateTime requestedAt;
 
-    @Column(name = "confirmation_started_at")
-    private LocalDateTime confirmationStartedAt;
-
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
@@ -142,7 +113,6 @@ public class Payment {
             Product product,
             String orderNumber,
             Integer amount,
-            String ediDate,
             LocalDateTime requestedAt
     ) {
         validateRequiredValues(
@@ -150,7 +120,6 @@ public class Payment {
                 product,
                 orderNumber,
                 amount,
-                ediDate,
                 requestedAt
         );
 
@@ -160,86 +129,40 @@ public class Payment {
                 .orderedProductCode(product.getProductCode())
                 .orderedProductName(product.getName())
                 .orderedProductType(product.getProductType())
-                .orderedFishAmount(product.getFishAmount())
                 .orderedPassDurationHours(product.getPassDurationHours())
                 .orderNumber(orderNumber)
                 .amount(amount)
-                .ediDate(ediDate)
                 .status(PaymentStatus.READY)
                 .requestedAt(requestedAt)
                 .build();
     }
 
-    public void startConfirmation(
-            String paymentKey,
-            String merchantId,
-            LocalDateTime confirmationStartedAt
-    ) {
-        if (paymentKey == null || paymentKey.isBlank()) {
-            throw new IllegalArgumentException(
-                    "결제 키는 필수입니다."
-            );
-        }
-
-        if (merchantId == null || merchantId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "가맹점 ID는 필수입니다."
-            );
-        }
-
-        if (confirmationStartedAt == null) {
-            throw new IllegalArgumentException(
-                    "승인 요청 시작 시각은 필수입니다."
-            );
-        }
-
+    public void markPaymentRequested() {
         if (status != PaymentStatus.READY) {
             throw new IllegalStateException(
-                    "결제 승인을 시작할 수 없는 상태입니다."
+                    "결제 요청 상태로 변경할 수 없습니다."
             );
         }
 
-        if (this.paymentKey != null
-                && !this.paymentKey.equals(paymentKey)) {
-            throw new IllegalStateException(
-                    "이미 다른 결제 키가 연결된 주문입니다."
-            );
-        }
-
-        this.paymentKey = paymentKey;
-        this.merchantId = merchantId;
-        this.confirmationStartedAt = confirmationStartedAt;
-        this.status = PaymentStatus.CONFIRMING;
+        this.status = PaymentStatus.PAYMENT_REQUESTED;
     }
 
     public void approve(
-            String tid,
+            String providerTransactionId,
             String resultCode,
             String payMethod,
             LocalDateTime approvedAt
     ) {
-        if (status != PaymentStatus.CONFIRMING
-                && status != PaymentStatus.UNKNOWN) {
+        if (status != PaymentStatus.READY
+                && status != PaymentStatus.PAYMENT_REQUESTED) {
             throw new IllegalStateException(
                     "결제를 승인할 수 없는 상태입니다."
             );
         }
 
-        if (paymentKey == null || paymentKey.isBlank()) {
-            throw new IllegalStateException(
-                    "결제 키가 등록되지 않았습니다."
-            );
-        }
-
-        if (tid == null || tid.isBlank()) {
+        if (providerTransactionId == null || providerTransactionId.isBlank()) {
             throw new IllegalArgumentException(
                     "PG 거래번호는 필수입니다."
-            );
-        }
-
-        if (!"3001".equals(resultCode)) {
-            throw new IllegalArgumentException(
-                    "승인 성공 코드가 아닙니다."
             );
         }
 
@@ -249,7 +172,7 @@ public class Payment {
             );
         }
 
-        this.tid = tid;
+        this.providerTransactionId = providerTransactionId;
         this.resultCode = resultCode;
         this.payMethod = payMethod;
         this.approvedAt = approvedAt;
@@ -296,23 +219,6 @@ public class Payment {
         this.status = PaymentStatus.FAILED;
     }
 
-    public void markUnknown(
-            String resultCode,
-            String message
-    ) {
-        if (status == PaymentStatus.APPROVED
-                || status == PaymentStatus.COMPLETED
-                || status == PaymentStatus.CANCELLED) {
-            throw new IllegalStateException(
-                    "승인 결과 확인 필요 상태로 변경할 수 없습니다."
-            );
-        }
-
-        this.resultCode = resultCode;
-        this.failureMessage = normalizeMessage(message);
-        this.status = PaymentStatus.UNKNOWN;
-    }
-
     public void cancel(LocalDateTime cancelledAt) {
         if (status == PaymentStatus.CANCELLED) {
             return;
@@ -340,7 +246,6 @@ public class Payment {
             Product product,
             String orderNumber,
             Integer amount,
-            String ediDate,
             LocalDateTime requestedAt
     ) {
         if (member == null) {
@@ -365,13 +270,6 @@ public class Payment {
         if (amount == null || amount < 100) {
             throw new IllegalArgumentException(
                     "결제 금액은 100원 이상이어야 합니다."
-            );
-        }
-
-        if (ediDate == null
-                || !ediDate.matches("^\\d{14}$")) {
-            throw new IllegalArgumentException(
-                    "전문 생성 일시는 yyyyMMddHHmmss 형식이어야 합니다."
             );
         }
 

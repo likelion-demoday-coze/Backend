@@ -43,15 +43,6 @@ public class Product {
     )
     private Integer price;
 
-    @Column(
-            name = "fish_amount",
-            check = @CheckConstraint(
-                    name = "ck_product_fish_amount_non_negative",
-                    constraint = "fish_amount IS NULL OR fish_amount >= 0"
-            )
-    )
-    private Integer fishAmount;
-
     @Column(name = "pass_duration_hours")
     private Integer passDurationHours;
 
@@ -69,7 +60,6 @@ public class Product {
             ProductType productType,
             String name,
             Integer price,
-            Integer fishAmount,
             Integer passDurationHours,
             LocalDateTime saleStartedAt,
             LocalDateTime saleEndedAt,
@@ -80,7 +70,6 @@ public class Product {
                 productType,
                 name,
                 price,
-                fishAmount,
                 passDurationHours,
                 saleStartedAt,
                 saleEndedAt,
@@ -92,7 +81,6 @@ public class Product {
                 .productType(productType)
                 .name(name)
                 .price(price)
-                .fishAmount(fishAmount)
                 .passDurationHours(passDurationHours)
                 .saleStartedAt(saleStartedAt)
                 .saleEndedAt(saleEndedAt)
@@ -105,7 +93,6 @@ public class Product {
             ProductType productType,
             String name,
             Integer price,
-            Integer fishAmount,
             Integer passDurationHours,
             LocalDateTime saleStartedAt,
             LocalDateTime saleEndedAt,
@@ -125,7 +112,7 @@ public class Product {
         if (name == null || name.isBlank() || name.length() > 50
                 || !PRODUCT_NAME_PATTERN.matcher(name).matches()) {
             throw new IllegalArgumentException(
-                    "상품명은 코페이 허용 문자로 구성된 50자 이하여야 합니다."
+                    "상품명은 허용된 문자로 구성된 50자 이하여야 합니다."
             );
         }
 
@@ -135,28 +122,10 @@ public class Product {
             );
         }
 
-        if (productType == ProductType.FISH) {
-            if (fishAmount == null || fishAmount <= 0) {
-                throw new IllegalArgumentException(
-                        "생선 상품의 지급 수량은 1 이상이어야 합니다."
-                );
-            }
-            if (passDurationHours != null) {
-                throw new IllegalArgumentException(
-                        "생선 상품에는 패스 기간을 설정할 수 없습니다."
-                );
-            }
-        }
-
         if (productType == ProductType.PASS) {
             if (passDurationHours == null || passDurationHours <= 0) {
                 throw new IllegalArgumentException(
                         "패스 상품의 유효 시간은 1시간 이상이어야 합니다."
-                );
-            }
-            if (fishAmount != null) {
-                throw new IllegalArgumentException(
-                        "패스 상품에는 생선 지급 수량을 설정할 수 없습니다."
                 );
             }
         }
