@@ -129,8 +129,9 @@ public class StreakRecoveryEvent {
     }
 
     public boolean expireIfOverdue(LocalDateTime now) {
-        if (status == StreakRecoveryStatus.PENDING && !requestedAt.toLocalDate().equals(now.toLocalDate())
-                && now.isAfter(requestedAt)) {
+        if ((status == StreakRecoveryStatus.AVAILABLE || status == StreakRecoveryStatus.PENDING)
+                && (!now.isBefore(getRecoveryDeadline())
+                    || (status == StreakRecoveryStatus.PENDING && !now.isBefore(requestedAt.toLocalDate().plusDays(1).atStartOfDay())))) {
             status = StreakRecoveryStatus.EXPIRED;
             expiredAt = now;
             return true;
@@ -157,10 +158,14 @@ public class StreakRecoveryEvent {
 
     /** 스케줄러가 지연되어도 읽기 응답에서는 완료 기한을 적용한다. DB 상태를 변경하지 않는다. */
     public StreakRecoveryStatus recoveryStatusAt(LocalDateTime now) {
-        if (status == StreakRecoveryStatus.PENDING
-                && !now.isBefore(requestedAt.toLocalDate().plusDays(1).atStartOfDay())) {
+        if ((status == StreakRecoveryStatus.AVAILABLE || status == StreakRecoveryStatus.PENDING)
+                && (!now.isBefore(getRecoveryDeadline())
+                    || (status == StreakRecoveryStatus.PENDING && !now.isBefore(requestedAt.toLocalDate().plusDays(1).atStartOfDay())))) {
             return StreakRecoveryStatus.EXPIRED;
         }
         return status;
     }
+
+    /** 최초 미학습일의 다음 날만 신청·완료 가능하며 그 다음 자정에 만료된다. */
+    public LocalDateTime getRecoveryDeadline() { return missedDate.plusDays(2).atStartOfDay(); }
 }

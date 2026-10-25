@@ -74,16 +74,19 @@ public class StreakRecoveryService {
         expirePendingInTransaction(memberId, now);
         StreakRecoveryEvent event = events.findByStreakRecoveryEventIdAndMemberMemberId(eventId, memberId)
                 .orElseThrow(() -> new ProjectException(StreakErrorCode.RECOVERY_NOT_FOUND));
-        if (event.getStatus() != StreakRecoveryStatus.AVAILABLE) {
+        if (event.getStatus() == StreakRecoveryStatus.PENDING || event.getStatus() == StreakRecoveryStatus.RECOVERED) {
             return new RecoveryRequestOutcome(StreakRecoveryResponse.from(event, now, false), null);
         }
         // 이미 신청한 요청은 위에서 반환한다. 신규 요청만 현재 복구 대상과 일일 제한을 확인한다.
         penalties.applyDuePenaltyInTransaction(memberId, now.toLocalDate());
         var latest = events.findFirstByMemberMemberIdOrderByMissedDateDesc(memberId).orElseThrow();
-        if (!latest.getStreakRecoveryEventId().equals(eventId)
-                || !canResumeFromEvent(member, event, now.toLocalDate())) {
+        if (!latest.getStreakRecoveryEventId().equals(eventId)) {
             return new RecoveryRequestOutcome(null, StreakErrorCode.STALE_RECOVERY);
         }
+        if (event.recoveryStatusAt(now) == StreakRecoveryStatus.EXPIRED)
+            return new RecoveryRequestOutcome(StreakRecoveryResponse.from(event, now, false), null);
+        if (!canResumeFromEvent(member, event, now.toLocalDate()))
+            return new RecoveryRequestOutcome(null, StreakErrorCode.STALE_RECOVERY);
         if (events.existsByMemberMemberIdAndRequestedAtGreaterThanEqualAndRequestedAtLessThan(
                 memberId, now.toLocalDate().atStartOfDay(), now.toLocalDate().plusDays(1).atStartOfDay())) {
             throw new ProjectException(StreakErrorCode.DAILY_RECOVERY_LIMIT);
@@ -112,12 +115,11 @@ public class StreakRecoveryService {
 
     private void completeRecovery(Member member, StreakRecoveryEvent event, LocalDateTime now) {
         BigDecimal before = member.getCurrentStock();
-        BigDecimal after = before.divide(new BigDecimal("0.80"), 2, RoundingMode.HALF_UP);
-        int restoredStreak = event.getMissedDate().equals(now.toLocalDate().minusDays(1))
-                ? Math.addExact(event.getStreakBeforePenalty(), 2) : 2;
+        BigDecimal after = before.multiply(new BigDecimal("1.25")).setScale(2, RoundingMode.HALF_UP);
+        int restoredStreak = Math.addExact(event.getStreakBeforePenalty(), 1);
         var change = stocks.changeStock(member.getMemberId(), before, after, StockChangeType.STREAK_RECOVERY,
                 event.getPenaltyStockChangeId(), "STREAK_RECOVERY:" + event.getStreakRecoveryEventId());
-        // 복구한 어제는 학습 활동에서도 RECOVERED로 남겨 이후 연속 판정의 근거로 사용한다.
+        // RECOVERED는 연속성을 이어 주는 표시다. 쉰 날 자체는 학습 일수에 더하지 않는다.
         LocalDate recoveredDate = now.toLocalDate().minusDays(1);
         var activity = activities.findByMemberMemberIdAndActivityDate(member.getMemberId(), recoveredDate)
                 .orElseGet(() -> activities.save(MemberDailyActivity.create(member, recoveredDate)));
@@ -136,12 +138,14 @@ public class StreakRecoveryService {
     }
 
     private void expirePendingInTransaction(Long memberId, LocalDateTime now) {
-        events.findFirstByMemberMemberIdAndStatusOrderByMissedDateDesc(memberId, StreakRecoveryStatus.PENDING)
-                .ifPresent(event -> event.expireIfOverdue(now));
+        events.findAllByMemberMemberIdAndStatusIn(memberId,
+                java.util.List.of(StreakRecoveryStatus.AVAILABLE, StreakRecoveryStatus.PENDING))
+                .forEach(event -> event.expireIfOverdue(now));
     }
 
     private boolean isRequestable(Member member, StreakRecoveryEvent event, LocalDateTime now) {
         return event.getStatus() == StreakRecoveryStatus.AVAILABLE
+                && now.isBefore(event.getRecoveryDeadline())
                 && canResumeFromEvent(member, event, now.toLocalDate())
                 && !events.existsByMemberMemberIdAndRequestedAtGreaterThanEqualAndRequestedAtLessThan(
                         member.getMemberId(), now.toLocalDate().atStartOfDay(), now.toLocalDate().plusDays(1).atStartOfDay());
@@ -150,8 +154,10 @@ public class StreakRecoveryService {
     /** 오늘 첫 재시작만 허용하고, 전날부터 이어진 새 연속 기록은 덮어쓰지 않는다. */
     private boolean canResumeFromEvent(Member member, StreakRecoveryEvent event, LocalDate today) {
         LocalDate last = member.getLastLearningDate();
-        return last == null || last.isBefore(event.getMissedDate())
-                || (last.equals(today) && member.getCurrentStreak() == 1);
+        return event.getMissedDate().equals(today.minusDays(1))
+                && event.getPenaltyAppliedAt().toLocalDate().equals(today)
+                && (last == null || last.isBefore(event.getMissedDate())
+                    || (last.equals(today) && member.getCurrentStreak() == 1));
     }
 
     private Member findActiveMember(Long memberId, boolean forUpdate) {
