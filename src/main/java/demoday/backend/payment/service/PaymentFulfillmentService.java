@@ -42,6 +42,13 @@ public class PaymentFulfillmentService {
             Payment payment,
             LocalDateTime approvedAt
     ) {
+        // 같은 Feedback이 반복되거나 과거 지급 성공 건을 재처리해도 패스를 중복 지급하지 않는다.
+        if (memberPasses.findByPaymentPaymentId(
+                payment.getPaymentId()
+        ).isPresent()) {
+            return;
+        }
+
         Long memberId = payment.getMember().getMemberId();
 
         // 서로 다른 결제 주문이 동시에 승인되는 경우에도 동일 회원에게 패스가 두 번 발급되지 않도록 회원 행을 잠금

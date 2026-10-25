@@ -70,6 +70,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/csrf",
                                 "/api/v1/auth/login/kakao",
                                 "/api/v1/auth/signup",
+                                "/api/v1/payments/feedback",
                                 "/api/v1/preview-quizzes/**"
                         ).permitAll()
                         .anyRequest().hasRole("MEMBER"))
@@ -152,6 +153,10 @@ public class SecurityConfig {
                         }))
                 .csrf(csrf -> csrf
                         .ignoringRequestMatchers(
+                                PathPatternRequestMatcher.pathPattern(
+                                        HttpMethod.POST,
+                                        "/api/v1/payments/feedback"
+                                ),
                                 PathPatternRequestMatcher.pathPattern(
                                         HttpMethod.POST,
                                         "/api/v1/preview-quizzes/{questionId}/answers"

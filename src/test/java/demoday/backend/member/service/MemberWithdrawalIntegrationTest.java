@@ -167,7 +167,9 @@ class MemberWithdrawalIntegrationTest {
         switch (targetStatus) {
             case READY -> {
             }
-            case PAYMENT_REQUESTED -> payment.markPaymentRequested();
+            case PAYMENT_REQUESTED -> payment.markPaymentRequested(
+                    "PAYAPP-TEST-" + payment.getOrderNumber()
+            );
             case APPROVED -> approve(payment, sequence);
             case COMPLETED -> {
                 approve(payment, sequence);

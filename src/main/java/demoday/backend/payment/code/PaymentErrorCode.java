@@ -86,6 +86,24 @@ public enum PaymentErrorCode implements BaseErrorCode {
             "결제사의 응답을 처리할 수 없습니다."
     ),
 
+    INVALID_FEEDBACK(
+            HttpStatus.BAD_REQUEST,
+            "PAYMENT_400_8",
+            "유효하지 않은 결제 통보입니다."
+    ),
+
+    INVALID_FEEDBACK_AUTHENTICATION(
+            HttpStatus.UNAUTHORIZED,
+            "PAYMENT_401_1",
+            "결제 통보 인증에 실패했습니다."
+    ),
+
+    PAYMENT_INFORMATION_MISMATCH(
+            HttpStatus.BAD_REQUEST,
+            "PAYMENT_400_9",
+            "주문 정보와 결제 통보가 일치하지 않습니다."
+    ),
+
     PG_TIMEOUT(
             HttpStatus.GATEWAY_TIMEOUT,
             "PAYMENT_504_1",

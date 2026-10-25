@@ -11,6 +11,8 @@ import java.util.Optional;
 
 public interface MemberPassRepository extends JpaRepository<MemberPass, Long> {
 
+    Optional<MemberPass> findByPaymentPaymentId(Long paymentId);
+
     @Query("""
             SELECT p
             FROM MemberPass p
