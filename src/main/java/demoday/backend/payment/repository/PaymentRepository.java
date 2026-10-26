@@ -28,10 +28,6 @@ public interface PaymentRepository
             Long memberId
     );
 
-    Optional<Payment> findByPaymentKey(
-            String paymentKey
-    );
-
     @Query("""
             SELECT p.paymentId
             FROM Payment p
@@ -45,16 +41,14 @@ public interface PaymentRepository
     @Query("""
             SELECT p.paymentId
             FROM Payment p
-            WHERE p.status = :status
-              AND p.confirmationStartedAt <= :threshold
-            ORDER BY p.confirmationStartedAt ASC, p.paymentId ASC
+            WHERE p.status IN :statuses
+              AND p.requestedAt <= :expiredBefore
+            ORDER BY p.requestedAt ASC, p.paymentId ASC
             """)
-    List<Long> findIdsByStatusAndConfirmationStartedAtBefore(
-            @Param("status") PaymentStatus status,
-            @Param("threshold") LocalDateTime threshold
+    List<Long> findExpiredOrderIds(
+            @Param("statuses") Collection<PaymentStatus> statuses,
+            @Param("expiredBefore") LocalDateTime expiredBefore
     );
-
-    long countByStatus(PaymentStatus status);
 
     boolean existsByMemberMemberIdAndProductProductTypeAndStatusIn(
             Long memberId,
@@ -75,20 +69,7 @@ public interface PaymentRepository
             String orderNumber
     );
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            SELECT p
-            FROM Payment p
-            JOIN FETCH p.member
-            JOIN FETCH p.product
-            WHERE p.paymentKey = :paymentKey
-            """)
-    Optional<Payment> findByPaymentKeyForUpdate(
-            @Param("paymentKey")
-            String paymentKey
-    );
-
-    boolean existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThanEqual(
+    boolean existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThan(
             Long memberId,
             ProductType productType,
             Collection<PaymentStatus> statuses,
@@ -107,8 +88,9 @@ public interface PaymentRepository
             @Param("paymentId") Long paymentId
     );
 
-    Page<Payment> findAllByMemberMemberIdOrderByRequestedAtDescPaymentIdDesc(
+    Page<Payment> findAllByMemberMemberIdAndStatusInOrderByRequestedAtDescPaymentIdDesc(
             Long memberId,
+            Collection<PaymentStatus> statuses,
             Pageable pageable
     );
 
@@ -117,23 +99,33 @@ public interface PaymentRepository
             Long memberId
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT p
+            FROM Payment p
+            JOIN FETCH p.member
+            WHERE p.paymentId = :paymentId
+              AND p.member.memberId = :memberId
+            """)
+    Optional<Payment> findByPaymentIdAndMemberIdForUpdate(
+            @Param("paymentId") Long paymentId,
+            @Param("memberId") Long memberId
+    );
+
     @Query("""
         SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END
         FROM Payment p
         WHERE p.member.memberId = :memberId
-          AND (
-              p.status IN :unresolvedStatuses
-              OR (
-                  p.status = :readyStatus
-                  AND p.requestedAt > :validRequestedAt
-              )
-          )
+          AND (p.status IN :unresolvedStatuses
+               OR (p.status IN :expirableStatuses
+                   AND p.requestedAt > :validRequestedAt))
         """)
     boolean existsBlockingWithdrawalPayment(
             @Param("memberId") Long memberId,
             @Param("unresolvedStatuses")
             Collection<PaymentStatus> unresolvedStatuses,
-            @Param("readyStatus") PaymentStatus readyStatus,
+            @Param("expirableStatuses")
+            Collection<PaymentStatus> expirableStatuses,
             @Param("validRequestedAt") LocalDateTime validRequestedAt
     );
 }

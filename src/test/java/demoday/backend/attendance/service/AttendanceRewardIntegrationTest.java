@@ -234,14 +234,9 @@ class AttendanceRewardIntegrationTest {
     private void createPass(Member owner, int startHours, int endHours, PassStatus status) {
         LocalDateTime now = LocalDateTime.now(clock.withZone(ZoneId.of("Asia/Seoul")));
         Product product = products.saveAndFlush(Product.create(UUID.randomUUID().toString(), ProductType.PASS,
-                "일주일 패스", 1900, null, 168, null, null, true));
+                "일주일 패스", 1900, 168, null, null, true));
         Payment payment = Payment.create(owner, product, UUID.randomUUID().toString().replace("-", ""),
-                1900, now.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")), now);
-        payment.startConfirmation(
-                UUID.randomUUID().toString(),
-                "testmid",
-                LocalDateTime.now()
-        );
+                1900, now);
         payment.approve(UUID.randomUUID().toString(), "3001", "card", now);
         payments.saveAndFlush(payment);
         MemberPass pass = passes.saveAndFlush(MemberPass.create(owner, payment, PassType.SEVEN_DAY,

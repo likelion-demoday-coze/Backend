@@ -22,7 +22,7 @@ public class MemberPass {
     private Long memberPassId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "member_id", nullable = false, unique = true)
+    @JoinColumn(name = "member_id", nullable = false)
     private Member member;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
@@ -68,5 +68,20 @@ public class MemberPass {
         return status == PassStatus.ACTIVE
                 && !now.isBefore(startedAt)
                 && now.isBefore(expiresAt);
+    }
+
+    public void cancel(LocalDateTime cancelledAt) {
+        if (status == PassStatus.CANCELLED) {
+            return;
+        }
+
+        if (status != PassStatus.ACTIVE || cancelledAt == null) {
+            throw new IllegalStateException(
+                    "활성 패스만 취소할 수 있습니다."
+            );
+        }
+
+        this.status = PassStatus.CANCELLED;
+        this.cancelledAt = cancelledAt;
     }
 }

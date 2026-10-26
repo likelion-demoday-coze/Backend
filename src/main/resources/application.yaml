@@ -36,8 +36,12 @@ management:
         include: health,info
 
 logging:
+  level:
+    root: INFO
+    demoday.backend.payment: INFO
+
   pattern:
-    level: "%5p [requestId:%X{requestId:-}]"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [requestId:%X{requestId:-}] %logger{36} - %msg%n"
 
 springdoc:
   swagger-ui:
@@ -48,6 +52,11 @@ liner:
   timeout-seconds: ${LINER_TIMEOUT_SECONDS:120}
 
 app:
+  service:
+    sales-end-at: ${SALES_END_AT:2026-11-15T00:00:00+09:00}
+    service-end-at: ${SERVICE_END_AT:2026-11-21T23:59:59+09:00}
+  pass:
+    duration: ${PASS_DURATION:168h}
   economic-trends:
     enabled: ${ECONOMIC_TRENDS_ENABLED:false}
     local-generate-on-startup: ${ECONOMIC_TRENDS_LOCAL_GENERATE_ON_STARTUP:false}
@@ -58,19 +67,22 @@ app:
   frontend-allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
   ranking:
     settlement-start-date: ${RANKING_SETTLEMENT_START_DATE:2026-10-31}
-
   payment:
-    frontend-success-path: ${PAYMENT_FRONTEND_SUCCESS_PATH:/payment/success}
-    frontend-failure-path: ${PAYMENT_FRONTEND_FAILURE_PATH:/payment/failure}
-    fulfillment-retry-cron: ${PAYMENT_FULFILLMENT_RETRY_CRON:0 */5 * * * *}
-    korpay:
-      merchant-id: ${KORPAY_MERCHANT_ID}
-      merchant-key: ${KORPAY_MKEY}
-      base-url: ${KORPAY_BASE_URL:https://payments.korpay.com/v1}
-      return-url: ${KORPAY_RETURN_URL:${BACKEND_BASE_URL}/api/v1/payments/callback}
-      pay-method: ${KORPAY_PAY_METHOD:card}
-      connect-timeout: ${KORPAY_CONNECT_TIMEOUT:1s}
-      read-timeout: ${KORPAY_READ_TIMEOUT:3s}
+    fulfillment-retry-delay-ms: ${PAYMENT_FULFILLMENT_RETRY_DELAY_MS:300000}
+    order:
+      expiration: ${PAYMENT_ORDER_EXPIRATION:30m}
+      expiration-scan-delay-ms: ${PAYMENT_ORDER_EXPIRATION_SCAN_DELAY_MS:60000}
+    payapp:
+      user-id: ${PAYAPP_USER_ID}
+      link-key: ${PAYAPP_LINK_KEY}
+      link-value: ${PAYAPP_LINK_VALUE}
+      base-url: ${PAYAPP_BASE_URL:https://api.payapp.kr}
+      request-path: ${PAYAPP_REQUEST_PATH:/oapi/apiLoad.html}
+      feedback-url: ${PAYAPP_FEEDBACK_URL:${BACKEND_BASE_URL}/api/v1/payments/feedback}
+      return-url: ${PAYAPP_RETURN_URL:${FRONTEND_BASE_URL}/payment/result}
+      open-pay-type: ${PAYAPP_OPEN_PAY_TYPE:card}
+      connect-timeout: ${PAYAPP_CONNECT_TIMEOUT:1s}
+      read-timeout: ${PAYAPP_READ_TIMEOUT:3s}
 
 server:
   servlet:

@@ -64,11 +64,10 @@ class MemberWithdrawalIntegrationTest {
         product = productRepository.saveAndFlush(
                 Product.create(
                         "WF" + sequence,
-                        ProductType.FISH,
-                        "생선 100개",
-                        1000,
-                        100,
-                        null,
+                        ProductType.PASS,
+                        "일주일 패스",
+                        1900,
+                        168,
                         null,
                         null,
                         true
@@ -107,7 +106,7 @@ class MemberWithdrawalIntegrationTest {
     @ParameterizedTest(name = "{0} 결제가 있으면 탈퇴할 수 없다")
     @EnumSource(
             value = PaymentStatus.class,
-            names = {"CONFIRMING", "UNKNOWN", "APPROVED"}
+            names = {"APPROVED", "CANCEL_REQUESTED"}
     )
     void unresolvedPaymentBlocksWithdrawal(PaymentStatus paymentStatus) {
         savePayment(paymentStatus, NOW_LOCAL.minusMinutes(1));
@@ -115,10 +114,34 @@ class MemberWithdrawalIntegrationTest {
         assertWithdrawalBlocked();
     }
 
+    @Test
+    @DisplayName("유효 시간이 남은 PAYMENT_REQUESTED 결제가 있으면 탈퇴할 수 없다")
+    void activePaymentRequestedBlocksWithdrawal() {
+        savePayment(
+                PaymentStatus.PAYMENT_REQUESTED,
+                NOW_LOCAL.minusMinutes(29)
+        );
+
+        assertWithdrawalBlocked();
+    }
+
+    @Test
+    @DisplayName("유효 시간이 지난 PAYMENT_REQUESTED 결제는 탈퇴를 막지 않는다")
+    void expiredPaymentRequestedAllowsWithdrawal() {
+        savePayment(
+                PaymentStatus.PAYMENT_REQUESTED,
+                NOW_LOCAL.minusMinutes(31)
+        );
+
+        memberService.withdraw(member.getMemberId());
+
+        assertWithdrawn();
+    }
+
     @ParameterizedTest(name = "{0} 결제만 있으면 탈퇴할 수 있다")
     @EnumSource(
             value = PaymentStatus.class,
-            names = {"COMPLETED", "FAILED", "CANCELLED"}
+            names = {"COMPLETED", "REFUNDED", "FAILED", "CANCELLED"}
     )
     void terminalPaymentAllowsWithdrawal(PaymentStatus paymentStatus) {
         savePayment(paymentStatus, NOW_LOCAL.minusMinutes(1));
@@ -162,35 +185,32 @@ class MemberWithdrawalIntegrationTest {
                 product,
                 "W" + sequence,
                 product.getPrice(),
-                "20261007153000",
                 requestedAt
         );
-        String paymentKey = "withdrawal-key-" + sequence;
 
         switch (targetStatus) {
             case READY -> {
             }
-            case CONFIRMING -> payment.startConfirmation(
-                    paymentKey,
-                    "testmid",
-                    NOW_LOCAL.minusSeconds(30)
+            case PAYMENT_REQUESTED -> payment.markPaymentRequested(
+                    "PAYAPP-TEST-" + payment.getOrderNumber()
             );
-            case UNKNOWN -> {
-                payment.startConfirmation(
-                        paymentKey,
-                        "testmid",
-                        NOW_LOCAL.minusMinutes(1)
-                );
-                payment.markUnknown("3004", "승인 결과 확인 필요");
-            }
-            case APPROVED -> approve(payment, paymentKey, sequence);
+            case APPROVED -> approve(payment, sequence);
             case COMPLETED -> {
-                approve(payment, paymentKey, sequence);
+                approve(payment, sequence);
                 payment.complete(NOW_LOCAL);
+            }
+            case CANCEL_REQUESTED -> {
+                approve(payment, sequence);
+                payment.requestCancellation();
+            }
+            case REFUNDED -> {
+                approve(payment, sequence);
+                payment.requestCancellation();
+                payment.refund(NOW_LOCAL);
             }
             case FAILED -> payment.fail("A001", "결제 인증 실패");
             case CANCELLED -> {
-                approve(payment, paymentKey, sequence);
+                approve(payment, sequence);
                 payment.cancel(NOW_LOCAL);
             }
         }
@@ -200,14 +220,8 @@ class MemberWithdrawalIntegrationTest {
 
     private void approve(
             Payment payment,
-            String paymentKey,
             long sequence
     ) {
-        payment.startConfirmation(
-                paymentKey,
-                "testmid",
-                NOW_LOCAL.minusMinutes(1)
-        );
         payment.approve(
                 "withdrawal-tid-" + sequence,
                 "3001",

@@ -3,20 +3,31 @@ package demoday.backend.payment.service;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.payment.code.PaymentErrorCode;
+import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.dto.PaymentHistoryPageResponse;
 import demoday.backend.payment.dto.PaymentStatusResponse;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PaymentQueryService {
+
+    private static final List<PaymentStatus>
+            HISTORY_VISIBLE_STATUSES = List.of(
+            PaymentStatus.COMPLETED,
+            PaymentStatus.APPROVED,
+            PaymentStatus.CANCEL_REQUESTED,
+            PaymentStatus.REFUNDED
+    );
 
     private final PaymentRepository paymentRepository;
 
@@ -54,14 +65,17 @@ public class PaymentQueryService {
 
     public PaymentHistoryPageResponse getHistories(
             Long memberId,
-            Pageable pageable
+            int page,
+            int size
     ) {
         validateMember(memberId);
+        validatePageRequest(page, size);
 
         Page<Payment> payments =
-                paymentRepository.findAllByMemberMemberIdOrderByRequestedAtDescPaymentIdDesc(
+                paymentRepository.findAllByMemberMemberIdAndStatusInOrderByRequestedAtDescPaymentIdDesc(
                         memberId,
-                        pageable
+                        HISTORY_VISIBLE_STATUSES,
+                        PageRequest.of(page, size)
                 );
 
         return PaymentHistoryPageResponse.from(payments);
@@ -89,6 +103,14 @@ public class PaymentQueryService {
     private void validateMember(Long memberId) {
         if (memberId == null) {
             throw new ProjectException(GeneralErrorCode.UNAUTHORIZED);
+        }
+    }
+
+    private void validatePageRequest(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new ProjectException(
+                    PaymentErrorCode.INVALID_PAGE_REQUEST
+            );
         }
     }
 }

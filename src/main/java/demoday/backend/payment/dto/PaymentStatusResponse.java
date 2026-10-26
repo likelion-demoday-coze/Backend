@@ -17,17 +17,17 @@ public record PaymentStatusResponse(
         )
         String orderNumber,
 
-        @Schema(description = "상품 코드", example = "FISH_100")
+        @Schema(description = "상품 코드", example = "WEEK_PASS")
         String productCode,
 
-        @Schema(description = "상품명", example = "생선 100개")
+        @Schema(description = "상품명", example = "일주일 패스")
         String productName,
 
         @Schema(description = "결제 금액", example = "1000")
         Integer amount,
 
         @Schema(
-                description = "결제 상태(READY, CONFIRMING, APPROVED, COMPLETED, FAILED, UNKNOWN, CANCELLED)",
+                description = "결제 상태(READY, PAYMENT_REQUESTED, APPROVED, COMPLETED, CANCEL_REQUESTED, REFUNDED, FAILED, CANCELLED)",
                 example = "COMPLETED"
         )
         PaymentStatus status,
@@ -41,7 +41,7 @@ public record PaymentStatusResponse(
         @Schema(description = "상품 지급 완료 시각")
         LocalDateTime completedAt,
 
-        @Schema(description = "결제 취소 시각")
+        @Schema(description = "결제 취소 또는 환불 완료 시각")
         LocalDateTime cancelledAt,
 
         @Schema(description = "실패 또는 확인 필요 사유")

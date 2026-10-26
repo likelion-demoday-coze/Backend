@@ -10,13 +10,13 @@ import org.springframework.web.client.RestClient;
 import java.net.http.HttpClient;
 
 @Configuration
-@EnableConfigurationProperties(KorpayProperties.class)
-public class KorpayConfig {
+@EnableConfigurationProperties(PayAppProperties.class)
+public class PayAppConfig {
 
     @Bean
-    @Qualifier("korpayRestClient")
-    public RestClient korpayRestClient(
-            KorpayProperties properties
+    @Qualifier("payAppRestClient")
+    public RestClient payAppRestClient(
+            PayAppProperties properties
     ) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(properties.connectTimeout())

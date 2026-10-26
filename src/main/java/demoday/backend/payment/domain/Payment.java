@@ -19,12 +19,8 @@ import java.util.regex.Pattern;
                         columnNames = "order_number"
                 ),
                 @UniqueConstraint(
-                        name = "uk_payment_payment_key",
-                        columnNames = "payment_key"
-                ),
-                @UniqueConstraint(
-                        name = "uk_payment_tid",
-                        columnNames = "tid"
+                        name = "uk_payment_provider_transaction_id",
+                        columnNames = "provider_transaction_id"
                 )
         }
 )
@@ -32,6 +28,9 @@ import java.util.regex.Pattern;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Payment {
+
+    private static final String ORDER_EXPIRED_RESULT_CODE =
+            "ORDER_EXPIRED";
 
     private static final Pattern ORDER_NUMBER_PATTERN =
             Pattern.compile("^[A-Za-z0-9]{1,40}$");
@@ -59,9 +58,6 @@ public class Payment {
     @Column(name = "ordered_product_type", nullable = false, length = 20)
     private ProductType orderedProductType;
 
-    @Column(name = "ordered_fish_amount")
-    private Integer orderedFishAmount;
-
     @Column(name = "ordered_pass_duration_hours")
     private Integer orderedPassDurationHours;
 
@@ -73,22 +69,10 @@ public class Payment {
     private String orderNumber;
 
     @Column(
-            name = "payment_key",
-            length = 255
-    )
-    private String paymentKey;
-
-    @Column(
-            name = "tid",
+            name = "provider_transaction_id",
             length = 100
     )
-    private String tid;
-
-    @Column(
-            name = "merchant_id",
-            length = 10
-    )
-    private String merchantId;
+    private String providerTransactionId;
 
     @Column(
             nullable = false,
@@ -98,13 +82,6 @@ public class Payment {
             )
     )
     private Integer amount;
-
-    @Column(
-            name = "edi_date",
-            nullable = false,
-            length = 14
-    )
-    private String ediDate;
 
     @Column(
             name = "pay_method",
@@ -125,9 +102,6 @@ public class Payment {
     @Column(name = "requested_at", nullable = false)
     private LocalDateTime requestedAt;
 
-    @Column(name = "confirmation_started_at")
-    private LocalDateTime confirmationStartedAt;
-
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
@@ -142,7 +116,24 @@ public class Payment {
             Product product,
             String orderNumber,
             Integer amount,
-            String ediDate,
+            LocalDateTime requestedAt
+    ) {
+        return create(
+                member,
+                product,
+                orderNumber,
+                amount,
+                product == null ? null : product.getPassDurationHours(),
+                requestedAt
+        );
+    }
+
+    public static Payment create(
+            Member member,
+            Product product,
+            String orderNumber,
+            Integer amount,
+            Integer orderedPassDurationHours,
             LocalDateTime requestedAt
     ) {
         validateRequiredValues(
@@ -150,7 +141,6 @@ public class Payment {
                 product,
                 orderNumber,
                 amount,
-                ediDate,
                 requestedAt
         );
 
@@ -160,86 +150,47 @@ public class Payment {
                 .orderedProductCode(product.getProductCode())
                 .orderedProductName(product.getName())
                 .orderedProductType(product.getProductType())
-                .orderedFishAmount(product.getFishAmount())
-                .orderedPassDurationHours(product.getPassDurationHours())
+                .orderedPassDurationHours(orderedPassDurationHours)
                 .orderNumber(orderNumber)
                 .amount(amount)
-                .ediDate(ediDate)
                 .status(PaymentStatus.READY)
                 .requestedAt(requestedAt)
                 .build();
     }
 
-    public void startConfirmation(
-            String paymentKey,
-            String merchantId,
-            LocalDateTime confirmationStartedAt
-    ) {
-        if (paymentKey == null || paymentKey.isBlank()) {
-            throw new IllegalArgumentException(
-                    "결제 키는 필수입니다."
-            );
-        }
-
-        if (merchantId == null || merchantId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "가맹점 ID는 필수입니다."
-            );
-        }
-
-        if (confirmationStartedAt == null) {
-            throw new IllegalArgumentException(
-                    "승인 요청 시작 시각은 필수입니다."
-            );
-        }
-
+    public void markPaymentRequested(String providerTransactionId) {
         if (status != PaymentStatus.READY) {
             throw new IllegalStateException(
-                    "결제 승인을 시작할 수 없는 상태입니다."
+                    "결제 요청 상태로 변경할 수 없습니다."
             );
         }
 
-        if (this.paymentKey != null
-                && !this.paymentKey.equals(paymentKey)) {
-            throw new IllegalStateException(
-                    "이미 다른 결제 키가 연결된 주문입니다."
-            );
-        }
-
-        this.paymentKey = paymentKey;
-        this.merchantId = merchantId;
-        this.confirmationStartedAt = confirmationStartedAt;
-        this.status = PaymentStatus.CONFIRMING;
-    }
-
-    public void approve(
-            String tid,
-            String resultCode,
-            String payMethod,
-            LocalDateTime approvedAt
-    ) {
-        if (status != PaymentStatus.CONFIRMING
-                && status != PaymentStatus.UNKNOWN) {
-            throw new IllegalStateException(
-                    "결제를 승인할 수 없는 상태입니다."
-            );
-        }
-
-        if (paymentKey == null || paymentKey.isBlank()) {
-            throw new IllegalStateException(
-                    "결제 키가 등록되지 않았습니다."
-            );
-        }
-
-        if (tid == null || tid.isBlank()) {
+        if (providerTransactionId == null || providerTransactionId.isBlank()) {
             throw new IllegalArgumentException(
                     "PG 거래번호는 필수입니다."
             );
         }
 
-        if (!"3001".equals(resultCode)) {
+        this.providerTransactionId = providerTransactionId;
+        this.status = PaymentStatus.PAYMENT_REQUESTED;
+    }
+
+    public void approve(
+            String providerTransactionId,
+            String resultCode,
+            String payMethod,
+            LocalDateTime approvedAt
+    ) {
+        if (status != PaymentStatus.READY
+                && status != PaymentStatus.PAYMENT_REQUESTED) {
+            throw new IllegalStateException(
+                    "결제를 승인할 수 없는 상태입니다."
+            );
+        }
+
+        if (providerTransactionId == null || providerTransactionId.isBlank()) {
             throw new IllegalArgumentException(
-                    "승인 성공 코드가 아닙니다."
+                    "PG 거래번호는 필수입니다."
             );
         }
 
@@ -249,7 +200,7 @@ public class Payment {
             );
         }
 
-        this.tid = tid;
+        this.providerTransactionId = providerTransactionId;
         this.resultCode = resultCode;
         this.payMethod = payMethod;
         this.approvedAt = approvedAt;
@@ -285,6 +236,8 @@ public class Payment {
     ) {
         if (status == PaymentStatus.APPROVED
                 || status == PaymentStatus.COMPLETED
+                || status == PaymentStatus.CANCEL_REQUESTED
+                || status == PaymentStatus.REFUNDED
                 || status == PaymentStatus.CANCELLED) {
             throw new IllegalStateException(
                     "실패 상태로 변경할 수 없는 결제입니다."
@@ -296,21 +249,56 @@ public class Payment {
         this.status = PaymentStatus.FAILED;
     }
 
-    public void markUnknown(
-            String resultCode,
-            String message
-    ) {
-        if (status == PaymentStatus.APPROVED
-                || status == PaymentStatus.COMPLETED
-                || status == PaymentStatus.CANCELLED) {
+    public void expire() {
+        if (status == PaymentStatus.FAILED
+                && ORDER_EXPIRED_RESULT_CODE.equals(resultCode)) {
+            return;
+        }
+
+        if (status != PaymentStatus.READY
+                && status != PaymentStatus.PAYMENT_REQUESTED) {
             throw new IllegalStateException(
-                    "승인 결과 확인 필요 상태로 변경할 수 없습니다."
+                    "결제 대기 중인 주문만 만료할 수 있습니다."
             );
         }
 
+        this.resultCode = ORDER_EXPIRED_RESULT_CODE;
+        this.failureMessage = "결제 주문 유효 시간이 만료되었습니다.";
+        this.status = PaymentStatus.FAILED;
+    }
+
+    public boolean isExpiredOrder() {
+        return status == PaymentStatus.FAILED
+                && ORDER_EXPIRED_RESULT_CODE.equals(resultCode);
+    }
+
+    public void approveLateAndRequestCancellation(
+            String providerTransactionId,
+            String resultCode,
+            String payMethod,
+            LocalDateTime approvedAt
+    ) {
+        if (!isExpiredOrder()) {
+            throw new IllegalStateException(
+                    "만료된 결제 주문만 지연 승인을 처리할 수 있습니다."
+            );
+        }
+
+        if (providerTransactionId == null
+                || providerTransactionId.isBlank()
+                || approvedAt == null) {
+            throw new IllegalArgumentException(
+                    "지연 승인 정보가 올바르지 않습니다."
+            );
+        }
+
+        this.providerTransactionId = providerTransactionId;
         this.resultCode = resultCode;
-        this.failureMessage = normalizeMessage(message);
-        this.status = PaymentStatus.UNKNOWN;
+        this.payMethod = payMethod;
+        this.approvedAt = approvedAt;
+        this.failureMessage =
+                "만료 후 승인되어 전액 취소 결과를 확인하고 있습니다.";
+        this.status = PaymentStatus.CANCEL_REQUESTED;
     }
 
     public void cancel(LocalDateTime cancelledAt) {
@@ -335,12 +323,60 @@ public class Payment {
         this.status = PaymentStatus.CANCELLED;
     }
 
+    public PaymentStatus requestCancellation() {
+        if (status != PaymentStatus.APPROVED
+                && status != PaymentStatus.COMPLETED) {
+            throw new IllegalStateException(
+                    "승인 또는 지급 완료 결제만 환불을 요청할 수 있습니다."
+            );
+        }
+
+        PaymentStatus previousStatus = status;
+        this.status = PaymentStatus.CANCEL_REQUESTED;
+        return previousStatus;
+    }
+
+    public void restoreAfterCancellationFailure(
+            PaymentStatus previousStatus
+    ) {
+        if (status != PaymentStatus.CANCEL_REQUESTED
+                || (previousStatus != PaymentStatus.APPROVED
+                && previousStatus != PaymentStatus.COMPLETED)) {
+            throw new IllegalStateException(
+                    "결제 취소 요청 상태를 복구할 수 없습니다."
+            );
+        }
+
+        this.status = previousStatus;
+    }
+
+    public void refund(LocalDateTime refundedAt) {
+        if (status == PaymentStatus.REFUNDED) {
+            return;
+        }
+
+        if (status != PaymentStatus.CANCEL_REQUESTED) {
+            throw new IllegalStateException(
+                    "취소 요청 중인 결제만 환불 완료할 수 있습니다."
+            );
+        }
+
+        if (refundedAt == null) {
+            throw new IllegalArgumentException(
+                    "환불 완료 시각은 필수입니다."
+            );
+        }
+
+        this.cancelledAt = refundedAt;
+        this.failureMessage = null;
+        this.status = PaymentStatus.REFUNDED;
+    }
+
     private static void validateRequiredValues(
             Member member,
             Product product,
             String orderNumber,
             Integer amount,
-            String ediDate,
             LocalDateTime requestedAt
     ) {
         if (member == null) {
@@ -365,13 +401,6 @@ public class Payment {
         if (amount == null || amount < 100) {
             throw new IllegalArgumentException(
                     "결제 금액은 100원 이상이어야 합니다."
-            );
-        }
-
-        if (ediDate == null
-                || !ediDate.matches("^\\d{14}$")) {
-            throw new IllegalArgumentException(
-                    "전문 생성 일시는 yyyyMMddHHmmss 형식이어야 합니다."
             );
         }
 
@@ -414,5 +443,9 @@ public class Payment {
 
     public void clearFailureMessage() {
         this.failureMessage = null;
+    }
+
+    public void recordCancellationFailure(String message) {
+        this.failureMessage = normalizeMessage(message);
     }
 }

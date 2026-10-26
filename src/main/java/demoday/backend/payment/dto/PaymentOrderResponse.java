@@ -1,90 +1,51 @@
 package demoday.backend.payment.dto;
 
+import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.domain.Payment;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.time.LocalDateTime;
+
 public record PaymentOrderResponse(
 
-        @Schema(
-                description = "내부 결제 ID",
-                example = "1"
-        )
+        @Schema(description = "내부 결제 ID", example = "1")
         Long paymentId,
 
-        @Schema(
-                description = "코페이 가맹점 ID",
-                example = "test12345m"
-        )
-        String merchantId,
-
-        @Schema(
-                description = "주문번호",
-                example = "PAY202610051530001A2B3C"
-        )
+        @Schema(description = "주문번호", example = "PAY20261025170000A1B2C3D4E5F6")
         String orderNumber,
 
-        @Schema(
-                description = "상품명",
-                example = "일주일 패스"
-        )
+        @Schema(description = "상품 코드", example = "WEEK_PASS")
+        String productCode,
+
+        @Schema(description = "상품명", example = "일주일 패스")
         String productName,
 
-        @Schema(
-                description = "결제 금액",
-                example = "4900"
-        )
+        @Schema(description = "결제 금액", example = "1900")
         Integer amount,
 
-        @Schema(
-                description = "결제 수단",
-                allowableValues = "card",
-                example = "card"
-        )
-        String payMethod,
+        @Schema(description = "결제 상태", example = "PAYMENT_REQUESTED")
+        PaymentStatus status,
 
-        @Schema(
-                description = "코페이 인증 결과 수신 URL",
-                example = "https://api.example.com/api/v1/payments/callback"
-        )
-        String returnUrl,
+        @Schema(description = "페이앱 결제창 URL")
+        String paymentUrl,
 
-        @Schema(
-                description = "전문 생성 일시(yyyyMMddHHmmss)",
-                example = "20261005153000"
-        )
-        String ediDate,
-
-        @Schema(
-                description = "결제창 호출용 위변조 검증 해시"
-        )
-        String hashKey,
-
-        @Schema(
-                description = "코페이 reserved 필드에 그대로 전달할 프론트엔드 주소",
-                example = "http://localhost:3000"
-        )
-        String reserved
+        @Schema(description = "주문 생성 시각(KST)")
+        LocalDateTime requestedAt
 ) {
 
     public static PaymentOrderResponse of(
             Payment payment,
-            String merchantId,
-            String payMethod,
-            String returnUrl,
-            String hashKey,
-            String reserved
+            String paymentUrl
     ) {
         return new PaymentOrderResponse(
                 payment.getPaymentId(),
-                merchantId,
                 payment.getOrderNumber(),
+                payment.getOrderedProductCode(),
                 payment.getOrderedProductName(),
                 payment.getAmount(),
-                payMethod,
-                returnUrl,
-                payment.getEdiDate(),
-                hashKey,
-                reserved
+                payment.getStatus(),
+                paymentUrl,
+                payment.getRequestedAt()
         );
     }
 }

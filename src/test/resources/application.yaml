@@ -22,16 +22,27 @@ spring:
       ddl-auto: create-drop
 
 app:
+  service:
+    sales-end-at: 2026-11-15T00:00:00+09:00
+    service-end-at: 2026-11-21T23:59:59+09:00
+  pass:
+    duration: 168h
   frontend-base-url: http://localhost:3000
   ranking:
     settlement-start-date: 2026-10-31
 
   payment:
-    korpay:
-      merchant-id: testmid
-      merchant-key: test-mkey
+    order:
+      expiration: 30m
+      expiration-scan-delay-ms: 60000
+    payapp:
+      user-id: test-user
+      link-key: test-link-key
+      link-value: test-link-value
       base-url: http://localhost:9999
-      return-url: http://localhost:8080/api/v1/payments/callback
-      pay-method: card
+      request-path: /oapi/apiLoad.html
+      feedback-url: http://localhost:8080/api/v1/payments/feedback
+      return-url: http://localhost:3000/payment/result
+      open-pay-type: card
       connect-timeout: 1s
       read-timeout: 3s
