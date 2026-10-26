@@ -4,7 +4,6 @@ import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
 import demoday.backend.payment.dto.*;
 import demoday.backend.payment.service.PaymentQueryService;
-import demoday.backend.payment.service.PaymentCancellationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 public class PaymentController {
 
     private final PaymentQueryService paymentQueryService;
-    private final PaymentCancellationService paymentCancellationService;
 
     @Operation(
             summary = "내 결제 상태 조회",
@@ -82,26 +80,6 @@ public class PaymentController {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
                 paymentQueryService.getDetail(memberId, paymentId)
-        );
-    }
-
-    @Operation(
-            summary = "결제 전체 취소",
-            description = "승인 후 지급 대기 결제 또는 아직 유효한 패스 결제를 전액 취소합니다. 환불 성공 시 패스는 즉시 취소됩니다."
-    )
-    @PostMapping("/{paymentId}/cancel")
-    public ApiResponse<PaymentCancelResponse> cancelPayment(
-            @Parameter(hidden = true)
-            @AuthenticationPrincipal Long memberId,
-
-            @PathVariable Long paymentId
-    ) {
-        return ApiResponse.onSuccess(
-                GeneralSuccessCode.OK,
-                paymentCancellationService.cancel(
-                        memberId,
-                        paymentId
-                )
         );
     }
 }

@@ -142,6 +142,8 @@ app:
     settlement-start-date: ${RANKING_SETTLEMENT_START_DATE:2026-10-31}
 
   payment:
+    enabled: ${PAYMENT_ENABLED:false}
+
     fulfillment-retry-delay-ms: ${PAYMENT_FULFILLMENT_RETRY_DELAY_MS:300000}
 
     logging:

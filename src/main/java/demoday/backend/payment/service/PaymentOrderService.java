@@ -12,6 +12,7 @@ import demoday.backend.payment.logging.PaymentLogSupport;
 import demoday.backend.payment.metric.PaymentMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -23,6 +24,11 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@ConditionalOnProperty(
+        prefix = "app.payment",
+        name = "enabled",
+        havingValue = "true"
+)
 @RequiredArgsConstructor
 public class PaymentOrderService {
 
