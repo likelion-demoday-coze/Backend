@@ -9,6 +9,10 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./observability/grafana/dashboards/dashboard-provider.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/coze.yaml:ro
+      - ./observability/grafana/dashboards/payment-dashboard.json:/otel-lgtm/grafana/conf/provisioning/dashboards/coze/payment-dashboard.json:ro
+      - ./observability/grafana/alerting/payment-alerts.yaml:/otel-lgtm/grafana/conf/provisioning/alerting/payment-alerts.yaml:ro
     restart: unless-stopped
 
   backend:
