@@ -33,6 +33,7 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/demoday_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul&sslMode=DISABLED&allowPublicKeyRetrieval=true
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
     depends_on:
       mysql:
         condition: service_healthy
