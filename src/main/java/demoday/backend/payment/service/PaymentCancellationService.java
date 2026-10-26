@@ -7,6 +7,7 @@ import demoday.backend.payment.client.dto.PayAppCancelResponse;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.dto.PaymentCancelResponse;
 import demoday.backend.payment.logging.PaymentLogSupport;
+import demoday.backend.payment.metric.PaymentMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,9 +28,24 @@ public class PaymentCancellationService {
 
     private final PaymentCancellationTransactionService transactionService;
     private final PayAppClient payAppClient;
+    private final PaymentMetrics paymentMetrics;
     private final Clock clock;
 
     public PaymentCancelResponse cancel(
+            Long memberId,
+            Long paymentId
+    ) {
+        try {
+            return paymentMetrics.recordCancellationProcessing(
+                    () -> cancelInternal(memberId, paymentId)
+            );
+        } catch (RuntimeException exception) {
+            paymentMetrics.recordCancellationFailure();
+            throw exception;
+        }
+    }
+
+    private PaymentCancelResponse cancelInternal(
             Long memberId,
             Long paymentId
     ) {
@@ -65,8 +81,6 @@ public class PaymentCancellationService {
                     CANCELLATION_MEMO
             );
         } catch (ProjectException exception) {
-            // 통신 실패와 타임아웃은 실제 취소 여부가 불명확하므로
-            // CANCEL_REQUESTED를 유지해 중복 취소 호출을 차단한다.
             throw exception;
         }
 
@@ -87,6 +101,8 @@ public class PaymentCancellationService {
                         preparation.paymentId(),
                         now()
                 );
+
+        paymentMetrics.recordCancellationSuccess();
 
         log.info(
                 "[Payment] 결제 전액 환불 완료 - paymentId: {}, orderNumber: {}, memberId: {}, transactionId: {}, amount: {}, status: {}",

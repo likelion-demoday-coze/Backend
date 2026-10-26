@@ -5,6 +5,7 @@ import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.config.PayAppProperties;
 import demoday.backend.payment.dto.PayAppFeedbackRequest;
 import demoday.backend.payment.logging.PaymentLogSupport;
+import demoday.backend.payment.metric.PaymentMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,11 +39,23 @@ public class PayAppFeedbackService {
 
     private final PayAppProperties properties;
     private final PaymentProcessingTransactionService transactionService;
-    private final PaymentCancellationTransactionService
-            cancellationTransactionService;
+    private final PaymentCancellationTransactionService cancellationTransactionService;
     private final PaymentCancellationService cancellationService;
+    private final PaymentMetrics paymentMetrics;
 
     public void process(PayAppFeedbackRequest request) {
+        paymentMetrics.recordFeedbackProcessing(() -> {
+            try {
+                processInternal(request);
+                paymentMetrics.recordFeedbackSuccess();
+            } catch (RuntimeException exception) {
+                paymentMetrics.recordFeedbackFailure();
+                throw exception;
+            }
+        });
+    }
+
+    private void processInternal(PayAppFeedbackRequest request) {
         validateRequiredValues(request);
         validateAuthentication(request);
 
@@ -51,11 +64,10 @@ public class PayAppFeedbackService {
                     request.cancelledAt()
             );
 
-            cancellationTransactionService
-                    .completeRefundFromFeedback(
-                            request,
-                            cancelledAt
-                    );
+            cancellationTransactionService.completeRefundFromFeedback(
+                    request,
+                    cancelledAt
+            );
 
             log.info(
                     "[Payment] 취소 완료 Feedback 반영 - orderNumber: {}, transactionId: {}, payState: {}",
@@ -88,12 +100,15 @@ public class PayAppFeedbackService {
         LocalDateTime approvedAt =
                 parsePaymentDate(request.approvedAt());
 
-        // 승인 저장은 별도 트랜잭션으로 먼저 확정
-        // 이후 상품 지급이 실패해도 APPROVED 상태가 유지
         var processingResult = transactionService.recordApproval(
                 request,
                 approvedAt
         );
+
+        if (processingResult.duplicateFeedback()) {
+            paymentMetrics.recordDuplicateFeedbackBlocked();
+            return;
+        }
 
         if (processingResult.lateRefundRequired()) {
             cancellationService.cancelLateApprovedPayment(
@@ -107,17 +122,20 @@ public class PayAppFeedbackService {
             return;
         }
 
-        // 패스 지급과 COMPLETED 전환은 하나의 별도 트랜잭션
         try {
             transactionService.fulfill(
                     processingResult.paymentId()
             );
+
+            paymentMetrics.recordFulfillmentSuccess();
         } catch (RuntimeException exception) {
-            // 지급 롤백 이후 별도 트랜잭션으로 실패 사유를 보존한다.
+            paymentMetrics.recordFulfillmentFailure();
+
             transactionService.recordFulfillmentFailure(
                     processingResult.paymentId(),
                     "Feedback 수신 후 패스 지급에 실패했습니다."
             );
+
             throw exception;
         }
     }

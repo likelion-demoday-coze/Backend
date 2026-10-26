@@ -48,15 +48,20 @@ public class PaymentProcessingTransactionService {
         validatePaymentInformation(payment, request);
 
         // 동일 Feedback 재수신 시 승인 정보를 다시 변경하지 않음
-        if (payment.getStatus() == PaymentStatus.COMPLETED
-                || payment.getStatus() == PaymentStatus.APPROVED) {
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            return ApprovalProcessingResult.duplicate(
+                    payment.getPaymentId()
+            );
+        }
+
+        if (payment.getStatus() == PaymentStatus.APPROVED) {
             return ApprovalProcessingResult.fulfillment(
                     payment.getPaymentId()
             );
         }
 
         if (payment.getStatus() == PaymentStatus.CANCEL_REQUESTED) {
-            return ApprovalProcessingResult.alreadyProcessing(
+            return ApprovalProcessingResult.duplicate(
                     payment.getPaymentId()
             );
         }
@@ -277,12 +282,13 @@ public class PaymentProcessingTransactionService {
             Long paymentId,
             boolean fulfillmentRequired,
             boolean lateRefundRequired,
+            boolean duplicateFeedback,
             String providerTransactionId
     ) {
 
         static ApprovalProcessingResult fulfillment(Long paymentId) {
             return new ApprovalProcessingResult(
-                    paymentId, true, false, null
+                    paymentId, true, false, false, null
             );
         }
 
@@ -294,15 +300,16 @@ public class PaymentProcessingTransactionService {
                     paymentId,
                     false,
                     true,
+                    false,
                     providerTransactionId
             );
         }
 
-        static ApprovalProcessingResult alreadyProcessing(
+        static ApprovalProcessingResult duplicate(
                 Long paymentId
         ) {
             return new ApprovalProcessingResult(
-                    paymentId, false, false, null
+                    paymentId, false, false, true, null
             );
         }
     }
