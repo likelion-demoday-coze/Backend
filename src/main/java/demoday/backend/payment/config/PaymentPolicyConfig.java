@@ -7,7 +7,8 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties({
         ServicePeriodProperties.class,
         PassPolicyProperties.class,
-        PaymentOrderPolicyProperties.class
+        PaymentOrderPolicyProperties.class,
+        PaymentLoggingProperties.class
 })
 public class PaymentPolicyConfig {
 }

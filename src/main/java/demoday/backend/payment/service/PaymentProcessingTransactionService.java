@@ -4,18 +4,17 @@ import demoday.backend.global.exception.ProjectException;
 import demoday.backend.global.logging.LogThrottle;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.code.PaymentStatus;
+import demoday.backend.payment.config.PaymentLoggingProperties;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.dto.PayAppFeedbackRequest;
 import demoday.backend.payment.logging.PaymentLogSupport;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -34,10 +33,8 @@ public class PaymentProcessingTransactionService {
     private final PaymentRepository paymentRepository;
     private final PaymentFulfillmentService fulfillmentService;
     private final LogThrottle logThrottle;
+    private final PaymentLoggingProperties loggingProperties;
     private final Clock clock;
-
-    @Value("${app.payment.logging.fulfillment-failure-throttle:30m}")
-    private Duration fulfillmentFailureLogThrottle;
 
     @Transactional
     public ApprovalProcessingResult recordApproval(
@@ -206,7 +203,7 @@ public class PaymentProcessingTransactionService {
 
             if (logThrottle.shouldLog(
                     throttleKey,
-                    fulfillmentFailureLogThrottle
+                    loggingProperties.fulfillmentFailureThrottle()
             )) {
                 log.error(
                         "[Payment] 상품 지급 실패 - paymentId: {}, orderNumber: {}, memberId: {}, errorType: {}",
