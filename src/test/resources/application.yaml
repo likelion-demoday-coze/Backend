@@ -46,6 +46,8 @@ app:
       open-pay-type: card
       connect-timeout: 1s
       read-timeout: 3s
+    logging:
+      fulfillment-failure-throttle: 30m
 
 management:
   opentelemetry:
