@@ -1,6 +1,5 @@
 package demoday.backend.payment.config;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,8 +12,7 @@ import java.net.http.HttpClient;
 @EnableConfigurationProperties(PayAppProperties.class)
 public class PayAppConfig {
 
-    @Bean
-    @Qualifier("payAppRestClient")
+    @Bean("payAppRestClient")
     public RestClient payAppRestClient(
             RestClient.Builder builder,
             PayAppProperties properties
