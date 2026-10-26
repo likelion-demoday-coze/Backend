@@ -1,5 +1,6 @@
 package demoday.backend.stock.scheduler;
 
+import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.stock.service.StockSnapshotService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,18 +18,36 @@ public class StockSnapshotScheduler {
     private final StockSnapshotService snapshots;
     private final Clock clock;
     private final LocalDate startDate;
+    private final JobRunContext jobRunContext;
 
-    public StockSnapshotScheduler(StockSnapshotService snapshots, Clock clock,
-            @Value("${app.stock.snapshot-start-date:${app.ranking.settlement-start-date:2026-10-31}}") String startDate) {
+    public StockSnapshotScheduler(
+            StockSnapshotService snapshots,
+            Clock clock,
+            JobRunContext jobRunContext,
+            @Value("${app.stock.snapshot-start-date:${app.ranking.settlement-start-date:2026-10-31}}")
+            String startDate
+    ) {
         this.snapshots = snapshots;
         this.clock = clock;
+        this.jobRunContext = jobRunContext;
         this.startDate = LocalDate.parse(startDate);
     }
+
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
-    public void captureAtMidnight() { capturePendingDates(); }
+    public void captureAtMidnight() {
+        jobRunContext.run(
+                "stock-snapshot-midnight",
+                this::capturePendingDates
+        );
+    }
 
     @EventListener(ApplicationReadyEvent.class)
-    public void captureOnStartup() { capturePendingDates(); }
+    public void captureOnStartup() {
+        jobRunContext.run(
+                "stock-snapshot-startup",
+                this::capturePendingDates
+        );
+    }
 
     /** 일부 회원만 저장된 날짜도 공통 서비스가 보완하며, 날짜별 실패를 분리한다. */
     public void capturePendingDates() {

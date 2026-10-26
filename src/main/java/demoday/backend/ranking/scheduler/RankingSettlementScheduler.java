@@ -1,5 +1,6 @@
 package demoday.backend.ranking.scheduler;
 
+import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.ranking.service.RankingSettlementService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,30 +17,36 @@ public class RankingSettlementScheduler {
 
     private final RankingSettlementService rankingSettlementService;
     private final LocalDate settlementStartDate;
+    private final JobRunContext jobRunContext;
 
     public RankingSettlementScheduler(
             RankingSettlementService rankingSettlementService,
+            JobRunContext jobRunContext,
             @Value("${app.ranking.settlement-start-date:2026-10-31}")
             String settlementStartDate
     ) {
         this.rankingSettlementService = rankingSettlementService;
-        this.settlementStartDate = LocalDate.parse(
-                settlementStartDate
-        );
+        this.jobRunContext = jobRunContext;
+        this.settlementStartDate = LocalDate.parse(settlementStartDate);
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void settleOnStartup() {
-        settlePendingRankings("서버 시작");
+        jobRunContext.run(
+                "ranking-settlement-startup",
+                () -> settlePendingRankings("서버 시작")
+        );
     }
 
-    // 매일 00:00 KST에 어제까지 남은 미정산 날짜를 재처리
     @Scheduled(
             cron = "0 0 0 * * *",
             zone = "Asia/Seoul"
     )
     public void settleAtMidnight() {
-        settlePendingRankings("자정 스케줄");
+        jobRunContext.run(
+                "ranking-settlement-midnight",
+                () -> settlePendingRankings("자정 스케줄")
+        );
     }
 
     private void settlePendingRankings(String trigger) {

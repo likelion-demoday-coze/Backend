@@ -60,7 +60,7 @@ logging:
     demoday.backend.payment: INFO
 
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [requestId:%X{requestId:-}] %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [requestId:%X{requestId:-}] [jobName:%X{jobName:-}] [jobRunId:%X{jobRunId:-}] %logger{36} - %msg%n"
 
 springdoc:
   swagger-ui:
