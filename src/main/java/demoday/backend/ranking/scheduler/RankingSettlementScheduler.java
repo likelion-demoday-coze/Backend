@@ -32,9 +32,9 @@ public class RankingSettlementScheduler {
 
     @EventListener(ApplicationReadyEvent.class)
     public void settleOnStartup() {
-        jobRunContext.run(
+        runSafely(
                 "ranking-settlement-startup",
-                () -> settlePendingRankings("서버 시작")
+                "서버 시작"
         );
     }
 
@@ -43,25 +43,44 @@ public class RankingSettlementScheduler {
             zone = "Asia/Seoul"
     )
     public void settleAtMidnight() {
-        jobRunContext.run(
+        runSafely(
                 "ranking-settlement-midnight",
-                () -> settlePendingRankings("자정 스케줄")
+                "자정 스케줄"
         );
     }
 
     private void settlePendingRankings(String trigger) {
-        log.info("랭킹 미정산 날짜 처리를 시작합니다. trigger={}", trigger);
+        log.info(
+                "랭킹 미정산 날짜 처리를 시작합니다. trigger={}",
+                trigger
+        );
 
+        rankingSettlementService.settlePendingDates(
+                settlementStartDate
+        );
+
+        log.info(
+                "랭킹 미정산 날짜 처리를 완료했습니다. trigger={}",
+                trigger
+        );
+    }
+
+    private void runSafely(
+            String jobName,
+            String trigger
+    ) {
         try {
-            rankingSettlementService.settlePendingDates(
-                    settlementStartDate
+            jobRunContext.run(
+                    jobName,
+                    () -> settlePendingRankings(trigger)
             );
-            log.info("랭킹 미정산 날짜 처리를 완료했습니다. trigger={}", trigger);
-        } catch (Exception exception) {
-            log.error(
-                    "랭킹 미정산 날짜 처리 중 오류가 발생했습니다. trigger={}",
+        } catch (RuntimeException exception) {
+            // JobRunContext에서 실패 원인과 스택 트레이스를 이미 기록함
+            // 스케줄러 및 ApplicationReady 이벤트 밖으로는 전파하지 않음
+            log.warn(
+                    "[Scheduler] 랭킹 정산 실패를 격리했습니다. trigger: {}, errorType: {}",
                     trigger,
-                    exception
+                    exception.getClass().getSimpleName()
             );
         }
     }
