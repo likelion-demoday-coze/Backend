@@ -1,8 +1,10 @@
 package demoday.backend.payment.service;
 
 import demoday.backend.global.exception.ProjectException;
+import demoday.backend.global.logging.LogThrottle;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.code.PaymentStatus;
+import demoday.backend.payment.config.PaymentLoggingProperties;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.dto.PayAppFeedbackRequest;
 import demoday.backend.payment.logging.PaymentLogSupport;
@@ -30,6 +32,8 @@ public class PaymentProcessingTransactionService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentFulfillmentService fulfillmentService;
+    private final LogThrottle logThrottle;
+    private final PaymentLoggingProperties loggingProperties;
     private final Clock clock;
 
     @Transactional
@@ -48,15 +52,20 @@ public class PaymentProcessingTransactionService {
         validatePaymentInformation(payment, request);
 
         // 동일 Feedback 재수신 시 승인 정보를 다시 변경하지 않음
-        if (payment.getStatus() == PaymentStatus.COMPLETED
-                || payment.getStatus() == PaymentStatus.APPROVED) {
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            return ApprovalProcessingResult.duplicate(
+                    payment.getPaymentId()
+            );
+        }
+
+        if (payment.getStatus() == PaymentStatus.APPROVED) {
             return ApprovalProcessingResult.fulfillment(
                     payment.getPaymentId()
             );
         }
 
         if (payment.getStatus() == PaymentStatus.CANCEL_REQUESTED) {
-            return ApprovalProcessingResult.alreadyProcessing(
+            return ApprovalProcessingResult.duplicate(
                     payment.getPaymentId()
             );
         }
@@ -177,6 +186,10 @@ public class PaymentProcessingTransactionService {
 
             payment.complete(completedAt);
 
+            logThrottle.reset(
+                    fulfillmentFailureLogKey(payment.getPaymentId())
+            );
+
             log.info(
                     "[Payment] 상품 지급 완료 - paymentId: {}, orderNumber: {}, memberId: {}, status: {}",
                     payment.getPaymentId(),
@@ -185,17 +198,30 @@ public class PaymentProcessingTransactionService {
                     payment.getStatus()
             );
         } catch (RuntimeException exception) {
-            log.error(
-                    "[Payment] 상품 지급 실패 - paymentId: {}, orderNumber: {}, memberId: {}",
-                    payment.getPaymentId(),
-                    payment.getOrderNumber(),
-                    payment.getMember().getMemberId(),
-                    exception
-            );
+            String throttleKey =
+                    fulfillmentFailureLogKey(payment.getPaymentId());
+
+            if (logThrottle.shouldLog(
+                    throttleKey,
+                    loggingProperties.fulfillmentFailureThrottle()
+            )) {
+                log.error(
+                        "[Payment] 상품 지급 실패 - paymentId: {}, orderNumber: {}, memberId: {}, errorType: {}",
+                        payment.getPaymentId(),
+                        payment.getOrderNumber(),
+                        payment.getMember().getMemberId(),
+                        exception.getClass().getSimpleName(),
+                        exception
+                );
+            }
 
             // 지급 트랜잭션은 롤백하고 호출자가 별도 트랜잭션으로 실패 사유를 기록한다.
             throw exception;
         }
+    }
+
+    private String fulfillmentFailureLogKey(Long paymentId) {
+        return "payment-fulfillment-failure:" + paymentId;
     }
 
     private void validatePaymentInformation(
@@ -277,12 +303,13 @@ public class PaymentProcessingTransactionService {
             Long paymentId,
             boolean fulfillmentRequired,
             boolean lateRefundRequired,
+            boolean duplicateFeedback,
             String providerTransactionId
     ) {
 
         static ApprovalProcessingResult fulfillment(Long paymentId) {
             return new ApprovalProcessingResult(
-                    paymentId, true, false, null
+                    paymentId, true, false, false, null
             );
         }
 
@@ -294,15 +321,16 @@ public class PaymentProcessingTransactionService {
                     paymentId,
                     false,
                     true,
+                    false,
                     providerTransactionId
             );
         }
 
-        static ApprovalProcessingResult alreadyProcessing(
+        static ApprovalProcessingResult duplicate(
                 Long paymentId
         ) {
             return new ApprovalProcessingResult(
-                    paymentId, false, false, null
+                    paymentId, false, false, true, null
             );
         }
     }

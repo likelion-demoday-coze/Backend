@@ -9,8 +9,10 @@ import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.dto.PaymentOrderRequest;
 import demoday.backend.payment.dto.PaymentOrderResponse;
 import demoday.backend.payment.logging.PaymentLogSupport;
+import demoday.backend.payment.metric.PaymentMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -22,6 +24,11 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@ConditionalOnProperty(
+        prefix = "app.payment",
+        name = "enabled",
+        havingValue = "true"
+)
 @RequiredArgsConstructor
 public class PaymentOrderService {
 
@@ -31,6 +38,7 @@ public class PaymentOrderService {
 
     private final PaymentOrderTransactionService transactionService;
     private final PayAppClient payAppClient;
+    private final PaymentMetrics paymentMetrics;
     private final Clock clock;
 
     public PaymentOrderResponse createOrder(
@@ -61,6 +69,8 @@ public class PaymentOrderService {
                 memberId,
                 readyPayment.getAmount()
         );
+
+        paymentMetrics.recordOrderCreated();
 
         try {
             PayAppPaymentResponse payAppResponse =

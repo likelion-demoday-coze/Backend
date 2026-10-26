@@ -1,5 +1,6 @@
 package demoday.backend.ranking.scheduler;
 
+import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.ranking.service.RankingSettlementService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,45 +17,70 @@ public class RankingSettlementScheduler {
 
     private final RankingSettlementService rankingSettlementService;
     private final LocalDate settlementStartDate;
+    private final JobRunContext jobRunContext;
 
     public RankingSettlementScheduler(
             RankingSettlementService rankingSettlementService,
+            JobRunContext jobRunContext,
             @Value("${app.ranking.settlement-start-date:2026-10-31}")
             String settlementStartDate
     ) {
         this.rankingSettlementService = rankingSettlementService;
-        this.settlementStartDate = LocalDate.parse(
-                settlementStartDate
-        );
+        this.jobRunContext = jobRunContext;
+        this.settlementStartDate = LocalDate.parse(settlementStartDate);
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void settleOnStartup() {
-        settlePendingRankings("서버 시작");
+        runSafely(
+                "ranking-settlement-startup",
+                "서버 시작"
+        );
     }
 
-    // 매일 00:00 KST에 어제까지 남은 미정산 날짜를 재처리
     @Scheduled(
             cron = "0 0 0 * * *",
             zone = "Asia/Seoul"
     )
     public void settleAtMidnight() {
-        settlePendingRankings("자정 스케줄");
+        runSafely(
+                "ranking-settlement-midnight",
+                "자정 스케줄"
+        );
     }
 
     private void settlePendingRankings(String trigger) {
-        log.info("랭킹 미정산 날짜 처리를 시작합니다. trigger={}", trigger);
+        log.info(
+                "랭킹 미정산 날짜 처리를 시작합니다. trigger={}",
+                trigger
+        );
 
+        rankingSettlementService.settlePendingDates(
+                settlementStartDate
+        );
+
+        log.info(
+                "랭킹 미정산 날짜 처리를 완료했습니다. trigger={}",
+                trigger
+        );
+    }
+
+    private void runSafely(
+            String jobName,
+            String trigger
+    ) {
         try {
-            rankingSettlementService.settlePendingDates(
-                    settlementStartDate
+            jobRunContext.run(
+                    jobName,
+                    () -> settlePendingRankings(trigger)
             );
-            log.info("랭킹 미정산 날짜 처리를 완료했습니다. trigger={}", trigger);
-        } catch (Exception exception) {
-            log.error(
-                    "랭킹 미정산 날짜 처리 중 오류가 발생했습니다. trigger={}",
+        } catch (RuntimeException exception) {
+            // JobRunContext에서 실패 원인과 스택 트레이스를 이미 기록함
+            // 스케줄러 및 ApplicationReady 이벤트 밖으로는 전파하지 않음
+            log.warn(
+                    "[Scheduler] 랭킹 정산 실패를 격리했습니다. trigger: {}, errorType: {}",
                     trigger,
-                    exception
+                    exception.getClass().getSimpleName()
             );
         }
     }

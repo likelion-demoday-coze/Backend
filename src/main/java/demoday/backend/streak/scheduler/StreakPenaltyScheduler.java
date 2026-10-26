@@ -1,5 +1,6 @@
 package demoday.backend.streak.scheduler;
 
+import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.member.code.MemberStatus;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.streak.service.StreakPenaltyService;
@@ -25,16 +26,23 @@ public class StreakPenaltyScheduler {
     private final StreakPenaltyService penalties;
     private final StreakRecoveryService recoveries;
     private final StreakRecoveryEventRepository events;
+    private final JobRunContext jobRunContext;
     private final Clock clock;
 
     @EventListener(ApplicationReadyEvent.class)
     public void applyOnStartup() {
-        applyDuePenalties();
+        jobRunContext.run(
+                "streak-penalty-startup",
+                this::applyDuePenalties
+        );
     }
 
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
     public void applyAtMidnight() {
-        applyDuePenalties();
+        jobRunContext.run(
+                "streak-penalty-midnight",
+                this::applyDuePenalties
+        );
     }
 
     /** 한 회원의 실패로 다른 회원의 처리가 중단되지 않도록 트랜잭션을 분리한다. */

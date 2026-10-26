@@ -25,7 +25,15 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-session-jdbc'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-restclient'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+	implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+	implementation 'io.micrometer:micrometer-registry-otlp'
+	implementation platform(
+			'io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha:2.33.0-alpha'
+	)
+	implementation 'io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	annotationProcessor 'org.projectlombok:lombok'

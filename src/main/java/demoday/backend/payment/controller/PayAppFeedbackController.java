@@ -3,6 +3,7 @@ package demoday.backend.payment.controller;
 import demoday.backend.payment.dto.PayAppFeedbackRequest;
 import demoday.backend.payment.service.PayAppFeedbackService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
@@ -13,6 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
+@ConditionalOnProperty(
+        prefix = "app.payment",
+        name = "enabled",
+        havingValue = "true"
+)
 @RequestMapping("/api/v1/payments")
 public class PayAppFeedbackController {
 

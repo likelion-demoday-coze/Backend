@@ -32,6 +32,7 @@ app:
     settlement-start-date: 2026-10-31
 
   payment:
+    enabled: true
     order:
       expiration: 30m
       expiration-scan-delay-ms: 60000
@@ -46,3 +47,24 @@ app:
       open-pay-type: card
       connect-timeout: 1s
       read-timeout: 3s
+    logging:
+      fulfillment-failure-throttle: 30m
+
+management:
+  opentelemetry:
+    enabled: false
+
+  tracing:
+    export:
+      otlp:
+        enabled: false
+
+  logging:
+    export:
+      otlp:
+        enabled: false
+
+  otlp:
+    metrics:
+      export:
+        enabled: false

@@ -31,10 +31,10 @@ RUN groupadd --system app && useradd --system --gid app app
 
 COPY --chown=app:app --from=builder /app/build/libs/*.jar app.jar
 
-EXPOSE 8080
+EXPOSE 8080 9090
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8080/actuator/health || exit 1
+    CMD curl -f http://localhost:9090/actuator/health || exit 1
 
 USER app
 

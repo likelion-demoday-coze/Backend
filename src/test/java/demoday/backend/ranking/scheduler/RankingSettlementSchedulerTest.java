@@ -1,10 +1,10 @@
 package demoday.backend.ranking.scheduler;
 
+import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.ranking.service.RankingSettlementService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -24,6 +24,7 @@ class RankingSettlementSchedulerTest {
     private RankingSettlementScheduler scheduler() {
         return new RankingSettlementScheduler(
                 rankingSettlementService,
+                new JobRunContext(),
                 settlementStartDate.toString()
         );
     }

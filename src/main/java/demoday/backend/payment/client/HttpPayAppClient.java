@@ -9,6 +9,7 @@ import demoday.backend.payment.config.PayAppProperties;
 import demoday.backend.payment.logging.PaymentLogSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -26,6 +27,11 @@ import java.util.Map;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(
+        prefix = "app.payment",
+        name = "enabled",
+        havingValue = "true"
+)
 public class HttpPayAppClient implements PayAppClient {
 
     private static final String SUCCESS_STATE = "1";

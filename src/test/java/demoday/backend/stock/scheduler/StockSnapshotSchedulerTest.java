@@ -1,5 +1,6 @@
 package demoday.backend.stock.scheduler;
 
+import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.stock.service.StockSnapshotService;
 import org.junit.jupiter.api.Test;
 import java.time.*;
@@ -10,7 +11,12 @@ class StockSnapshotSchedulerTest {
     private final StockSnapshotService snapshots = mock(StockSnapshotService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-04T15:00:00Z"), ZoneOffset.UTC);
     @Test void bothTriggersFillThroughKstYesterdayAndContinueAfterOneDateFails() {
-        var scheduler = new StockSnapshotScheduler(snapshots, clock, "2026-10-03");
+        var scheduler = new StockSnapshotScheduler(
+                snapshots,
+                clock,
+                new JobRunContext(),
+                "2026-10-03"
+        );
         doThrow(new IllegalStateException("일시 실패")).when(snapshots).capture(LocalDate.of(2026, 10, 3));
         assertThatCode(scheduler::captureOnStartup).doesNotThrowAnyException();
         assertThatCode(scheduler::captureAtMidnight).doesNotThrowAnyException();
@@ -19,7 +25,12 @@ class StockSnapshotSchedulerTest {
         verifyNoMoreInteractions(snapshots);
     }
     @Test void doesNothingBeforeOperationStartDate() {
-        new StockSnapshotScheduler(snapshots, clock, "2026-10-05").capturePendingDates();
+        new StockSnapshotScheduler(
+                snapshots,
+                clock,
+                new JobRunContext(),
+                "2026-10-05"
+        ).capturePendingDates();
         verifyNoInteractions(snapshots);
     }
 }

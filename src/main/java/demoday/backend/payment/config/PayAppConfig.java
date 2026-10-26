@@ -1,6 +1,6 @@
 package demoday.backend.payment.config;
 
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,12 +10,17 @@ import org.springframework.web.client.RestClient;
 import java.net.http.HttpClient;
 
 @Configuration
+@ConditionalOnProperty(
+        prefix = "app.payment",
+        name = "enabled",
+        havingValue = "true"
+)
 @EnableConfigurationProperties(PayAppProperties.class)
 public class PayAppConfig {
 
-    @Bean
-    @Qualifier("payAppRestClient")
+    @Bean("payAppRestClient")
     public RestClient payAppRestClient(
+            RestClient.Builder builder,
             PayAppProperties properties
     ) {
         HttpClient httpClient = HttpClient.newBuilder()
@@ -25,11 +30,9 @@ public class PayAppConfig {
         JdkClientHttpRequestFactory requestFactory =
                 new JdkClientHttpRequestFactory(httpClient);
 
-        requestFactory.setReadTimeout(
-                properties.readTimeout()
-        );
+        requestFactory.setReadTimeout(properties.readTimeout());
 
-        return RestClient.builder()
+        return builder
                 .baseUrl(properties.baseUrl())
                 .requestFactory(requestFactory)
                 .build();
