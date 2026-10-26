@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 public class AttendanceRewardController {
     private final AttendanceRewardService attendanceRewardService;
 
-    @Operation(summary = "오늘의 출석 보상 상태 조회", description = "KST 기준 오늘 수령 여부와 활성 패스 여부를 확인합니다. 조회만으로 보상을 지급하지 않습니다.")
+    @Operation(summary = "오늘의 출석 보상 상태 조회", description = "패스 여부와 관계없이 KST 기준 오늘 수령 여부를 확인합니다. 조회만으로 보상을 지급하지 않습니다.")
     @GetMapping("/today")
     public ApiResponse<AttendanceRewardStatusResponse> getToday(
             @Parameter(hidden = true) @AuthenticationPrincipal Long memberId
@@ -27,7 +27,7 @@ public class AttendanceRewardController {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, attendanceRewardService.getToday(memberId));
     }
 
-    @Operation(summary = "오늘의 출석 보상 수령", description = "KST 하루 한 번 생선 100개를 지급합니다. 같은 날 재요청은 200, newlyClaimed=false, grantedAmount=0입니다. 활성 패스는 신규 지급 불가입니다. 세션 인증과 CSRF 토큰이 필요하며 요청 본문은 없습니다.")
+    @Operation(summary = "오늘의 출석 보상 수령", description = "패스 여부와 관계없이 KST 하루 한 번 생선 100개를 지급합니다. 같은 날 재요청은 200, newlyClaimed=false, grantedAmount=0입니다. 세션 인증과 CSRF 토큰이 필요하며 요청 본문은 없습니다.")
     @PostMapping
     public ApiResponse<AttendanceRewardClaimResponse> claim(
             @Parameter(hidden = true) @AuthenticationPrincipal Long memberId
