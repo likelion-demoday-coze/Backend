@@ -46,3 +46,22 @@ app:
       open-pay-type: card
       connect-timeout: 1s
       read-timeout: 3s
+
+management:
+  opentelemetry:
+    enabled: false
+
+  tracing:
+    export:
+      otlp:
+        enabled: false
+
+  logging:
+    export:
+      otlp:
+        enabled: false
+
+  otlp:
+    metrics:
+      export:
+        enabled: false

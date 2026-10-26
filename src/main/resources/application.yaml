@@ -45,9 +45,58 @@ management:
       probes:
         enabled: true
 
+  opentelemetry:
+    enabled: ${OTEL_ENABLED:false}
+
+    resource-attributes:
+      service.name: ${OTEL_SERVICE_NAME:${spring.application.name}}
+      deployment.environment.name: ${OTEL_ENVIRONMENT:local}
+
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+          connect-timeout: 1s
+          timeout: 3s
+
+    logging:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://localhost:4318/v1/logs}
+          connect-timeout: 1s
+          timeout: 3s
+
+  tracing:
+    sampling:
+      probability: ${OTEL_TRACING_SAMPLING_PROBABILITY:0.1}
+
+    export:
+      otlp:
+        enabled: ${OTEL_ENABLED:false}
+
+  logging:
+    export:
+      otlp:
+        enabled: ${OTEL_ENABLED:false}
+
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTEL_ENABLED:false}
+        url: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:http://localhost:4318/v1/metrics}
+        step: ${OTEL_METRIC_EXPORT_INTERVAL:10s}
+        base-time-unit: seconds
+        connect-timeout: 1s
+        read-timeout: 3s
+
   metrics:
     tags:
       application: ${spring.application.name:demoday-backend}
+
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        http.client.requests: true
 
   prometheus:
     metrics:
@@ -60,7 +109,7 @@ logging:
     demoday.backend.payment: INFO
 
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [requestId:%X{requestId:-}] [jobName:%X{jobName:-}] [jobRunId:%X{jobRunId:-}] %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [traceId:%X{traceId:-}] [spanId:%X{spanId:-}] [requestId:%X{requestId:-}] [jobName:%X{jobName:-}] [jobRunId:%X{jobRunId:-}] %logger{36} - %msg%n"
 
 springdoc:
   swagger-ui:

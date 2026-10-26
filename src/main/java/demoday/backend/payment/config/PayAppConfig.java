@@ -16,6 +16,7 @@ public class PayAppConfig {
     @Bean
     @Qualifier("payAppRestClient")
     public RestClient payAppRestClient(
+            RestClient.Builder builder,
             PayAppProperties properties
     ) {
         HttpClient httpClient = HttpClient.newBuilder()
@@ -25,11 +26,9 @@ public class PayAppConfig {
         JdkClientHttpRequestFactory requestFactory =
                 new JdkClientHttpRequestFactory(httpClient);
 
-        requestFactory.setReadTimeout(
-                properties.readTimeout()
-        );
+        requestFactory.setReadTimeout(properties.readTimeout());
 
-        return RestClient.builder()
+        return builder
                 .baseUrl(properties.baseUrl())
                 .requestFactory(requestFactory)
                 .build();
