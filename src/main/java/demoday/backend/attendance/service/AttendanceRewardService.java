@@ -12,8 +12,6 @@ import demoday.backend.global.transaction.TransactionRetryExecutor;
 import demoday.backend.member.code.MemberStatus;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
-import demoday.backend.payment.code.PassStatus;
-import demoday.backend.payment.repository.MemberPassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +27,6 @@ public class AttendanceRewardService {
     private static final long REWARD_AMOUNT = 100;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private final MemberRepository memberRepository;
-    private final MemberPassRepository memberPassRepository;
     private final FishService fishService;
     private final TransactionRetryExecutor retryExecutor;
     private final Clock clock;
@@ -40,11 +37,9 @@ public class AttendanceRewardService {
         Member member = findMember(memberId, false);
         LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
         validateRewardDate(member, now.toLocalDate());
-        AttendanceRewardStatus status = hasActivePass(memberId, now)
-                ? AttendanceRewardStatus.PASS_ACTIVE
-                : now.toLocalDate().equals(member.getLastAttendanceRewardDate())
-                        ? AttendanceRewardStatus.CLAIMED
-                        : AttendanceRewardStatus.AVAILABLE;
+        AttendanceRewardStatus status = now.toLocalDate().equals(member.getLastAttendanceRewardDate())
+                ? AttendanceRewardStatus.CLAIMED
+                : AttendanceRewardStatus.AVAILABLE;
         return new AttendanceRewardStatusResponse(now.toLocalDate(), status, REWARD_AMOUNT);
     }
 
@@ -62,17 +57,10 @@ public class AttendanceRewardService {
         if (today.equals(member.getLastAttendanceRewardDate())) {
             return new AttendanceRewardClaimResponse(today, false, 0, member.getFishBalance());
         }
-        if (hasActivePass(memberId, now)) {
-            throw new ProjectException(AttendanceErrorCode.ACTIVE_PASS);
-        }
         fishService.credit(memberId, REWARD_AMOUNT, FishTransactionType.ATTENDANCE_REWARD,
                 null, "ATTENDANCE_REWARD:" + memberId + ":" + today);
         member.recordAttendanceReward(today);
         return new AttendanceRewardClaimResponse(today, true, REWARD_AMOUNT, member.getFishBalance());
-    }
-
-    private boolean hasActivePass(Long memberId, LocalDateTime now) {
-        return memberPassRepository.findActivePass(memberId, PassStatus.ACTIVE, now).isPresent();
     }
 
     private Member findMember(Long memberId, boolean forUpdate) {

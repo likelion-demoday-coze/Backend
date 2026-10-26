@@ -112,25 +112,24 @@ class AttendanceRewardIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"-1,1,ACTIVE,true", "0,1,ACTIVE,true", "-1,0,ACTIVE,false", "-2,-1,ACTIVE,false",
-            "1,2,ACTIVE,false", "-1,1,CANCELLED,false", "-1,1,EXPIRED,false"})
-    void passStatusAndExactExpiryBoundary(int startHours, int endHours, PassStatus passStatus, boolean blocked) {
+    @CsvSource({"-1,1,ACTIVE", "0,1,ACTIVE", "-1,0,ACTIVE", "-2,-1,ACTIVE",
+            "1,2,ACTIVE", "-1,1,CANCELLED", "-1,1,EXPIRED"})
+    void passStatusDoesNotRestrictDailyReward(int startHours, int endHours, PassStatus passStatus) {
         createPass(member, startHours, endHours, passStatus);
-        assertThat(service.getToday(memberId).status()).isEqualTo(blocked ? AttendanceRewardStatus.PASS_ACTIVE : AttendanceRewardStatus.AVAILABLE);
-        if (blocked) {
-            assertThatThrownBy(() -> service.claim(memberId)).isInstanceOfSatisfying(ProjectException.class,
-                    ex -> assertThat(ex.getErrorCode()).isEqualTo(AttendanceErrorCode.ACTIVE_PASS));
-            assertUnchanged();
-        } else {
-            assertThat(service.claim(memberId).newlyClaimed()).isTrue();
-        }
+        assertThat(service.getToday(memberId).status()).isEqualTo(AttendanceRewardStatus.AVAILABLE);
+        assertThat(rewardCount()).isZero();
+        assertThat(service.claim(memberId).newlyClaimed()).isTrue();
+        assertThat(fish.getBalance(memberId).balance()).isEqualTo(100);
+        assertThat(service.getToday(memberId).status()).isEqualTo(AttendanceRewardStatus.CLAIMED);
+        assertThat(service.claim(memberId).newlyClaimed()).isFalse();
+        assertThat(rewardCount()).isEqualTo(1);
     }
 
     @Test
     void rewardBeforePassIsNotRevokedAndDuplicateRemainsNoOp() {
         service.claim(memberId);
         createPass(member, 0, 168, PassStatus.ACTIVE);
-        assertThat(service.getToday(memberId).status()).isEqualTo(AttendanceRewardStatus.PASS_ACTIVE);
+        assertThat(service.getToday(memberId).status()).isEqualTo(AttendanceRewardStatus.CLAIMED);
         assertThat(service.claim(memberId).newlyClaimed()).isFalse();
         assertThat(fish.getBalance(memberId).balance()).isEqualTo(100);
         assertThat(rewardCount()).isEqualTo(1);
