@@ -41,9 +41,9 @@ public class TrendGenerationScheduler {
 
     @EventListener(ApplicationReadyEvent.class)
     public void catchUp() {
-        jobRunContext.run(
+        executeSafely(
                 "economic-trend-startup-catch-up",
-                this::runLatestDueSlot
+                generations::runLatestDueSlot
         );
     }
 
@@ -51,26 +51,26 @@ public class TrendGenerationScheduler {
             String jobName,
             int slot
     ) {
-        jobRunContext.run(
+        executeSafely(
                 jobName,
-                () -> run(slot)
+                () -> generations.runSlot(slot)
         );
     }
 
-    private void runLatestDueSlot() {
+    private void executeSafely(
+            String jobName,
+            Runnable task
+    ) {
         try {
-            generations.runLatestDueSlot();
+            jobRunContext.run(jobName, task);
         } catch (RuntimeException exception) {
-            log.error(
-                    "경제 트렌드 시작 보완 실패. errorType={}",
-                    exception.getClass().getSimpleName(),
-                    exception
+            // JobRunContext가 jobRunId와 함께 실패 스택 트레이스를 기록
+            // 스케줄러와 ApplicationReady 이벤트 밖으로는 전파하지 않음
+            log.warn(
+                    "[Scheduler] 경제 트렌드 작업 실패를 격리했습니다. jobName: {}, errorType: {}",
+                    jobName,
+                    exception.getClass().getSimpleName()
             );
         }
-    }
-
-    private void run(int slot) {
-        try { generations.runSlot(slot); }
-        catch (RuntimeException exception) { log.error("경제 트렌드 실행 실패. slot={}, errorType={}", slot, exception.getClass().getSimpleName()); }
     }
 }
