@@ -13,11 +13,13 @@ public class PaymentMetrics {
 
     private final Counter orderCreated;
     private final Counter feedbackSucceeded;
+    private final Counter feedbackRejected;
     private final Counter feedbackFailed;
     private final Counter fulfillmentSucceeded;
     private final Counter fulfillmentFailed;
     private final Counter duplicateFeedbackBlocked;
     private final Counter cancellationSucceeded;
+    private final Counter cancellationRejected;
     private final Counter cancellationFailed;
     private final Timer feedbackProcessingTime;
     private final Timer cancellationProcessingTime;
@@ -35,6 +37,11 @@ public class PaymentMetrics {
         this.feedbackFailed = Counter.builder("payment.feedback")
                 .description("페이앱 Feedback 처리 결과")
                 .tag("result", "failure")
+                .register(meterRegistry);
+
+        this.feedbackRejected = Counter.builder("payment.feedback")
+                .description("페이앱 Feedback 처리 결과")
+                .tag("result", "rejected")
                 .register(meterRegistry);
 
         this.fulfillmentSucceeded = Counter.builder("payment.fulfillment")
@@ -60,6 +67,11 @@ public class PaymentMetrics {
         this.cancellationFailed = Counter.builder("payment.cancellation")
                 .description("사용자 결제 취소 API 처리 결과")
                 .tag("result", "failure")
+                .register(meterRegistry);
+
+        this.cancellationRejected = Counter.builder("payment.cancellation")
+                .description("사용자 결제 취소 API 처리 결과")
+                .tag("result", "rejected")
                 .register(meterRegistry);
 
         this.feedbackProcessingTime =
@@ -97,6 +109,10 @@ public class PaymentMetrics {
         feedbackFailed.increment();
     }
 
+    public void recordFeedbackRejected() {
+        feedbackRejected.increment();
+    }
+
     public void recordFulfillmentSuccess() {
         fulfillmentSucceeded.increment();
     }
@@ -115,6 +131,10 @@ public class PaymentMetrics {
 
     public void recordCancellationFailure() {
         cancellationFailed.increment();
+    }
+
+    public void recordCancellationRejected() {
+        cancellationRejected.increment();
     }
 
     public void recordFeedbackProcessing(Runnable operation) {

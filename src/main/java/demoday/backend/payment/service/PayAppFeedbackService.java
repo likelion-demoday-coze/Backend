@@ -48,11 +48,31 @@ public class PayAppFeedbackService {
             try {
                 processInternal(request);
                 paymentMetrics.recordFeedbackSuccess();
+            } catch (ProjectException exception) {
+                if (isRejectedFeedback(exception)) {
+                    paymentMetrics.recordFeedbackRejected();
+                } else {
+                    paymentMetrics.recordFeedbackFailure();
+                }
+                throw exception;
             } catch (RuntimeException exception) {
                 paymentMetrics.recordFeedbackFailure();
                 throw exception;
             }
         });
+    }
+
+    private boolean isRejectedFeedback(ProjectException exception) {
+        return exception.getErrorCode()
+                == PaymentErrorCode.INVALID_FEEDBACK
+                || exception.getErrorCode()
+                == PaymentErrorCode.INVALID_FEEDBACK_AUTHENTICATION
+                || exception.getErrorCode()
+                == PaymentErrorCode.ORDER_NOT_FOUND
+                || exception.getErrorCode()
+                == PaymentErrorCode.PAYMENT_INFORMATION_MISMATCH
+                || exception.getErrorCode()
+                == PaymentErrorCode.PAYMENT_ALREADY_PROCESSED;
     }
 
     private void processInternal(PayAppFeedbackRequest request) {

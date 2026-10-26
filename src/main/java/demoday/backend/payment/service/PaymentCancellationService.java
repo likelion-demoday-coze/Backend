@@ -39,6 +39,13 @@ public class PaymentCancellationService {
             return paymentMetrics.recordCancellationProcessing(
                     () -> cancelInternal(memberId, paymentId)
             );
+        } catch (ProjectException exception) {
+            if (exception.getErrorCode().getStatus().is4xxClientError()) {
+                paymentMetrics.recordCancellationRejected();
+            } else {
+                paymentMetrics.recordCancellationFailure();
+            }
+            throw exception;
         } catch (RuntimeException exception) {
             paymentMetrics.recordCancellationFailure();
             throw exception;
