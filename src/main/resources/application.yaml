@@ -74,23 +74,34 @@ app:
   service:
     sales-end-at: ${SALES_END_AT:2026-11-15T00:00:00+09:00}
     service-end-at: ${SERVICE_END_AT:2026-11-21T23:59:59+09:00}
+
   pass:
     duration: ${PASS_DURATION:168h}
+
   economic-trends:
     enabled: ${ECONOMIC_TRENDS_ENABLED:false}
     local-generate-on-startup: ${ECONOMIC_TRENDS_LOCAL_GENERATE_ON_STARTUP:false}
+
   stock:
     snapshot-start-date: ${STOCK_SNAPSHOT_START_DATE:${RANKING_SETTLEMENT_START_DATE:2026-10-31}}
+
   frontend-base-url: ${FRONTEND_BASE_URL}
   frontend-login-success-path: ${FRONTEND_LOGIN_SUCCESS_PATH:/home}
   frontend-allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
+
   ranking:
     settlement-start-date: ${RANKING_SETTLEMENT_START_DATE:2026-10-31}
+
   payment:
     fulfillment-retry-delay-ms: ${PAYMENT_FULFILLMENT_RETRY_DELAY_MS:300000}
+
+    logging:
+      fulfillment-failure-throttle: ${PAYMENT_FULFILLMENT_FAILURE_LOG_THROTTLE:30m}
+
     order:
       expiration: ${PAYMENT_ORDER_EXPIRATION:30m}
       expiration-scan-delay-ms: ${PAYMENT_ORDER_EXPIRATION_SCAN_DELAY_MS:60000}
+
     payapp:
       user-id: ${PAYAPP_USER_ID}
       link-key: ${PAYAPP_LINK_KEY}

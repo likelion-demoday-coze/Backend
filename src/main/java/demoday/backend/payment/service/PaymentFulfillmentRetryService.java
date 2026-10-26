@@ -4,12 +4,10 @@ import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.metric.PaymentMetrics;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentFulfillmentRetryService {
@@ -33,11 +31,6 @@ public class PaymentFulfillmentRetryService {
                 transactionService.recordFulfillmentFailure(
                         paymentId,
                         "패스 지급 재처리에 실패했습니다."
-                );
-
-                log.warn(
-                        "[Payment] 상품 지급 재처리 실패 - paymentId: {}",
-                        paymentId
                 );
             }
         }
