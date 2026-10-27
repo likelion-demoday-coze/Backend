@@ -41,12 +41,26 @@ class TrendGenerationIntegrationTest {
     @Autowired private TrendGenerationRepository generations;
     @Autowired private EconomicTrendRepository trends;
     @Autowired private TrendReferenceRepository references;
-    @Autowired private RecentTrendContentService recentContent;
+    @MockitoSpyBean private RecentTrendContentService recentContent;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private MovingClock clock;
     @MockitoBean private LinerTrendClient client;
 
     @BeforeEach void setup() { clock.set("2026-10-04T23:00:00Z"); }
+
+    @Test void recentReadFailureSkipsLinerAndRetriesAtNextSlot() {
+        doThrow(new InvalidDataAccessResourceUsageException("private SQL"))
+                .doCallRealMethod().when(recentContent).getRecent(DATE, false);
+        assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.FAILED);
+        assertThat(today().getLastErrorType()).isEqualTo("STORAGE_UNAVAILABLE");
+        verifyNoInteractions(client);
+        assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.SKIPPED);
+        clock.set("2026-10-04T23:05:00Z");
+        when(client.generate(eq(DATE), anyList())).thenReturn(content());
+        assertThat(service.runSlot(2)).isEqualTo(TrendGenerationService.Result.SUCCESS);
+        assertThat(today().getAttemptCount()).isEqualTo(2);
+        verify(client, times(1)).generate(eq(DATE), anyList());
+    }
 
     @Test void generationUsesOnlyPreviousThreeSuccessfulDaysAndPreviewIncludesToday() {
         var historyIds = new java.util.ArrayList<Long>();

@@ -6,15 +6,18 @@ import demoday.backend.trend.client.TrendGenerationException;
 import demoday.backend.trend.code.TrendGenerationFailure;
 import demoday.backend.trend.code.TrendGenerationStatus;
 import demoday.backend.trend.domain.TrendGeneration;
+import demoday.backend.trend.dto.RecentTrendContent;
 import demoday.backend.trend.repository.TrendGenerationRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.RecoverableDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Service;
 import java.time.*;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -64,7 +67,13 @@ public class TrendGenerationService {
         });
         if (claim == null) return Result.SKIPPED;
         try {
-            var previous = recentContent.getRecent(date, false);
+            List<RecentTrendContent> previous;
+            try {
+                previous = recentContent.getRecent(date, false);
+            } catch (DataAccessException exception) {
+                // 읽기 실패만 재시도 가능으로 분류한다. 아래 저장 단계의 무결성 오류 분류는 유지한다.
+                throw new TrendGenerationException(TrendGenerationFailure.STORAGE_UNAVAILABLE);
+            }
             var content = client.generate(date, previous); // 조회 트랜잭션 종료 후 외부 API를 호출한다.
             if (storage.saveForAttempt(claim.id(), claim.attempt(), content)) return Result.SUCCESS;
             recordFailure(claim, TrendGenerationFailure.NETWORK);

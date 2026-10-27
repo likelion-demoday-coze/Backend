@@ -10,6 +10,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,7 @@ import java.util.Map;
 @Slf4j
 @Component
 @Profile("local")
+@Order(2)
 @ConditionalOnProperty(name = "app.economic-trends.local-preview-on-startup", havingValue = "true")
 public class LocalTrendPreviewRunner implements ApplicationRunner {
     private final RecentTrendContentService recentContent;

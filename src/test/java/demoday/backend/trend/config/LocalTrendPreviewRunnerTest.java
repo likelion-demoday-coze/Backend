@@ -6,9 +6,11 @@ import demoday.backend.trend.dto.GeneratedTrendContent;
 import demoday.backend.trend.dto.RecentTrendContent;
 import demoday.backend.trend.service.RecentTrendContentService;
 import demoday.backend.trend.service.TrendContentValidator;
+import demoday.backend.trend.service.TrendGenerationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.DefaultApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import tools.jackson.databind.json.JsonMapper;
 import java.nio.file.Files;
@@ -20,6 +22,38 @@ import static org.mockito.Mockito.*;
 
 class LocalTrendPreviewRunnerTest {
     @TempDir Path temporary;
+
+    @Test void bothFlagsRunGenerationBeforePreviewEvenWithReverseBeanRegistration() {
+        var generations = mock(TrendGenerationService.class);
+        var recent = mock(RecentTrendContentService.class);
+        var client = mock(LinerTrendClient.class);
+        var date = LocalDate.of(2026, 10, 5);
+        var previous = List.of(new RecentTrendContent(date, "오늘 생성된 이슈", "요약", List.of()));
+        when(generations.runLatestDueSlot()).thenReturn(TrendGenerationService.Result.SUCCESS);
+        when(recent.getRecent(date, true)).thenReturn(previous);
+        when(client.generate(date, previous)).thenReturn(new GeneratedTrendContent(List.of()));
+        new ApplicationContextRunner()
+                .withUserConfiguration(LocalTrendPreviewRunner.class, LocalTrendGenerationRunner.class)
+                .withBean(TrendGenerationService.class, () -> generations)
+                .withBean(RecentTrendContentService.class, () -> recent)
+                .withBean(LinerTrendClient.class, () -> client)
+                .withBean(TrendContentValidator.class, () -> mock(TrendContentValidator.class))
+                .withBean(Clock.class, () -> Clock.fixed(Instant.parse("2026-10-04T23:00:00Z"), ZoneOffset.UTC))
+                .withBean(tools.jackson.databind.ObjectMapper.class, () -> JsonMapper.builder().build())
+                .withPropertyValues("spring.profiles.active=local",
+                        "app.economic-trends.local-generate-on-startup=true",
+                        "app.economic-trends.local-preview-on-startup=true",
+                        "app.economic-trends.local-preview-output=" + temporary.resolve("ordered.json"))
+                .run(context -> {
+                    var runners = context.getBeanProvider(ApplicationRunner.class).orderedStream().toList();
+                    assertThat(runners).hasSize(2);
+                    for (var runner : runners) runner.run(new DefaultApplicationArguments());
+                });
+        var ordered = inOrder(generations, recent, client);
+        ordered.verify(generations).runLatestDueSlot();
+        ordered.verify(recent).getRecent(date, true);
+        ordered.verify(client).generate(date, previous);
+    }
 
     @Test void previewRunsAgainOnSameDayAndWritesComparisonWithoutProductionGeneration() throws Exception {
         var date = LocalDate.of(2026, 10, 5);
