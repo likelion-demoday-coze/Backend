@@ -32,11 +32,12 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 
+import static demoday.backend.store.code.StoreItemCode.STREAK_RECOVERY;
+
 @Service
 @RequiredArgsConstructor
 public class StreakRecoveryService {
     // 상품명·판매 여부가 바뀌어도 보유 복구권은 이 고정 코드로 식별한다.
-    public static final String RECOVERY_ITEM_CODE = "STREAK_RECOVERY";
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private final MemberRepository members;
     private final MemberPassRepository passes;
@@ -94,8 +95,14 @@ public class StreakRecoveryService {
         if (passes.findActivePass(memberId, PassStatus.ACTIVE, now).isPresent()) {
             event.requestRecovery(StreakRecoveryMethod.PASS, now, null, null);
         } else {
-            var owned = inventory.findByMemberMemberIdAndItemItemCode(memberId, RECOVERY_ITEM_CODE)
-                    .orElseThrow(() -> new ProjectException(StreakErrorCode.NO_RECOVERY_ITEM));
+            var owned = inventory
+                    .findByMemberMemberIdAndItemItemCode(
+                            memberId,
+                            STREAK_RECOVERY
+                    )
+                    .orElseThrow(() ->
+                            new ProjectException(StreakErrorCode.NO_RECOVERY_ITEM)
+                    );
             if (owned.getQuantity() <= 0) throw new ProjectException(StreakErrorCode.NO_RECOVERY_ITEM);
             owned.useOne();
             event.requestRecovery(StreakRecoveryMethod.ITEM, now, owned.getMemberItemId(), owned.getQuantity());
