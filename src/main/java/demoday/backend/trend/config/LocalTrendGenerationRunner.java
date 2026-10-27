@@ -7,11 +7,13 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
 @Profile("local")
+@Order(1)
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.economic-trends.local-generate-on-startup", havingValue = "true")
 public class LocalTrendGenerationRunner implements ApplicationRunner {

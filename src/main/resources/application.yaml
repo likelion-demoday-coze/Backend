@@ -130,6 +130,7 @@ app:
   economic-trends:
     enabled: ${ECONOMIC_TRENDS_ENABLED:false}
     local-generate-on-startup: ${ECONOMIC_TRENDS_LOCAL_GENERATE_ON_STARTUP:false}
+    local-preview-on-startup: ${ECONOMIC_TRENDS_LOCAL_PREVIEW_ON_STARTUP:false}
 
   stock:
     snapshot-start-date: ${STOCK_SNAPSHOT_START_DATE:${RANKING_SETTLEMENT_START_DATE:2026-10-31}}
