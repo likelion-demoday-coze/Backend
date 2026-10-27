@@ -24,14 +24,16 @@ public class TrendGenerationService {
     private final TransactionRetryExecutor transactions;
     private final LinerTrendClient client;
     private final TrendContentStorageService storage;
+    private final RecentTrendContentService recentContent;
     private final Clock clock;
     private final long leaseSeconds;
 
     public TrendGenerationService(TrendGenerationRepository generations, TransactionRetryExecutor transactions,
-            LinerTrendClient client, TrendContentStorageService storage, Clock clock,
+            LinerTrendClient client, TrendContentStorageService storage, RecentTrendContentService recentContent, Clock clock,
             @Value("${liner.timeout-seconds:120}") long timeoutSeconds) {
         this.generations = generations; this.transactions = transactions; this.client = client;
         this.storage = storage; this.clock = clock;
+        this.recentContent = recentContent;
         this.leaseSeconds = Math.addExact(timeoutSeconds, 60);
     }
 
@@ -62,7 +64,8 @@ public class TrendGenerationService {
         });
         if (claim == null) return Result.SKIPPED;
         try {
-            var content = client.generate(date); // DB 트랜잭션과 회원 잠금을 가진 채 기다리지 않는다.
+            var previous = recentContent.getRecent(date, false);
+            var content = client.generate(date, previous); // 조회 트랜잭션 종료 후 외부 API를 호출한다.
             if (storage.saveForAttempt(claim.id(), claim.attempt(), content)) return Result.SUCCESS;
             recordFailure(claim, TrendGenerationFailure.NETWORK);
             return Result.SKIPPED;

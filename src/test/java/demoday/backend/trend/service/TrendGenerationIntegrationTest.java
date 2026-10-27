@@ -3,6 +3,8 @@ package demoday.backend.trend.service;
 import demoday.backend.trend.client.*;
 import demoday.backend.trend.code.*;
 import demoday.backend.trend.domain.TrendGeneration;
+import demoday.backend.trend.domain.EconomicTrend;
+import demoday.backend.trend.domain.TrendReference;
 import demoday.backend.trend.dto.GeneratedTrendContent;
 import demoday.backend.trend.repository.*;
 import org.junit.jupiter.api.*;
@@ -38,11 +40,56 @@ class TrendGenerationIntegrationTest {
     @MockitoSpyBean private TrendContentStorageService storage;
     @Autowired private TrendGenerationRepository generations;
     @Autowired private EconomicTrendRepository trends;
+    @Autowired private TrendReferenceRepository references;
+    @Autowired private RecentTrendContentService recentContent;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private MovingClock clock;
     @MockitoBean private LinerTrendClient client;
 
     @BeforeEach void setup() { clock.set("2026-10-04T23:00:00Z"); }
+
+    @Test void generationUsesOnlyPreviousThreeSuccessfulDaysAndPreviewIncludesToday() {
+        var historyIds = new java.util.ArrayList<Long>();
+        try {
+            for (int days = 1; days <= 4; days++) {
+                var generation = generations.saveAndFlush(TrendGeneration.create(DATE.minusDays(days).atTime(8, 0),
+                        TrendGenerationStatus.SUCCESS, 1, null));
+                historyIds.add(generation.getTrendGenerationId());
+                for (int order = 1; order <= 3; order++) {
+                    var trend = trends.saveAndFlush(EconomicTrend.create(generation, order,
+                            "이전 이슈 " + days + "-" + order, "가".repeat(1100)));
+                    references.saveAndFlush(TrendReference.create(trend, "이전 출처",
+                            "https://example.com/history/" + days + "/" + order, "기관", DATE.minusDays(days)));
+                }
+            }
+            var failed = generations.saveAndFlush(TrendGeneration.create(DATE.minusDays(1).atTime(9, 0),
+                    TrendGenerationStatus.FAILED, 1, "NETWORK"));
+            historyIds.add(failed.getTrendGenerationId());
+            trends.saveAndFlush(EconomicTrend.create(failed, 1, "실패한 콘텐츠", "요약"));
+
+            var previous = recentContent.getRecent(DATE, false);
+            assertThat(previous).hasSize(9);
+            assertThat(previous).extracting(item -> item.date()).containsExactly(
+                    DATE.minusDays(1), DATE.minusDays(1), DATE.minusDays(1),
+                    DATE.minusDays(2), DATE.minusDays(2), DATE.minusDays(2),
+                    DATE.minusDays(3), DATE.minusDays(3), DATE.minusDays(3));
+            assertThat(previous.get(0).summary()).hasSize(1000);
+            assertThat(previous.get(0).urls()).containsExactly("https://example.com/history/1/1");
+            when(client.generate(eq(DATE), anyList())).thenAnswer(invocation -> {
+                assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+                assertThat(invocation.<java.util.List<?>>getArgument(1)).isEqualTo(previous);
+                return content();
+            });
+            assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.SUCCESS);
+            assertThat(recentContent.getRecent(DATE, false)).isEqualTo(previous);
+            var preview = recentContent.getRecent(DATE, true);
+            assertThat(preview).hasSize(9);
+            assertThat(preview.get(0).date()).isEqualTo(DATE);
+            assertThat(preview).noneMatch(item -> item.date().equals(DATE.minusDays(3)));
+        } finally {
+            historyIds.forEach(this::cleanGeneration);
+        }
+    }
     static java.util.stream.Stream<RuntimeException> temporaryStorageFailures() {
         return java.util.stream.Stream.of(new CannotAcquireLockException("private SQL"),
                 new RecoverableDataAccessException("private SQL"),
@@ -51,7 +98,7 @@ class TrendGenerationIntegrationTest {
 
     @ParameterizedTest @MethodSource("temporaryStorageFailures")
     void temporaryStorageFailureRetriesAtNextSlot(RuntimeException failure) {
-        when(client.generate(DATE)).thenReturn(content());
+        when(client.generate(eq(DATE), anyList())).thenReturn(content());
         doThrow(failure).doCallRealMethod().when(storage).saveForAttempt(anyLong(), anyInt(), any());
 
         assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.FAILED);
@@ -62,11 +109,11 @@ class TrendGenerationIntegrationTest {
         assertThat(service.runSlot(2)).isEqualTo(TrendGenerationService.Result.SUCCESS);
         assertThat(today().getAttemptCount()).isEqualTo(2);
         assertThat(trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(today().getTrendGenerationId())).hasSize(3);
-        verify(client, times(2)).generate(DATE);
+        verify(client, times(2)).generate(eq(DATE), anyList());
     }
 
     @Test void permanentStorageFailureDoesNotRetry() {
-        when(client.generate(DATE)).thenReturn(content());
+        when(client.generate(eq(DATE), anyList())).thenReturn(content());
         doThrow(new DataIntegrityViolationException("private SQL"))
                 .when(storage).saveForAttempt(anyLong(), anyInt(), any());
 
@@ -74,33 +121,33 @@ class TrendGenerationIntegrationTest {
         assertThat(today().getLastErrorType()).isEqualTo("STORAGE_ERROR");
         clock.set("2026-10-04T23:05:00Z");
         assertThat(service.runSlot(2)).isEqualTo(TrendGenerationService.Result.SKIPPED);
-        verify(client).generate(DATE);
+        verify(client).generate(eq(DATE), anyList());
     }
     @AfterEach void clean() {
         var generation = generations.findByGenerationDate(DATE.atTime(8, 0));
-        generation.ifPresent(g -> {
-            var id = g.getTrendGenerationId();
-            jdbc.update("delete from economic_term where economic_trend_id in (select economic_trend_id from economic_trend where trend_generation_id=?)", id);
-            jdbc.update("delete from trend_reference where economic_trend_id in (select economic_trend_id from economic_trend where trend_generation_id=?)", id);
-            jdbc.update("delete from economic_trend where trend_generation_id=?", id);
-            jdbc.update("delete from trend_generation where trend_generation_id=?", id);
-        });
+        generation.ifPresent(g -> cleanGeneration(g.getTrendGenerationId()));
+    }
+    private void cleanGeneration(Long id) {
+        jdbc.update("delete from economic_term where economic_trend_id in (select economic_trend_id from economic_trend where trend_generation_id=?)", id);
+        jdbc.update("delete from trend_reference where economic_trend_id in (select economic_trend_id from economic_trend where trend_generation_id=?)", id);
+        jdbc.update("delete from economic_trend where trend_generation_id=?", id);
+        jdbc.update("delete from trend_generation where trend_generation_id=?", id);
     }
     @Test void successfulGenerationIsOnceOnlyAndExternalCallHasNoTransaction() {
-        when(client.generate(DATE)).thenAnswer(invocation -> {
+        when(client.generate(eq(DATE), anyList())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             return content();
         });
         assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.SUCCESS);
         clock.set("2026-10-04T23:30:00Z");
         assertThat(service.runSlot(4)).isEqualTo(TrendGenerationService.Result.SKIPPED);
-        verify(client, times(1)).generate(DATE);
+        verify(client, times(1)).generate(eq(DATE), anyList());
         assertThat(today().getStatus()).isEqualTo(TrendGenerationStatus.SUCCESS);
         assertThat(today().getAttemptCount()).isEqualTo(1);
         assertThat(trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(today().getTrendGenerationId())).hasSize(3);
     }
     @Test void retryScheduleDoesNotRepeatSlotOrExceedFourAttempts() {
-        when(client.generate(DATE)).thenThrow(new TrendGenerationException(TrendGenerationFailure.NETWORK));
+        when(client.generate(eq(DATE), anyList())).thenThrow(new TrendGenerationException(TrendGenerationFailure.NETWORK));
         assertThat(service.runSlot(2)).isEqualTo(TrendGenerationService.Result.SKIPPED);
         for (int slot = 1; slot <= 4; slot++) {
             clock.set(switch (slot) { case 1 -> "2026-10-04T23:00:00Z"; case 2 -> "2026-10-04T23:05:00Z";
@@ -108,7 +155,7 @@ class TrendGenerationIntegrationTest {
             assertThat(service.runSlot(slot)).isEqualTo(TrendGenerationService.Result.FAILED);
             assertThat(service.runSlot(slot)).isEqualTo(TrendGenerationService.Result.SKIPPED);
         }
-        verify(client, times(4)).generate(DATE);
+        verify(client, times(4)).generate(eq(DATE), anyList());
         assertThat(today().getAttemptCount()).isEqualTo(4);
         assertThat(today().getLastErrorType()).isEqualTo("NETWORK");
         assertThat(today().getStatus()).isEqualTo(TrendGenerationStatus.FAILED);
@@ -116,15 +163,15 @@ class TrendGenerationIntegrationTest {
     @ParameterizedTest
     @EnumSource(value = TrendGenerationFailure.class, names = {"AUTHENTICATION", "INSUFFICIENT_CREDITS", "BAD_REQUEST", "NOT_CONFIGURED"})
     void permanentFailureDoesNotRetry(TrendGenerationFailure failure) {
-        when(client.generate(DATE)).thenThrow(new TrendGenerationException(failure));
+        when(client.generate(eq(DATE), anyList())).thenThrow(new TrendGenerationException(failure));
         service.runSlot(1);
         clock.set("2026-10-04T23:30:00Z");
         assertThat(service.runSlot(4)).isEqualTo(TrendGenerationService.Result.SKIPPED);
         assertThat(today().getLastErrorType()).isEqualTo(failure.name());
-        verify(client, times(1)).generate(DATE);
+        verify(client, times(1)).generate(eq(DATE), anyList());
     }
     @Test void invalidContentFailsWithoutPartialSaveThenNextSlotCanSucceed() {
-        when(client.generate(DATE)).thenReturn(new GeneratedTrendContent(List.of())).thenReturn(content());
+        when(client.generate(eq(DATE), anyList())).thenReturn(new GeneratedTrendContent(List.of())).thenReturn(content());
         assertThat(service.runSlot(1)).isEqualTo(TrendGenerationService.Result.FAILED);
         assertThat(today().getLastErrorType()).isEqualTo("INVALID_CONTENT");
         assertThat(trends.findAllByTrendGenerationTrendGenerationIdOrderByDisplayOrderAsc(today().getTrendGenerationId())).isEmpty();
@@ -134,7 +181,7 @@ class TrendGenerationIntegrationTest {
     }
     @Test void concurrentInitialExecutionsCallLinerOnlyOnce() throws Exception {
         var started = new CountDownLatch(1); var release = new CountDownLatch(1);
-        when(client.generate(DATE)).thenAnswer(invocation -> {
+        when(client.generate(eq(DATE), anyList())).thenAnswer(invocation -> {
             started.countDown(); assertThat(release.await(10, TimeUnit.SECONDS)).isTrue(); return content();
         });
         var pool = Executors.newFixedThreadPool(2);
@@ -145,7 +192,7 @@ class TrendGenerationIntegrationTest {
             release.countDown();
             assertThat(first.get(10, TimeUnit.SECONDS)).isEqualTo(TrendGenerationService.Result.SUCCESS);
         } finally { release.countDown(); pool.shutdownNow(); }
-        verify(client, times(1)).generate(DATE);
+        verify(client, times(1)).generate(eq(DATE), anyList());
     }
     @Test void expiredOwnerCannotSaveAndNextSlotTakesOver() {
         var generation = TrendGeneration.create(DATE.atTime(8, 0), TrendGenerationStatus.PENDING, 0, null);
@@ -153,7 +200,7 @@ class TrendGenerationIntegrationTest {
         generations.saveAndFlush(generation);
         clock.set("2026-10-04T23:05:00Z");
         assertThat(storage.saveForAttempt(generation.getTrendGenerationId(), 1, content())).isFalse();
-        when(client.generate(DATE)).thenReturn(content());
+        when(client.generate(eq(DATE), anyList())).thenReturn(content());
         assertThat(service.runSlot(2)).isEqualTo(TrendGenerationService.Result.SUCCESS);
         assertThat(storage.saveForAttempt(generation.getTrendGenerationId(), 1, content())).isFalse();
         assertThat(today().getAttemptCount()).isEqualTo(2);
@@ -163,7 +210,7 @@ class TrendGenerationIntegrationTest {
         assertThat(service.runLatestDueSlot()).isEqualTo(TrendGenerationService.Result.SKIPPED);
         verifyNoInteractions(client);
         clock.set("2026-10-04T23:17:00Z");
-        when(client.generate(DATE)).thenReturn(content());
+        when(client.generate(eq(DATE), anyList())).thenReturn(content());
         assertThat(service.runLatestDueSlot()).isEqualTo(TrendGenerationService.Result.SUCCESS);
         assertThat(today().getLastAttemptSlot()).isEqualTo(3);
         assertThat(today().getAttemptCount()).isEqualTo(1);

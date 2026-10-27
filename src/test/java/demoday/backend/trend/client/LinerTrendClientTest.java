@@ -3,6 +3,7 @@ package demoday.backend.trend.client;
 import com.sun.net.httpserver.HttpServer;
 import demoday.backend.trend.code.TrendGenerationFailure;
 import demoday.backend.trend.code.TrendCategory;
+import demoday.backend.trend.dto.RecentTrendContent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -41,6 +42,16 @@ class LinerTrendClientTest {
         url = "http://127.0.0.1:" + server.getAddress().getPort() + "/search";
     }
     @AfterEach void tearDown() { server.stop(0); }
+
+    @Test void includesRecentIssuesAndFreshnessInstructionsInRequest() {
+        response = mapper.writeValueAsString(Map.of("answer", "{\"items\":[]}"));
+        var yesterday = new RecentTrendContent(LocalDate.of(2026, 10, 4), "이전 금리 발표", "이전 요약",
+                List.of("https://example.com/yesterday"));
+        client().generate(LocalDate.of(2026, 10, 5), List.of(yesterday));
+        String prompt = mapper.readTree(receivedBody.get()).path("messages").get(0).path("content").asText();
+        assertThat(prompt).contains("2026-10-05", "24~48시간", "동일 사건", "후속 보도", "새로운 출처",
+                "2026-10-04", "이전 금리 발표", "이전 요약", "https://example.com/yesterday");
+    }
 
     @ParameterizedTest @EnumSource(TrendCategory.class)
     void sendsNonStreamingRequestAndParsesGroundedAnswer(TrendCategory category) {
