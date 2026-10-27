@@ -47,7 +47,13 @@ class StoreCatalogIntegrationTest {
 
     @Test
     void returnsOnlyActiveItemsInIdOrderWithoutChangingBalanceOrInventory() throws Exception {
-        StoreItem first = items.saveAndFlush(StoreItem.create("RECOVERY", "연속 학습 복구권", 200, true, "아이템 사용 안내"));
+        StoreItem first = items.saveAndFlush(StoreItem.create(
+                "STREAK_RECOVERY",
+                "연속 학습 복구권",
+                200,
+                true,
+                "아이템 사용 안내"
+        ));
         items.saveAndFlush(StoreItem.create("INACTIVE", "판매 중지", 100, false, "아이템 사용 안내"));
         StoreItem last = items.saveAndFlush(StoreItem.create("ANOTHER", "다른 아이템", 300, true, "아이템 사용 안내"));
 
@@ -55,7 +61,7 @@ class StoreCatalogIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.length()").value(2))
                 .andExpect(jsonPath("$.result[0].itemId").value(first.getItemId()))
-                .andExpect(jsonPath("$.result[0].itemCode").value("RECOVERY"))
+                .andExpect(jsonPath("$.result[0].itemCode").value("STREAK_RECOVERY"))
                 .andExpect(jsonPath("$.result[0].name").value("연속 학습 복구권"))
                 .andExpect(jsonPath("$.result[0].description").value("아이템 사용 안내"))
                 .andExpect(jsonPath("$.result[0].fishPrice").value(200))
@@ -109,7 +115,15 @@ class StoreCatalogIntegrationTest {
 
     @Test
     void ownedItemsAreMemberScopedIncludeInactiveAndExcludeZeroQuantity() throws Exception {
-        StoreItem first = items.saveAndFlush(StoreItem.create("OWNED", "복구권", 200, true, "아이템 사용 안내"));
+        StoreItem first = items.saveAndFlush(
+                StoreItem.create(
+                        "OWNED",
+                        "복구권",
+                        200,
+                        true,
+                        "아이템 사용 안내"
+                )
+        );
         StoreItem zero = items.saveAndFlush(StoreItem.create("ZERO", "소진", 100, true, "아이템 사용 안내"));
         StoreItem inactive = items.saveAndFlush(StoreItem.create("OLD", "판매 중지", 300, false, "아이템 사용 안내"));
         StoreItem otherOnly = items.saveAndFlush(StoreItem.create("OTHER", "다른 회원 전용 보유", 100, true, "아이템 사용 안내"));

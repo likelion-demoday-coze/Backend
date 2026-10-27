@@ -33,12 +33,12 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import static demoday.backend.store.code.StoreItemCode.STREAK_RECOVERY;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MyPageService {
-
-    private static final String RECOVERY_ITEM_CODE = "RECOVERY";
 
     private final MemberRepository memberRepository;
     private final MemberItemRepository memberItemRepository;
@@ -66,7 +66,7 @@ public class MyPageService {
         int recoveryTicketCount = memberItemRepository
                 .findByMemberMemberIdAndItemItemCode(
                         memberId,
-                        RECOVERY_ITEM_CODE
+                        STREAK_RECOVERY
                 )
                 .map(memberItem -> memberItem.getQuantity())
                 .orElse(0);
