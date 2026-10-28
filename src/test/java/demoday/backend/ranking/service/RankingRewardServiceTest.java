@@ -69,8 +69,9 @@ class RankingRewardServiceTest {
                 400L
         );
         when(rankingRewardRepository
-                .findAllByMemberMemberIdAndReadAtIsNullOrderByRankingDateAscRankingRewardIdAsc(
-                        1L
+                .findAllByMemberMemberIdAndRankingDateAndReadAtIsNullOrderByRankingRewardIdAsc(
+                        1L,
+                        LocalDate.of(2026, 10, 27)
                 ))
                 .thenReturn(List.of(stockReward, timeAttackReward));
 
@@ -90,14 +91,20 @@ class RankingRewardServiceTest {
                 .isEqualTo(300L);
         assertThat(response.rewards().get(1).fishBalanceAfter())
                 .isEqualTo(400L);
+        verify(rankingRewardRepository)
+                .findAllByMemberMemberIdAndRankingDateAndReadAtIsNullOrderByRankingRewardIdAsc(
+                        1L,
+                        LocalDate.of(2026, 10, 27)
+                );
     }
 
     @Test
     @DisplayName("미확인 보상이 없으면 빈 배열을 반환한다")
     void getUnreadRewardsReturnsEmptyList() {
         when(rankingRewardRepository
-                .findAllByMemberMemberIdAndReadAtIsNullOrderByRankingDateAscRankingRewardIdAsc(
-                        1L
+                .findAllByMemberMemberIdAndRankingDateAndReadAtIsNullOrderByRankingRewardIdAsc(
+                        1L,
+                        LocalDate.of(2026, 10, 27)
                 ))
                 .thenReturn(List.of());
 

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import static demoday.backend.ranking.code.RankingPolicy.KST;
@@ -28,10 +29,15 @@ public class RankingRewardService {
     ) {
         validateMemberId(memberId);
 
+        LocalDate yesterday = LocalDate.now(
+                clock.withZone(KST)
+        ).minusDays(1);
+
         return UnreadRankingRewardsResponse.from(
                 rankingRewardRepository
-                        .findAllByMemberMemberIdAndReadAtIsNullOrderByRankingDateAscRankingRewardIdAsc(
-                                memberId
+                        .findAllByMemberMemberIdAndRankingDateAndReadAtIsNullOrderByRankingRewardIdAsc(
+                                memberId,
+                                yesterday
                         )
         );
     }

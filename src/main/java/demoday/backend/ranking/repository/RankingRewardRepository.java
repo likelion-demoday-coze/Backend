@@ -21,8 +21,9 @@ public interface RankingRewardRepository extends JpaRepository<RankingReward, Lo
     );
 
     List<RankingReward>
-    findAllByMemberMemberIdAndReadAtIsNullOrderByRankingDateAscRankingRewardIdAsc(
-            Long memberId
+    findAllByMemberMemberIdAndRankingDateAndReadAtIsNullOrderByRankingRewardIdAsc(
+            Long memberId,
+            LocalDate rankingDate
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
