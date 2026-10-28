@@ -187,17 +187,21 @@ class RankingQueryRepositoryMySqlTest {
         assertThat(winners)
                 .extracting(
                         RankingWinnerRow::getMemberId,
-                        RankingWinnerRow::getRankingPosition
+                        RankingWinnerRow::getRankingPosition,
+                        RankingWinnerRow::getRankingResultValue
                 )
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
-                                second.getMemberId(), 1L
+                                second.getMemberId(), 1L,
+                                new BigDecimal("500.00")
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                third.getMemberId(), 1L
+                                third.getMemberId(), 1L,
+                                new BigDecimal("500.00")
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                fourth.getMemberId(), 3L
+                                fourth.getMemberId(), 3L,
+                                new BigDecimal("200.00")
                         )
                 );
     }
@@ -285,17 +289,21 @@ class RankingQueryRepositoryMySqlTest {
         assertThat(winners)
                 .extracting(
                         RankingWinnerRow::getMemberId,
-                        RankingWinnerRow::getRankingPosition
+                        RankingWinnerRow::getRankingPosition,
+                        RankingWinnerRow::getRankingResultValue
                 )
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
-                                first.getMemberId(), 1L
+                                first.getMemberId(), 1L,
+                                new BigDecimal("15.00")
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                second.getMemberId(), 2L
+                                second.getMemberId(), 2L,
+                                new BigDecimal("12.00")
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                third.getMemberId(), 2L
+                                third.getMemberId(), 2L,
+                                new BigDecimal("12.00")
                         )
                 );
     }

@@ -4,16 +4,15 @@ import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
 import demoday.backend.ranking.dto.StockRankingResponse;
 import demoday.backend.ranking.dto.TimeAttackRankingResponse;
+import demoday.backend.ranking.dto.UnreadRankingRewardsResponse;
 import demoday.backend.ranking.service.RankingQueryService;
+import demoday.backend.ranking.service.RankingRewardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Tag(
         name = "Ranking",
@@ -24,8 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/rankings")
 public class RankingController {
 
-    private final RankingQueryService
-            rankingQueryService;
+    private final RankingQueryService rankingQueryService;
+    private final RankingRewardService rankingRewardService;
 
     @Operation(
             summary = "주가 랭킹 조회",
@@ -113,6 +112,47 @@ public class RankingController {
                                 page,
                                 size
                         )
+        );
+    }
+
+    @Operation(
+            summary = "미확인 랭킹 보상 조회",
+            description = """
+                아직 확인하지 않은 주가 및 시간외거래 랭킹 보상을 조회합니다.
+                두 랭킹 모두 보상 대상이면 보상 두 건을 반환합니다.
+                패스 여부와 관계없이 FISH 지급 전후 잔액을 반환합니다.
+                """
+    )
+    @GetMapping("/rewards/unread")
+    public ApiResponse<UnreadRankingRewardsResponse>
+    getUnreadRankingRewards(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                rankingRewardService.getUnreadRewards(memberId)
+        );
+    }
+
+    @Operation(
+            summary = "랭킹 보상 확인 처리",
+            description = """
+                팝업 확인이 끝난 랭킹 보상을 확인 처리합니다.
+                같은 요청을 여러 번 호출해도 성공합니다.
+                """
+    )
+    @PatchMapping("/rewards/{rankingRewardId}/read")
+    public ApiResponse<Void> readRankingReward(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long rankingRewardId
+    ) {
+        rankingRewardService.markAsRead(
+                memberId,
+                rankingRewardId
+        );
+
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK
         );
     }
 }

@@ -201,14 +201,23 @@ public class RankingSettlementService {
             return;
         }
 
+        long fishBalanceBefore = member.getFishBalance();
+        long fishBalanceAfter = Math.addExact(
+                fishBalanceBefore,
+                REWARD_FISH_AMOUNT
+        );
+
         RankingReward reward =
                 rankingRewardRepository.save(
                         RankingReward.create(
                                 member,
                                 rankingType,
                                 rankingDate,
-                                winner.getRankingPosition()
-                                        .intValue()
+                                winner.getRankingPosition().intValue(),
+                                winner.getRankingResultValue(),
+                                REWARD_FISH_AMOUNT,
+                                fishBalanceBefore,
+                                fishBalanceAfter
                         )
                 );
 

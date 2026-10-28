@@ -32,6 +32,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -107,8 +108,8 @@ class RankingSettlementServiceTest {
     @Test
     @DisplayName("전날 주가 및 타임어택 수상자를 조회해 유형별 보상을 지급한다")
     void settlePreviousDay() {
-        RankingWinnerRow stockWinner = winner(1L, 1L);
-        RankingWinnerRow timeAttackWinner = winner(2L, 3L);
+        RankingWinnerRow stockWinner = winner(1L, 1L, "1275.40");
+        RankingWinnerRow timeAttackWinner = winner(2L, 3L, "22.00");
         Member stockMember = activeMember(1L);
         Member timeAttackMember = activeMember(2L);
 
@@ -142,14 +143,24 @@ class RankingSettlementServiceTest {
                 .extracting(
                         RankingReward::getRankingType,
                         RankingReward::getRankingDate,
-                        RankingReward::getRankingPosition
+                        RankingReward::getRankingPosition,
+                        RankingReward::getRankingResultValue,
+                        RankingReward::getRewardFishAmount,
+                        RankingReward::getFishBalanceBefore,
+                        RankingReward::getFishBalanceAfter
                 )
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
-                                RankingType.STOCK, YESTERDAY, 1
+                                RankingType.STOCK, YESTERDAY, 1,
+                                new BigDecimal("1275.40"),
+                                (long) REWARD_FISH_AMOUNT, 0L,
+                                (long) REWARD_FISH_AMOUNT
                         ),
                         org.assertj.core.groups.Tuple.tuple(
-                                RankingType.TIME_ATTACK, YESTERDAY, 3
+                                RankingType.TIME_ATTACK, YESTERDAY, 3,
+                                new BigDecimal("22.00"),
+                                (long) REWARD_FISH_AMOUNT, 0L,
+                                (long) REWARD_FISH_AMOUNT
                         )
                 );
 
@@ -519,9 +530,19 @@ class RankingSettlementServiceTest {
     }
 
     private RankingWinnerRow winner(Long memberId, Long position) {
+        return winner(memberId, position, "100.00");
+    }
+
+    private RankingWinnerRow winner(
+            Long memberId,
+            Long position,
+            String resultValue
+    ) {
         RankingWinnerRow winner = mock(RankingWinnerRow.class);
         lenient().when(winner.getMemberId()).thenReturn(memberId);
         lenient().when(winner.getRankingPosition()).thenReturn(position);
+        lenient().when(winner.getRankingResultValue())
+                .thenReturn(new BigDecimal(resultValue));
         return winner;
     }
 
@@ -529,6 +550,7 @@ class RankingSettlementServiceTest {
         Member member = mock(Member.class);
         lenient().when(member.getMemberId()).thenReturn(memberId);
         lenient().when(member.getStatus()).thenReturn(MemberStatus.ACTIVE);
+        lenient().when(member.getFishBalance()).thenReturn(0L);
         return member;
     }
 

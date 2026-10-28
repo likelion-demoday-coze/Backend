@@ -271,6 +271,9 @@ public interface RankingQueryRepository
                 WITH ranked AS (
                     SELECT
                         s.member_id AS memberId,
+                        CAST(
+                            s.stock_value AS DECIMAL(30, 2)
+                        ) AS rankingResultValue,
                         RANK() OVER (
                             ORDER BY s.stock_value DESC
                         ) AS rankingPosition
@@ -282,7 +285,8 @@ public interface RankingQueryRepository
                 )
                 SELECT
                     memberId,
-                    rankingPosition
+                    rankingPosition,
+                    rankingResultValue
                 FROM ranked
                 WHERE rankingPosition BETWEEN 1 AND :maxRank
                 ORDER BY
@@ -291,6 +295,7 @@ public interface RankingQueryRepository
                 """,
             nativeQuery = true
     )
+
     List<RankingWinnerRow> findStockRewardTargets(
             @Param("rankingDate") LocalDate rankingDate,
             @Param("maxRank") int maxRank
@@ -310,6 +315,9 @@ public interface RankingQueryRepository
                 ranked AS (
                     SELECT
                         m.member_id AS memberId,
+                        CAST(
+                            b.correctCount AS DECIMAL(30, 2)
+                        ) AS rankingResultValue,
                         RANK() OVER (
                             ORDER BY b.correctCount DESC
                         ) AS rankingPosition
@@ -320,7 +328,8 @@ public interface RankingQueryRepository
                 )
                 SELECT
                     memberId,
-                    rankingPosition
+                    rankingPosition,
+                    rankingResultValue
                 FROM ranked
                 WHERE rankingPosition BETWEEN 1 AND :maxRank
                 ORDER BY
