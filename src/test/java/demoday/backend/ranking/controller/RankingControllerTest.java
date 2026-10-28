@@ -4,7 +4,9 @@ import demoday.backend.global.api.ApiResponse;
 import demoday.backend.ranking.dto.RankingPageResponse;
 import demoday.backend.ranking.dto.StockRankingResponse;
 import demoday.backend.ranking.dto.TimeAttackRankingResponse;
+import demoday.backend.ranking.dto.UnreadRankingRewardsResponse;
 import demoday.backend.ranking.service.RankingQueryService;
+import demoday.backend.ranking.service.RankingRewardService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -22,8 +24,13 @@ class RankingControllerTest {
 
     private final RankingQueryService rankingQueryService =
             mock(RankingQueryService.class);
+    private final RankingRewardService rankingRewardService =
+            mock(RankingRewardService.class);
     private final RankingController rankingController =
-            new RankingController(rankingQueryService);
+            new RankingController(
+                    rankingQueryService,
+                    rankingRewardService
+            );
 
     @Test
     @DisplayName("주가 랭킹 조회 결과를 공통 성공 응답으로 반환한다")
@@ -67,5 +74,31 @@ class RankingControllerTest {
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getResult()).isSameAs(expected);
         verify(rankingQueryService).getTimeAttackRanking(1L, 0, 20);
+    }
+
+    @Test
+    @DisplayName("미확인 랭킹 보상 조회 결과를 공통 성공 응답으로 반환한다")
+    void getUnreadRankingRewards() {
+        UnreadRankingRewardsResponse expected =
+                new UnreadRankingRewardsResponse(List.of());
+        when(rankingRewardService.getUnreadRewards(1L))
+                .thenReturn(expected);
+
+        ApiResponse<UnreadRankingRewardsResponse> response =
+                rankingController.getUnreadRankingRewards(1L);
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getResult()).isSameAs(expected);
+        verify(rankingRewardService).getUnreadRewards(1L);
+    }
+
+    @Test
+    @DisplayName("랭킹 보상 확인 요청을 서비스에 위임한다")
+    void readRankingReward() {
+        ApiResponse<Void> response =
+                rankingController.readRankingReward(1L, 10L);
+
+        assertThat(response.isSuccess()).isTrue();
+        verify(rankingRewardService).markAsRead(1L, 10L);
     }
 }

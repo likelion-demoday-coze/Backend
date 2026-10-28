@@ -271,6 +271,9 @@ public interface RankingQueryRepository
                 WITH ranked AS (
                     SELECT
                         s.member_id AS memberId,
+                        CAST(
+                            s.stock_value AS DECIMAL(30, 2)
+                        ) AS rankingResultValue,
                         RANK() OVER (
                             ORDER BY s.stock_value DESC
                         ) AS rankingPosition
@@ -283,9 +286,7 @@ public interface RankingQueryRepository
                 SELECT
                     memberId,
                     rankingPosition,
-                    CAST(
-                        correctCount AS DECIMAL(30,2)
-                    ) AS rankingResultValue
+                    rankingResultValue
                 FROM ranked
                 WHERE rankingPosition BETWEEN 1 AND :maxRank
                 ORDER BY
@@ -314,6 +315,9 @@ public interface RankingQueryRepository
                 ranked AS (
                     SELECT
                         m.member_id AS memberId,
+                        CAST(
+                            b.correctCount AS DECIMAL(30, 2)
+                        ) AS rankingResultValue,
                         RANK() OVER (
                             ORDER BY b.correctCount DESC
                         ) AS rankingPosition
@@ -326,21 +330,7 @@ public interface RankingQueryRepository
                     memberId,
                     rankingPosition,
                     rankingResultValue
-                FROM (
-                    SELECT 
-                        s.member_id AS memberId,
-                        RANK() OVER(
-                            ORDER BY s.stock_value DESC
-                        ) AS rankingPosition,
-                        CAST(
-                            s.stock_value AS DECIMAL(30,2)
-                        ) AS rankingResultValue
-                    FROM stock_daily_snapshot s
-                    JOIN member m
-                    ON m.member_id = s.member_id
-                    WHERE s.snapshot_date = :rankingDate
-                    AND m.status = 'ACTIVE'
-                ) ranked
+                FROM ranked
                 WHERE rankingPosition BETWEEN 1 AND :maxRank
                 ORDER BY
                     rankingPosition ASC,
