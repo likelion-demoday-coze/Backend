@@ -18,6 +18,11 @@ public enum RankingErrorCode implements BaseErrorCode {
             HttpStatus.BAD_REQUEST,
             "RANKING_400_2",
             "랭킹을 확정할 수 없는 날짜입니다."
+    ),
+    REWARD_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "RANKING_404_1",
+            "확인할 수 있는 랭킹 보상이 없습니다."
     );
 
     private final HttpStatus status;
