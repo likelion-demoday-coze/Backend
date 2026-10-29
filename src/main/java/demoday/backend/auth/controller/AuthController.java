@@ -4,6 +4,7 @@ import demoday.backend.auth.dto.CsrfTokenResponse;
 import demoday.backend.auth.dto.SignupRequest;
 import demoday.backend.auth.service.KakaoAuthService;
 import demoday.backend.auth.service.FrontendRedirectService;
+import demoday.backend.auth.service.SignupAvailabilityService;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.api.code.GeneralSuccessCode;
@@ -45,6 +46,7 @@ public class AuthController {
     private final MemberService memberService;
     private final HttpSessionSecurityContextRepository contextRepository;
     private final FrontendRedirectService frontendRedirectService;
+    private final SignupAvailabilityService signupAvailabilityService;
 
     @Operation(summary = "카카오 로그인 시작")
     @GetMapping("/login/kakao")
@@ -82,6 +84,8 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
+        signupAvailabilityService.validateOpen();
+
         HttpSession session = request.getSession(false);
 
         if (session == null

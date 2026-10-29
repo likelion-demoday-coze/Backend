@@ -13,6 +13,11 @@ public enum AuthErrorCode implements BaseErrorCode {
             HttpStatus.BAD_REQUEST,
             "AUTH_400_1",
             "허용되지 않은 프론트 리다이렉트 주소입니다."
+    ),
+    SIGNUP_NOT_OPEN(
+            HttpStatus.FORBIDDEN,
+            "AUTH_403_1",
+            "아직 회원가입 기간이 아닙니다."
     );
 
     private final HttpStatus status;

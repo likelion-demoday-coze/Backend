@@ -127,6 +127,9 @@ app:
   pass:
     duration: ${PASS_DURATION:168h}
 
+  signup:
+    open-at: ${SIGNUP_OPEN_AT:2026-10-31T00:00:00+09:00}
+
   economic-trends:
     enabled: ${ECONOMIC_TRENDS_ENABLED:false}
     local-generate-on-startup: ${ECONOMIC_TRENDS_LOCAL_GENERATE_ON_STARTUP:false}
