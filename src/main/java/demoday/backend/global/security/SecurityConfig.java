@@ -2,6 +2,7 @@ package demoday.backend.global.security;
 
 import demoday.backend.auth.service.KakaoAuthService;
 import demoday.backend.auth.service.FrontendRedirectService;
+import demoday.backend.auth.service.SignupAvailabilityService;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.member.domain.Member;
@@ -37,6 +38,7 @@ public class SecurityConfig {
             HttpSecurity http,
             KakaoAuthService kakaoAuthService,
             FrontendRedirectService frontendRedirectService,
+            SignupAvailabilityService signupAvailabilityService,
             HttpSessionSecurityContextRepository contextRepository,
             ObjectMapper objectMapper,
             @Value("${app.frontend-login-success-path:/home}") String loginSuccessPath,
@@ -121,6 +123,18 @@ public class SecurityConfig {
                                 session.removeAttribute(
                                         HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY
                                 );
+
+                                if (!signupAvailabilityService.isOpen()) {
+                                    session.removeAttribute(
+                                            KakaoAuthService.PENDING_KAKAO_USER_ID
+                                    );
+
+                                    String frontendUrl =
+                                            frontendRedirectService.consume(session);
+                                    response.sendRedirect(frontendUrl);
+                                    return;
+                                }
+
                                 session.setAttribute(
                                         KakaoAuthService.PENDING_KAKAO_USER_ID,
                                         kakaoUserId
