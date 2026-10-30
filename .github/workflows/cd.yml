@@ -14,7 +14,12 @@ jobs:
   deploy:
     if: >
       ${{ github.event.workflow_run.conclusion == 'success'
-          && github.event.workflow_run.head_branch == 'main' }}
+          && github.event.workflow_run.head_branch == 'main'
+          && github.event.workflow_run.head_repository.full_name == github.repository }}
+
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
 
     runs-on: ubuntu-latest
 
@@ -40,26 +45,27 @@ jobs:
             ghcr.io/likelion-demoday-coze/backend:${{ github.event.workflow_run.head_sha }}
             ghcr.io/likelion-demoday-coze/backend:latest
 
+      - name: Copy deployment scripts
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: scripts/ops
+          target: /home/ubuntu/Backend/releases/${{ github.event.workflow_run.head_sha }}
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 90m
           script: |
+            set -eu
             echo "${{ secrets.GHCR_PAT }}" | sudo docker login ghcr.io \
               -u "${{ secrets.GHCR_USERNAME }}" \
               --password-stdin
 
-            sudo docker pull \
-              ghcr.io/likelion-demoday-coze/backend:${{ github.event.workflow_run.head_sha }}
-
-            sudo docker stop backend || true
-            sudo docker rm backend || true
-
-            sudo docker run -d \
-              --name backend \
-              --restart unless-stopped \
-              -p 8080:8080 \
-              --env-file /home/ubuntu/Backend/.env \
-              ghcr.io/likelion-demoday-coze/backend:${{ github.event.workflow_run.head_sha }}
+            sudo bash /home/ubuntu/Backend/releases/${{ github.event.workflow_run.head_sha }}/scripts/ops/deploy.sh \
+              '${{ github.event.workflow_run.head_sha }}'
