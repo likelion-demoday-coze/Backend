@@ -5,10 +5,13 @@ import demoday.backend.member.code.MemberErrorCode;
 import demoday.backend.member.code.MemberStatus;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
+import demoday.backend.payment.code.PassType;
 import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.code.ProductType;
+import demoday.backend.payment.domain.MemberPass;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.domain.Product;
+import demoday.backend.payment.repository.MemberPassRepository;
 import demoday.backend.payment.repository.PaymentRepository;
 import demoday.backend.payment.repository.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +54,7 @@ class MemberWithdrawalIntegrationTest {
     @Autowired private MemberRepository memberRepository;
     @Autowired private ProductRepository productRepository;
     @Autowired private PaymentRepository paymentRepository;
+    @Autowired private MemberPassRepository memberPassRepository;
 
     private Member member;
     private Product product;
@@ -151,6 +155,42 @@ class MemberWithdrawalIntegrationTest {
         assertWithdrawn();
     }
 
+    @Test
+    @DisplayName("사용 중인 패스가 있으면 탈퇴할 수 없다")
+    void activePassBlocksWithdrawal() {
+        savePass(
+                NOW_LOCAL.minusDays(1),
+                NOW_LOCAL.plusDays(6)
+        );
+
+        assertThatThrownBy(() -> memberService.withdraw(member.getMemberId()))
+                .isInstanceOfSatisfying(
+                        ProjectException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(
+                                        MemberErrorCode
+                                                .WITHDRAWAL_BLOCKED_BY_ACTIVE_PASS
+                                )
+                );
+
+        assertThat(memberRepository.findById(member.getMemberId())
+                .orElseThrow()
+                .getStatus()).isEqualTo(MemberStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("만료된 패스만 있으면 탈퇴할 수 있다")
+    void expiredPassAllowsWithdrawal() {
+        savePass(
+                NOW_LOCAL.minusDays(8),
+                NOW_LOCAL.minusDays(1)
+        );
+
+        memberService.withdraw(member.getMemberId());
+
+        assertWithdrawn();
+    }
+
     private void assertWithdrawalBlocked() {
         assertThatThrownBy(() -> memberService.withdraw(member.getMemberId()))
                 .isInstanceOfSatisfying(
@@ -220,6 +260,26 @@ class MemberWithdrawalIntegrationTest {
         }
 
         return paymentRepository.saveAndFlush(payment);
+    }
+
+    private MemberPass savePass(
+            LocalDateTime startedAt,
+            LocalDateTime expiresAt
+    ) {
+        Payment payment = savePayment(
+                PaymentStatus.COMPLETED,
+                startedAt
+        );
+
+        return memberPassRepository.saveAndFlush(
+                MemberPass.create(
+                        member,
+                        payment,
+                        PassType.SEVEN_DAY,
+                        startedAt,
+                        expiresAt
+                )
+        );
     }
 
     private void approve(

@@ -9,7 +9,9 @@ import demoday.backend.member.dto.MemberResponse;
 import demoday.backend.member.dto.NicknameAvailabilityResponse;
 import demoday.backend.member.dto.NicknameUpdateRequest;
 import demoday.backend.member.repository.MemberRepository;
+import demoday.backend.payment.code.PassStatus;
 import demoday.backend.payment.code.PaymentStatus;
+import demoday.backend.payment.repository.MemberPassRepository;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,6 +29,7 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final PaymentRepository paymentRepository;
+    private final MemberPassRepository memberPassRepository;
     private final Clock clock;
 
     private static final long PAYMENT_AUTHENTICATION_MINUTES = 30L;
@@ -158,6 +161,18 @@ public class MemberService {
             throw new ProjectException(
                     MemberErrorCode
                             .WITHDRAWAL_BLOCKED_BY_PENDING_PAYMENT
+            );
+        }
+
+        boolean activePassExists = memberPassRepository.findActivePass(
+                memberId,
+                PassStatus.ACTIVE,
+                now
+        ).isPresent();
+
+        if (activePassExists) {
+            throw new ProjectException(
+                    MemberErrorCode.WITHDRAWAL_BLOCKED_BY_ACTIVE_PASS
             );
         }
 

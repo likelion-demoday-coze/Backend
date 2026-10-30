@@ -66,6 +66,11 @@ public enum MemberErrorCode implements BaseErrorCode {
             HttpStatus.CONFLICT,
             "MEMBER_409_5",
             "처리 중인 결제가 있어 회원 탈퇴를 진행할 수 없습니다."
+    ),
+    WITHDRAWAL_BLOCKED_BY_ACTIVE_PASS(
+            HttpStatus.CONFLICT,
+            "MEMBER_409_6",
+            "사용 중인 패스가 있어 회원 탈퇴를 진행할 수 없습니다."
     );
 
     private final HttpStatus status;
