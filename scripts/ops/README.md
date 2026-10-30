@@ -92,9 +92,10 @@ RESTORE_MYSQL_IMAGE=mysql:8.0 # 운영 버전/digest로 고정
 DB_DISK_PATH=/var/lib/docker/volumes/ACTUAL_VOLUME/_data
 BACKUP_DIR=/var/backups/backend
 MAX_DISK_PERCENT=85
+MIN_FREE_BYTES=5368709120 # 각 경로에 최소 5 GiB 여유 공간 필요
 ```
 
-실제 마운트를 확인하고 백업 디렉터리를 미리 생성한다. 루트·Docker·DB·백업 경로의 디스크와 inode를 점검한다. 최대 이미지/백업 크기를 감당할 절대 여유 공간도 확인한다. 원격 DB는 PRE_DEPLOY_CHECK_SCRIPT를 공급자 FreeStorageSpace 등 DB 측 지표와 서버 디스크를 함께 확인하는 hook으로 교체한다.
+실제 마운트를 확인하고 백업 디렉터리를 미리 생성한다. 루트·Docker·DB·백업 경로의 디스크와 inode 사용률 및 가용 바이트를 점검하며, 조회 실패나 기준 미달이면 이미지 pull과 백업 전에 배포를 중단한다. `MIN_FREE_BYTES`는 기본 5 GiB이며, 같은 파일시스템에 저장할 이미지의 다운로드·압축 해제 공간과 백업 크기, 운영 여유분을 합산해 충분히 크게 설정한다. 이 검사는 실행 시점의 여유 공간을 확인하며 공간을 예약하지는 않는다. 원격 DB는 PRE_DEPLOY_CHECK_SCRIPT를 공급자 FreeStorageSpace 등 DB 측 지표와 서버 디스크를 함께 확인하는 hook으로 교체한다.
 
 `systemd/`의 네 unit을 `/etc/systemd/system/`에 설치한다.
 

@@ -41,6 +41,7 @@ jobs:
         run: |
           for script in scripts/ops/*.sh scripts/ops/tests/*.sh; do bash -n "$script"; done
           bash scripts/ops/tests/deploy-test.sh
+          bash scripts/ops/tests/check-disk-test.sh
           python3 scripts/ops/tests/smoke-test.py
 
       - name: Run tests
