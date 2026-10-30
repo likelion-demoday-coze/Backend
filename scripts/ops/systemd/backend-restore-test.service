@@ -1,0 +1,10 @@
+[Unit]
+Description=Backend backup restore drill in isolated MySQL
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/bin/bash /opt/backend-ops/restore-test.sh
+TimeoutStartSec=30min

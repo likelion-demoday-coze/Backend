@@ -1,0 +1,10 @@
+[Unit]
+Description=Backend MySQL backup (monitor failures externally)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/bin/bash /opt/backend-ops/backup-mysql.sh
+TimeoutStartSec=30min
