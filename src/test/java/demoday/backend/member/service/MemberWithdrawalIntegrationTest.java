@@ -171,8 +171,12 @@ class MemberWithdrawalIntegrationTest {
         Member withdrawn = memberRepository.findById(member.getMemberId())
                 .orElseThrow();
 
-        assertThat(withdrawn.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
-        assertThat(withdrawn.getDeletedAt()).isEqualTo(NOW_LOCAL);
+        assertThat(withdrawn.getStatus())
+                .isEqualTo(MemberStatus.WITHDRAWN);
+        assertThat(withdrawn.getDeletedAt())
+                .isEqualTo(NOW_LOCAL);
+        assertThat(withdrawn.getKakaoUserId()).isNull();
+        assertThat(withdrawn.getNickname()).isNull();
     }
 
     private Payment savePayment(

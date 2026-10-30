@@ -97,25 +97,6 @@ public class SecurityConfig {
                             Optional<Member> member =
                                     kakaoAuthService.findMemberByKakaoUserId(kakaoUserId);
 
-                            if (member.isPresent() && member.get().isWithdrawn()) {
-                                HttpSession session = request.getSession(false);
-
-                                String frontendUrl = session == null
-                                        ? frontendRedirectService.validate(null)
-                                        : frontendRedirectService.consume(session);
-
-                                SecurityContextHolder.clearContext();
-
-                                if (session != null) {
-                                    session.invalidate();
-                                }
-
-                                response.sendRedirect(
-                                        frontendUrl + "/login?error=withdrawn_member"
-                                );
-                                return;
-                            }
-
                             if (member.isEmpty()) {
                                 SecurityContextHolder.clearContext();
 
