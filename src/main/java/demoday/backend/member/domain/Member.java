@@ -49,6 +49,9 @@ public class Member {
     @Column(name = "tutorial_completed", nullable = false)
     private Boolean tutorialCompleted;
 
+    @Column(name = "ranking_excluded", nullable = false)
+    private Boolean rankingExcluded;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MemberStatus status;
@@ -81,6 +84,7 @@ public class Member {
                 .currentStock(new BigDecimal("100.00"))
                 .currentStreak(0)
                 .tutorialCompleted(false)
+                .rankingExcluded(false)
                 .status(MemberStatus.ACTIVE)
                 .build();
     }
@@ -215,6 +219,14 @@ public class Member {
 
     public boolean isWithdrawn() {
         return status == MemberStatus.WITHDRAWN;
+    }
+
+    public boolean isRankingExcluded() {
+        return Boolean.TRUE.equals(rankingExcluded);
+    }
+
+    public void changeRankingExclusion(boolean excluded) {
+        this.rankingExcluded = excluded;
     }
 
     public void completeTutorial() {

@@ -42,7 +42,7 @@ public class RankingQueryService {
             int size
     ) {
         // 페이지 요청값, 로그인 회원 검증
-        validateRequest(memberId, page, size);
+        Member member = validateRequest(memberId, page, size);
 
         // 조회 위치 계산
         long offset = calculateOffset(page, size);
@@ -66,31 +66,28 @@ public class RankingQueryService {
                         )
                         .toList();
 
-        // 내 주가 순위 별도 조회
-        StockRankingRow myRankingRow =
-                rankingQueryRepository
-                        .findMyStockRanking(memberId)
-                        .orElseThrow(
-                                () -> new ProjectException(
-                                        GeneralErrorCode.NOT_FOUND
-                                )
-                        );
-
         // 전체 통계 조회
         StockRankingStatsRow stats =
                 rankingQueryRepository
                         .findStockRankingStats();
 
         // 백분율 계산
-        MyStockRankingResponse myRanking =
-                MyStockRankingResponse.of(
-                        myRankingRow,
-                        calculateTopPercent(
-                                myRankingRow
-                                        .getRankingPosition(),
-                                stats.getTotalMemberCount()
-                        )
-                );
+        MyStockRankingResponse myRanking = member.isRankingExcluded()
+                ? null
+                : rankingQueryRepository
+                        .findMyStockRanking(memberId)
+                        .map(row -> MyStockRankingResponse.of(
+                                row,
+                                calculateTopPercent(
+                                        row.getRankingPosition(),
+                                        stats.getTotalMemberCount()
+                                )
+                        ))
+                        .orElseThrow(
+                                () -> new ProjectException(
+                                        GeneralErrorCode.NOT_FOUND
+                                )
+                        );
 
         LocalDateTime rankedAt =
                 LocalDateTime.now(
@@ -122,7 +119,7 @@ public class RankingQueryService {
     ) {
 
         // 페이지 요청값, 로그인 회원 검증
-        validateRequest(
+        Member member = validateRequest(
                 memberId,
                 page,
                 size
@@ -166,8 +163,9 @@ public class RankingQueryService {
                         );
 
         // 참여 회원 수와 평균 정답 수 조회
-        MyTimeAttackRankingResponse myRanking =
-                rankingQueryRepository
+        MyTimeAttackRankingResponse myRanking = member.isRankingExcluded()
+                ? null
+                : rankingQueryRepository
                         .findMyTimeAttackRanking(
                                 memberId,
                                 rankingDate
@@ -198,7 +196,7 @@ public class RankingQueryService {
         );
     }
 
-    private void validateRequest(Long memberId, int page, int size) {
+    private Member validateRequest(Long memberId, int page, int size) {
         validatePage(page, size);
 
         if (memberId == null) {
@@ -217,6 +215,8 @@ public class RankingQueryService {
                     GeneralErrorCode.FORBIDDEN
             );
         }
+
+        return member;
     }
 
     private void validatePage(int page, int size) {

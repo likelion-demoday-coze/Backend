@@ -308,6 +308,84 @@ class RankingQueryRepositoryMySqlTest {
                 );
     }
 
+    @Test
+    @DisplayName("랭킹 제외 회원은 두 랭킹의 순위, 통계와 보상 대상에 영향을 주지 않는다")
+    void excludesInternalMemberFromRankingsStatsAndRewards() {
+        first.changeRankingExclusion(true);
+        memberRepository.flush();
+
+        saveSnapshot(first, RANKING_DATE, "999.00");
+        saveSnapshot(second, RANKING_DATE, "300.00");
+        saveSnapshot(third, RANKING_DATE, "200.00");
+        saveSnapshot(fourth, RANKING_DATE, "100.00");
+
+        saveCompletedSession(first, RANKING_DATE, 100);
+        saveCompletedSession(second, RANKING_DATE, 15);
+        saveCompletedSession(third, RANKING_DATE, 10);
+        saveCompletedSession(fourth, RANKING_DATE, 5);
+
+        assertThat(rankingQueryRepository.findStockRankingPage(10, 0))
+                .extracting(
+                        StockRankingRow::getMemberId,
+                        StockRankingRow::getRankingPosition
+                )
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                second.getMemberId(), 1L
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                third.getMemberId(), 1L
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                fourth.getMemberId(), 3L
+                        )
+                );
+        assertThat(rankingQueryRepository.findMyStockRanking(first.getMemberId()))
+                .isEmpty();
+
+        StockRankingStatsRow stockStats =
+                rankingQueryRepository.findStockRankingStats();
+        assertThat(stockStats.getTotalMemberCount()).isEqualTo(3L);
+        assertThat(stockStats.getAverageStock()).isEqualByComparingTo("233.33");
+
+        assertThat(rankingQueryRepository.findTimeAttackRankingPage(
+                RANKING_DATE, 10, 0
+        )).extracting(
+                TimeAttackRankingRow::getMemberId,
+                TimeAttackRankingRow::getRankingPosition
+        ).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(second.getMemberId(), 1L),
+                org.assertj.core.groups.Tuple.tuple(third.getMemberId(), 2L),
+                org.assertj.core.groups.Tuple.tuple(fourth.getMemberId(), 3L)
+        );
+        assertThat(rankingQueryRepository.findMyTimeAttackRanking(
+                first.getMemberId(), RANKING_DATE
+        )).isEmpty();
+
+        TimeAttackRankingStatsRow timeAttackStats =
+                rankingQueryRepository.findTimeAttackRankingStats(RANKING_DATE);
+        assertThat(timeAttackStats.getTotalMemberCount()).isEqualTo(3L);
+        assertThat(timeAttackStats.getAverageCorrectCount())
+                .isEqualByComparingTo("10.00");
+
+        assertThat(rankingQueryRepository.findStockRewardTargets(
+                RANKING_DATE, 3
+        )).extracting(RankingWinnerRow::getMemberId)
+                .containsExactly(
+                        second.getMemberId(),
+                        third.getMemberId(),
+                        fourth.getMemberId()
+                );
+        assertThat(rankingQueryRepository.findTimeAttackRewardTargets(
+                RANKING_DATE, 3
+        )).extracting(RankingWinnerRow::getMemberId)
+                .containsExactly(
+                        second.getMemberId(),
+                        third.getMemberId(),
+                        fourth.getMemberId()
+                );
+    }
+
     private Member saveMember(
             Long kakaoUserId,
             String nickname,
