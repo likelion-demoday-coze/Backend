@@ -12,23 +12,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentPolicyPropertiesTest {
 
     @Test
-    @DisplayName("11월 14일 전체는 판매하고 11월 15일 0시부터 차단한다")
+    @DisplayName("11월 21일 전체는 판매하고 11월 22일 0시부터 차단한다")
     void appliesExclusiveSalesEndBoundary() {
         ServicePeriodProperties properties =
                 new ServicePeriodProperties(
                         OffsetDateTime.parse(
-                                "2026-11-15T00:00:00+09:00"
+                                "2026-11-22T00:00:00+09:00"
                         ),
                         OffsetDateTime.parse(
-                                "2026-11-21T23:59:59+09:00"
+                                "2026-11-28T23:59:59+09:00"
                         )
                 );
 
         assertThat(properties.isSalesOpenAt(
-                LocalDateTime.parse("2026-11-14T23:59:59.999999")
+                LocalDateTime.parse("2026-11-21T23:59:59.999999")
         )).isTrue();
+
         assertThat(properties.isSalesOpenAt(
-                LocalDateTime.parse("2026-11-15T00:00:00")
+                LocalDateTime.parse("2026-11-22T00:00:00")
         )).isFalse();
     }
 
