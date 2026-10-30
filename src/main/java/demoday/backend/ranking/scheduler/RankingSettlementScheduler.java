@@ -1,4 +1,5 @@
 package demoday.backend.ranking.scheduler;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.ranking.service.RankingSettlementService;
@@ -31,6 +32,7 @@ public class RankingSettlementScheduler {
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    @SchedulerLock(name = "ranking-settlement", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void settleOnStartup() {
         runSafely(
                 "ranking-settlement-startup",
@@ -42,6 +44,7 @@ public class RankingSettlementScheduler {
             cron = "0 0 0 * * *",
             zone = "Asia/Seoul"
     )
+    @SchedulerLock(name = "ranking-settlement", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void settleAtMidnight() {
         runSafely(
                 "ranking-settlement-midnight",

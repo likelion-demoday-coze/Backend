@@ -1,4 +1,5 @@
 package demoday.backend.payment.scheduler;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.payment.service.PaymentFulfillmentRetryService;
@@ -17,6 +18,7 @@ public class PaymentFulfillmentRetryScheduler {
             fixedDelayString =
                     "${app.payment.fulfillment-retry-delay-ms:300000}"
     )
+    @SchedulerLock(name = "payment-fulfillment-retry", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void retryPendingFulfillments() {
         jobRunContext.run(
                 "payment-fulfillment-retry",

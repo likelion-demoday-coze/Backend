@@ -1,4 +1,5 @@
 package demoday.backend.stock.scheduler;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.stock.service.StockSnapshotService;
@@ -34,6 +35,7 @@ public class StockSnapshotScheduler {
     }
 
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
+    @SchedulerLock(name = "stock-snapshot", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void captureAtMidnight() {
         jobRunContext.run(
                 "stock-snapshot-midnight",
@@ -42,6 +44,7 @@ public class StockSnapshotScheduler {
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    @SchedulerLock(name = "stock-snapshot", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void captureOnStartup() {
         jobRunContext.run(
                 "stock-snapshot-startup",

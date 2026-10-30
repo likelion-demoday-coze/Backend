@@ -1,4 +1,7 @@
 spring:
+  sql:
+    init:
+      mode: always
   security:
     oauth2:
       client:
@@ -22,6 +25,8 @@ spring:
       ddl-auto: create-drop
 
 app:
+  scheduling:
+    lock-at-least-for: 0s
   service:
     sales-end-at: 2026-11-22T00:00:00+09:00
     service-end-at: 2026-11-28T23:59:59+09:00

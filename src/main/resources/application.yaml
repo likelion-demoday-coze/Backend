@@ -1,6 +1,11 @@
 spring:
   application:
     name: backend
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  session:
+    jdbc:
+      initialize-schema: ${SESSION_JDBC_INITIALIZE_SCHEMA:embedded}
   security:
     oauth2:
       client:
@@ -44,12 +49,17 @@ management:
       show-details: never
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,db
 
   opentelemetry:
     enabled: ${OTEL_ENABLED:false}
 
     resource-attributes:
       service.name: ${OTEL_SERVICE_NAME:${spring.application.name}}
+      service.version: ${DEPLOY_SHA:local}
+      service.instance.id: ${HOSTNAME:local}
       deployment.environment.name: ${OTEL_ENVIRONMENT:local}
 
     tracing:
@@ -170,6 +180,8 @@ app:
       read-timeout: ${PAYAPP_READ_TIMEOUT:3s}
 
 server:
+  shutdown: graceful
+  forward-headers-strategy: native
   servlet:
     session:
       cookie:

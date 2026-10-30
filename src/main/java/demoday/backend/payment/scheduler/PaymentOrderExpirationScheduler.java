@@ -1,4 +1,5 @@
 package demoday.backend.payment.scheduler;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.payment.service.PaymentOrderExpirationService;
@@ -17,6 +18,7 @@ public class PaymentOrderExpirationScheduler {
             fixedDelayString =
                     "${app.payment.order.expiration-scan-delay-ms:60000}"
     )
+    @SchedulerLock(name = "payment-order-expiration", lockAtLeastFor = "${app.scheduling.lock-at-least-for:30s}")
     public void expirePendingOrders() {
         jobRunContext.run(
                 "payment-order-expiration",

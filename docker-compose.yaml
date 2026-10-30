@@ -11,6 +11,8 @@ services:
       - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./docs/sql/add_shedlock.sql:/docker-entrypoint-initdb.d/010-shedlock.sql:ro
+      - ./docs/sql/create_spring_session_mysql.sql:/docker-entrypoint-initdb.d/020-session.sql:ro
     healthcheck:
       test:
         [
