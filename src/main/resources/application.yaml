@@ -174,7 +174,7 @@ app:
       base-url: ${PAYAPP_BASE_URL:https://api.payapp.kr}
       request-path: ${PAYAPP_REQUEST_PATH:/oapi/apiLoad.html}
       feedback-url: ${PAYAPP_FEEDBACK_URL:${BACKEND_BASE_URL}/api/v1/payments/feedback}
-      return-url: ${PAYAPP_RETURN_URL:${FRONTEND_BASE_URL}/payment/result}
+      return-url: ${PAYAPP_RETURN_URL:${FRONTEND_BASE_URL}/shop/payment/result}
       open-pay-type: ${PAYAPP_OPEN_PAY_TYPE:card}
       connect-timeout: ${PAYAPP_CONNECT_TIMEOUT:1s}
       read-timeout: ${PAYAPP_READ_TIMEOUT:3s}
