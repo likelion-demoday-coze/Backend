@@ -23,8 +23,8 @@ spring:
 
 app:
   service:
-    sales-end-at: 2026-11-15T00:00:00+09:00
-    service-end-at: 2026-11-21T23:59:59+09:00
+    sales-end-at: 2026-11-22T00:00:00+09:00
+    service-end-at: 2026-11-28T23:59:59+09:00
   pass:
     duration: 168h
   frontend-base-url: http://localhost:3000
