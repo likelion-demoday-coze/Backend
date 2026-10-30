@@ -244,6 +244,29 @@ class RankingQueryServiceTest {
         );
     }
 
+    @Test
+    @DisplayName("랭킹 제외 회원은 목록과 통계를 조회하되 내 순위는 반환하지 않는다")
+    void excludedMemberCanViewRankingWithoutMyRanking() {
+        Member member = mock(Member.class);
+        when(memberRepository.findById(MEMBER_ID)).thenReturn(Optional.of(member));
+        when(member.getStatus()).thenReturn(MemberStatus.ACTIVE);
+        when(member.isRankingExcluded()).thenReturn(true);
+
+        StockRankingStatsRow stats = mock(StockRankingStatsRow.class);
+        when(rankingQueryRepository.findStockRankingPage(21, 0L))
+                .thenReturn(List.of());
+        when(rankingQueryRepository.findStockRankingStats()).thenReturn(stats);
+        when(stats.getTotalMemberCount()).thenReturn(0L);
+        when(stats.getAverageStock()).thenReturn(BigDecimal.ZERO);
+
+        StockRankingResponse result = rankingQueryService.getStockRanking(
+                MEMBER_ID, 0, 20
+        );
+
+        assertThat(result.myRanking()).isNull();
+        verify(rankingQueryRepository, never()).findMyStockRanking(MEMBER_ID);
+    }
+
     private void allowActiveMember() {
         Member member = mock(Member.class);
         when(memberRepository.findById(MEMBER_ID)).thenReturn(Optional.of(member));

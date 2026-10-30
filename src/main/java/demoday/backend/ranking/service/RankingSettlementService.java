@@ -185,7 +185,8 @@ public class RankingSettlementService {
 
         if (member == null
                 || member.getStatus()
-                != MemberStatus.ACTIVE) {
+                != MemberStatus.ACTIVE
+                || member.isRankingExcluded()) {
             return;
         }
 

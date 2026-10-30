@@ -462,6 +462,28 @@ class RankingSettlementServiceTest {
     }
 
     @Test
+    @DisplayName("대상 조회 후 랭킹 제외 상태가 된 회원에게는 보상을 지급하지 않는다")
+    void skipsWinnerExcludedBeforeReward() {
+        RankingWinnerRow winner = winner(1L, 1L);
+        Member member = activeMember(1L);
+        when(member.isRankingExcluded()).thenReturn(true);
+
+        when(rankingQueryRepository.findStockRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        )).thenReturn(List.of(winner));
+        when(rankingQueryRepository.findTimeAttackRewardTargets(
+                YESTERDAY, REWARD_MAX_RANK
+        )).thenReturn(List.of());
+        when(memberRepository.findByIdForUpdate(1L))
+                .thenReturn(Optional.of(member));
+
+        rankingSettlementService.settle(YESTERDAY);
+
+        verify(rankingRewardRepository, never()).save(any());
+        verifyNoInteractions(fishService);
+    }
+
+    @Test
     @DisplayName("같은 회원이 두 랭킹의 수상자이면 유형별로 각각 지급한다")
     void rewardsSameMemberForBothRankingTypes() {
         RankingWinnerRow stockWinner = winner(1L, 1L);

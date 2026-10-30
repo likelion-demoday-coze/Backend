@@ -30,6 +30,7 @@ public interface RankingQueryRepository
                             ) AS rankingPosition
                         FROM member m
                         WHERE m.status = 'ACTIVE'
+                          AND m.ranking_excluded = FALSE
                     )
                     SELECT
                         memberId,
@@ -62,6 +63,7 @@ public interface RankingQueryRepository
                             ) AS rankingPosition
                         FROM member m
                         WHERE m.status = 'ACTIVE'
+                          AND m.ranking_excluded = FALSE
                     )
                     SELECT
                         memberId,
@@ -90,6 +92,7 @@ public interface RankingQueryRepository
                         ) AS averageStock
                     FROM member m
                     WHERE m.status = 'ACTIVE'
+                      AND m.ranking_excluded = FALSE
                     """,
             nativeQuery = true
     )
@@ -163,6 +166,7 @@ public interface RankingQueryRepository
                         JOIN member m
                           ON m.member_id = b.memberId
                         WHERE m.status = 'ACTIVE'
+                          AND m.ranking_excluded = FALSE
                     )
                     SELECT
                         memberId,
@@ -213,6 +217,7 @@ public interface RankingQueryRepository
                         JOIN member m
                           ON m.member_id = b.memberId
                         WHERE m.status = 'ACTIVE'
+                          AND m.ranking_excluded = FALSE
                     )
                     SELECT
                         memberId,
@@ -257,6 +262,7 @@ public interface RankingQueryRepository
                     JOIN member m
                       ON m.member_id = b.memberId
                     WHERE m.status = 'ACTIVE'
+                      AND m.ranking_excluded = FALSE
                     """,
             nativeQuery = true
     )
@@ -282,6 +288,7 @@ public interface RankingQueryRepository
                       ON m.member_id = s.member_id
                     WHERE s.snapshot_date = :rankingDate
                       AND m.status = 'ACTIVE'
+                      AND m.ranking_excluded = FALSE
                 )
                 SELECT
                     memberId,
@@ -325,6 +332,7 @@ public interface RankingQueryRepository
                     JOIN member m
                       ON m.member_id = b.memberId
                     WHERE m.status = 'ACTIVE'
+                      AND m.ranking_excluded = FALSE
                 )
                 SELECT
                     memberId,
