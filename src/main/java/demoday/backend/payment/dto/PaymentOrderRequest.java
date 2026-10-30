@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 
 public record PaymentOrderRequest(
 
-        @Schema(description = "결제 상품 코드", example = "WEEK_PASS")
+        @Schema(description = "결제 상품 코드", example = "WEEKLY_PASS")
         @NotBlank
         @Size(max = 50)
         String productCode,

@@ -14,7 +14,7 @@ public record PaymentOrderResponse(
         @Schema(description = "주문번호", example = "PAY20261025170000A1B2C3D4E5F6")
         String orderNumber,
 
-        @Schema(description = "상품 코드", example = "WEEK_PASS")
+        @Schema(description = "상품 코드", example = "WEEKLY_PASS")
         String productCode,
 
         @Schema(description = "상품명", example = "일주일 패스")
