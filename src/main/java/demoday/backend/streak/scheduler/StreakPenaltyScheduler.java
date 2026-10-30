@@ -1,4 +1,5 @@
 package demoday.backend.streak.scheduler;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.member.code.MemberStatus;
@@ -30,6 +31,7 @@ public class StreakPenaltyScheduler {
     private final Clock clock;
 
     @EventListener(ApplicationReadyEvent.class)
+    @SchedulerLock(name = "streak-penalty", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void applyOnStartup() {
         jobRunContext.run(
                 "streak-penalty-startup",
@@ -38,6 +40,7 @@ public class StreakPenaltyScheduler {
     }
 
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
+    @SchedulerLock(name = "streak-penalty", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void applyAtMidnight() {
         jobRunContext.run(
                 "streak-penalty-midnight",

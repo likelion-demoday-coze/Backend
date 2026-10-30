@@ -1,4 +1,5 @@
 package demoday.backend.trend.scheduler;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import demoday.backend.global.logging.JobRunContext;
 import demoday.backend.trend.service.TrendGenerationService;
@@ -20,26 +21,31 @@ public class TrendGenerationScheduler {
     private final JobRunContext jobRunContext;
 
     @Scheduled(cron = "0 0 8 * * *", zone = "Asia/Seoul")
+    @SchedulerLock(name = "economic-trend-generation", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void generate() {
         executeSlot("economic-trend-slot-1", 1);
     }
 
     @Scheduled(cron = "0 5 8 * * *", zone = "Asia/Seoul")
+    @SchedulerLock(name = "economic-trend-generation", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void retryFirst() {
         executeSlot("economic-trend-slot-2", 2);
     }
 
     @Scheduled(cron = "0 15 8 * * *", zone = "Asia/Seoul")
+    @SchedulerLock(name = "economic-trend-generation", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void retrySecond() {
         executeSlot("economic-trend-slot-3", 3);
     }
 
     @Scheduled(cron = "0 30 8 * * *", zone = "Asia/Seoul")
+    @SchedulerLock(name = "economic-trend-generation", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void retryLast() {
         executeSlot("economic-trend-slot-4", 4);
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    @SchedulerLock(name = "economic-trend-generation", lockAtLeastFor = "${app.scheduling.lock-at-least-for:1m}")
     public void catchUp() {
         executeSafely(
                 "economic-trend-startup-catch-up",

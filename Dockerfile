@@ -21,6 +21,7 @@ RUN ./gradlew bootJar --no-daemon -x test
 # 2. Runtime Stage
 # =========================
 FROM eclipse-temurin:17-jre
+LABEL com.coze.deployment.protocol="bluegreen-v1"
 WORKDIR /app
 
 RUN apt-get update \
@@ -34,7 +35,7 @@ COPY --chown=app:app --from=builder /app/build/libs/*.jar app.jar
 EXPOSE 8080 9090
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:9090/actuator/health || exit 1
+    CMD curl -f http://localhost:9090/actuator/health/readiness || exit 1
 
 USER app
 
