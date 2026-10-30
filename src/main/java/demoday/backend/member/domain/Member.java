@@ -25,10 +25,10 @@ public class Member {
     @Column(name = "member_id")
     private Long memberId;
 
-    @Column(name = "kakao_user_id", nullable = false, unique = true)
+    @Column(name = "kakao_user_id", unique = true)
     private Long kakaoUserId;
 
-    @Column(nullable = false, unique = true, length = 8)
+    @Column(unique = true, length = 8)
     private String nickname;
 
     @Column(name = "fish_balance", nullable = false)
@@ -198,6 +198,10 @@ public class Member {
 
         this.status = MemberStatus.WITHDRAWN;
         this.deletedAt = deletedAt;
+
+        // 탈퇴 회원의 과거 데이터는 memberId 기준으로 보존하되 같은 카카오 계정과 닉네임으로 새로 가입할 수 있도록 연결을 해제
+        this.kakaoUserId = null;
+        this.nickname = null;
     }
 
     private static void validateNickname(String nickname) {
