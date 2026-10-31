@@ -307,6 +307,67 @@ class PaymentFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("결제 상세 API는 승인 정보와 패스 기간 및 환불 상태를 반환한다")
+    void exposesPaymentDetailAndRefundState() throws Exception {
+        var order = createOrder();
+        feedbackService.process(detailedFeedback(order.orderNumber()));
+
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        mockMvc.perform(
+                        get("/api/v1/payments/{paymentId}",
+                                payment.getPaymentId())
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.paymentId")
+                        .value(payment.getPaymentId()))
+                .andExpect(jsonPath("$.result.orderNumber")
+                        .value(order.orderNumber()))
+                .andExpect(jsonPath("$.result.status")
+                        .value("COMPLETED"))
+                .andExpect(jsonPath("$.result.cardName")
+                        .value("신한카드"))
+                .andExpect(jsonPath("$.result.receiptUrl")
+                        .value("https://payapp.test/receipt/"
+                                + order.orderNumber()))
+                .andExpect(jsonPath("$.result.passStartedAt")
+                        .value("2026-10-25T12:00:00"))
+                .andExpect(jsonPath("$.result.passExpiresAt")
+                        .value("2026-11-01T12:00:00"))
+                .andExpect(jsonPath("$.result.refundable")
+                        .value(true))
+                .andExpect(jsonPath("$.result.refundedAt")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.result.refundedAmount")
+                        .doesNotExist());
+
+        cancellationService.cancel(
+                member.getMemberId(),
+                payment.getPaymentId()
+        );
+
+        mockMvc.perform(
+                        get("/api/v1/payments/{paymentId}",
+                                payment.getPaymentId())
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status")
+                        .value("REFUNDED"))
+                .andExpect(jsonPath("$.result.cancellationRequestedAt")
+                        .value("2026-10-25T12:00:00"))
+                .andExpect(jsonPath("$.result.refundedAt")
+                        .value("2026-10-25T12:00:00"))
+                .andExpect(jsonPath("$.result.refundedAmount")
+                        .value(1900))
+                .andExpect(jsonPath("$.result.refundable")
+                        .value(false));
+    }
+
+    @Test
     @DisplayName("결제와 패스 내역 API는 잘못된 페이지 요청을 400으로 거절한다")
     void rejectsInvalidHistoryPageRequests() throws Exception {
         mockMvc.perform(
@@ -351,12 +412,23 @@ class PaymentFlowIntegrationTest {
                                 .param("pay_state", feedback.payState())
                                 .param("var1", feedback.orderNumber())
                                 .param("mul_no", feedback.transactionId())
+                                .param("csturl", "https://payapp.test/receipt/"
+                                        + order.orderNumber())
+                                .param("card_name", "신한카드")
                 )
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.TEXT_PLAIN
                 ))
                 .andExpect(content().string("SUCCESS"));
+
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+        assertThat(payment.getCardName()).isEqualTo("신한카드");
+        assertThat(payment.getReceiptUrl()).isEqualTo(
+                "https://payapp.test/receipt/" + order.orderNumber()
+        );
     }
 
     @Test
@@ -610,7 +682,7 @@ class PaymentFlowIntegrationTest {
 
     @Test
     @DisplayName("이미 만료된 패스 결제는 환불할 수 없다")
-    void rejectsRefundForExpiredPass() {
+    void rejectsRefundForExpiredPass() throws Exception {
         long sequence = SEQUENCE.incrementAndGet();
         Payment payment = Payment.create(
                 member,
@@ -648,6 +720,17 @@ class PaymentFlowIntegrationTest {
 
         verify(payAppClient, times(0))
                 .cancelPayment(anyString(), anyString());
+
+        mockMvc.perform(
+                        get("/api/v1/payments/{paymentId}",
+                                payment.getPaymentId())
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status")
+                        .value("COMPLETED"))
+                .andExpect(jsonPath("$.result.refundable")
+                        .value(false));
     }
 
     @Test
@@ -712,6 +795,19 @@ class PaymentFlowIntegrationTest {
                 .getStatus()).isEqualTo(
                 PaymentStatus.CANCEL_REQUESTED
         );
+
+        mockMvc.perform(
+                        get("/api/v1/payments/{paymentId}",
+                                payment.getPaymentId())
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status")
+                        .value("CANCEL_REQUESTED"))
+                .andExpect(jsonPath("$.result.cancellationRequestedAt")
+                        .value("2026-10-25T12:00:00"))
+                .andExpect(jsonPath("$.result.refundable")
+                        .value(false));
 
         mockMvc.perform(
                         get("/api/v1/payments")
@@ -780,6 +876,25 @@ class PaymentFlowIntegrationTest {
                 orderNumber,
                 transactionId(orderNumber),
                 "0"
+        );
+    }
+
+    private PayAppFeedbackRequest detailedFeedback(String orderNumber) {
+        return new PayAppFeedbackRequest(
+                "test-user",
+                "test-link-key",
+                "test-link-value",
+                "일주일 패스",
+                "1900",
+                "2026-10-25 12:00:00",
+                "1",
+                "4",
+                orderNumber,
+                transactionId(orderNumber),
+                "0",
+                null,
+                "https://payapp.test/receipt/" + orderNumber,
+                "신한카드"
         );
     }
 

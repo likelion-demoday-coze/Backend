@@ -77,7 +77,7 @@ public class PaymentCancellationTransactionService {
         }
 
         PaymentStatus previousStatus =
-                payment.requestCancellation();
+                payment.requestCancellation(now);
 
         return CancellationPreparation.requested(
                 payment,
@@ -141,7 +141,7 @@ public class PaymentCancellationTransactionService {
 
         if (payment.getStatus() == PaymentStatus.APPROVED
                 || payment.getStatus() == PaymentStatus.COMPLETED) {
-            payment.requestCancellation();
+            payment.requestCancellation(refundedAt);
         } else if (payment.getStatus()
                 != PaymentStatus.CANCEL_REQUESTED) {
             throw new ProjectException(

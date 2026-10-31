@@ -75,6 +75,8 @@ public class PaymentProcessingTransactionService {
                     request.transactionId(),
                     SUCCESS_RESULT_CODE,
                     CARD_PAY_METHOD,
+                    request.cardName(),
+                    request.receiptUrl(),
                     approvedAt
             );
 
@@ -105,6 +107,8 @@ public class PaymentProcessingTransactionService {
                 request.transactionId(),
                 SUCCESS_RESULT_CODE,
                 CARD_PAY_METHOD,
+                request.cardName(),
+                request.receiptUrl(),
                 approvedAt
         );
 
