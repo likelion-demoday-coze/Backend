@@ -14,7 +14,9 @@ public record PayAppFeedbackRequest(
         String orderNumber,
         String transactionId,
         String feedbackType,
-        String cancelledAt
+        String cancelledAt,
+        String receiptUrl,
+        String cardName
 ) {
 
     public PayAppFeedbackRequest(
@@ -42,6 +44,40 @@ public record PayAppFeedbackRequest(
                 orderNumber,
                 transactionId,
                 feedbackType,
+                null,
+                null,
+                null
+        );
+    }
+
+    public PayAppFeedbackRequest(
+            String userId,
+            String linkKey,
+            String linkValue,
+            String productName,
+            String price,
+            String approvedAt,
+            String payType,
+            String payState,
+            String orderNumber,
+            String transactionId,
+            String feedbackType,
+            String cancelledAt
+    ) {
+        this(
+                userId,
+                linkKey,
+                linkValue,
+                productName,
+                price,
+                approvedAt,
+                payType,
+                payState,
+                orderNumber,
+                transactionId,
+                feedbackType,
+                cancelledAt,
+                null,
                 null
         );
     }
@@ -61,7 +97,9 @@ public record PayAppFeedbackRequest(
                 parameters.get("var1"),
                 parameters.get("mul_no"),
                 parameters.get("feedbacktype"),
-                parameters.get("canceldate")
+                parameters.get("canceldate"),
+                parameters.get("csturl"),
+                parameters.get("card_name")
         );
     }
 }
