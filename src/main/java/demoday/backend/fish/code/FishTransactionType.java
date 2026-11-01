@@ -7,11 +7,12 @@ public enum FishTransactionType {
     TIME_ATTACK_COST,
     ITEM_PURCHASE,
     PAYMENT_CANCEL,
-    ADMIN_ADJUSTMENT;
+    ADMIN_ADJUSTMENT,
+    SIGNUP_REWARD;
 
     public boolean allowsCredit() {
         return switch (this) {
-            case ATTENDANCE_REWARD, RANKING_REWARD, ADMIN_ADJUSTMENT -> true;
+            case ATTENDANCE_REWARD, RANKING_REWARD, ADMIN_ADJUSTMENT, SIGNUP_REWARD -> true;
             default -> false;
         };
     }

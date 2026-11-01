@@ -56,6 +56,21 @@ public class MemberController {
     }
 
     @Operation(
+            summary = "가입 생선 200개 지급 팝업 완료 처리",
+            description = "가입 시 이미 지급된 보상의 팝업을 닫은 후 호출합니다. 본인의 미확인 상태만 해제하며 "
+                    + "생선을 추가 지급하지 않습니다. 재호출해도 동일한 결과입니다. CSRF 토큰이 필요합니다. "
+                    + "가입 응답 또는 내 정보 조회의 signupRewardPopupPending으로 팝업 표시 여부를 판단합니다."
+    )
+    @PatchMapping("/me/signup-reward/popup")
+    public ApiResponse<MemberResponse> completeSignupRewardPopup(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK, memberService.completeSignupRewardPopup(memberId)
+        );
+    }
+
+    @Operation(
             summary = "닉네임 변경",
             description = "로그인 회원의 닉네임을 변경합니다. CSRF 토큰이 필요합니다."
     )

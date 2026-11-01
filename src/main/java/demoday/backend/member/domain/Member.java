@@ -49,6 +49,9 @@ public class Member {
     @Column(name = "tutorial_completed", nullable = false)
     private Boolean tutorialCompleted;
 
+    @Column(name = "signup_reward_popup_pending", nullable = false)
+    private Boolean signupRewardPopupPending;
+
     @Column(name = "ranking_excluded", nullable = false)
     private Boolean rankingExcluded;
 
@@ -84,9 +87,19 @@ public class Member {
                 .currentStock(new BigDecimal("100.00"))
                 .currentStreak(0)
                 .tutorialCompleted(false)
+                .signupRewardPopupPending(false)
                 .rankingExcluded(false)
                 .status(MemberStatus.ACTIVE)
                 .build();
+    }
+
+    // 가입 보상 지급에 성공한 같은 트랜잭션에서만 호출한다.
+    public void markSignupRewardGranted() {
+        signupRewardPopupPending = true;
+    }
+
+    public void completeSignupRewardPopup() {
+        signupRewardPopupPending = false;
     }
 
     // 잔액 변경은 거래 이력을 함께 남기는 FishService를 통해 호출한다.

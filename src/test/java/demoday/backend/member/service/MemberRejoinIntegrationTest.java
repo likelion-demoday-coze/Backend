@@ -97,7 +97,9 @@ class MemberRejoinIntegrationTest {
                 .isEqualTo(MemberStatus.ACTIVE);
 
         // 기존 회원의 자산과 학습 기록은 승계하지 않는다.
-        assertThat(rejoinedMember.getFishBalance()).isZero();
+        // 과거 잔액은 승계하지 않고 새 회원의 가입 보상 200개만 지급한다.
+        assertThat(rejoinedMember.getFishBalance()).isEqualTo(200L);
+        assertThat(rejoinedMember.getSignupRewardPopupPending()).isTrue();
         assertThat(rejoinedMember.getCurrentStock())
                 .isEqualByComparingTo("100.00");
         assertThat(rejoinedMember.getCurrentStreak()).isZero();
