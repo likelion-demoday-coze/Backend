@@ -1,5 +1,7 @@
 package demoday.backend.member.service;
 
+import demoday.backend.fish.code.FishTransactionType;
+import demoday.backend.fish.service.FishService;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.code.MemberErrorCode;
@@ -31,6 +33,9 @@ public class MemberService {
     private final PaymentRepository paymentRepository;
     private final MemberPassRepository memberPassRepository;
     private final Clock clock;
+    private final FishService fishService;
+
+    private static final long SIGNUP_REWARD_FISH_AMOUNT = 200L;
 
     private static final long PAYMENT_AUTHENTICATION_MINUTES = 30L;
 
@@ -52,18 +57,42 @@ public class MemberService {
         );
     }
 
+    @Transactional
     public Member signup(Long kakaoUserId, String nickname) {
         if (memberRepository.findByKakaoUserId(kakaoUserId).isPresent()
                 || memberRepository.existsByNickname(nickname)) {
             throw new ProjectException(GeneralErrorCode.CONFLICT);
         }
 
+        Member member;
         try {
             // 중복 확인 직후 다른 사용자가 같은 닉네임으로 가입하는 경우도 DB 제약으로 방어
-            return memberRepository.saveAndFlush(Member.create(kakaoUserId, nickname));
+            member = memberRepository.saveAndFlush(Member.create(kakaoUserId, nickname));
         } catch (DataIntegrityViolationException exception) {
             throw new ProjectException(GeneralErrorCode.CONFLICT);
         }
+
+        fishService.credit(
+                member.getMemberId(), SIGNUP_REWARD_FISH_AMOUNT,
+                FishTransactionType.SIGNUP_REWARD, member.getMemberId(),
+                "SIGNUP_REWARD:" + member.getMemberId()
+        );
+        member.markSignupRewardGranted();
+        return member;
+    }
+
+    @Transactional
+    public MemberResponse completeSignupRewardPopup(Long memberId) {
+        if (memberId == null) {
+            throw new ProjectException(GeneralErrorCode.UNAUTHORIZED);
+        }
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
+        if (member.getStatus() != MemberStatus.ACTIVE) {
+            throw new ProjectException(MemberErrorCode.INACTIVE_MEMBER);
+        }
+        member.completeSignupRewardPopup();
+        return MemberResponse.from(member);
     }
 
 
