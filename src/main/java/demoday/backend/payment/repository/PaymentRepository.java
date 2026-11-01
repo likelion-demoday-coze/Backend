@@ -76,9 +76,9 @@ public interface PaymentRepository
             LocalDateTime requestedAt
     );
 
-    Optional<Payment> findFirstByMemberMemberIdAndProductProductTypeAndStatusAndRequestedAtGreaterThanOrderByRequestedAtDescPaymentIdDesc(
+    Optional<Payment> findFirstByMemberMemberIdAndProductProductIdAndStatusAndRequestedAtGreaterThanOrderByRequestedAtDescPaymentIdDesc(
             Long memberId,
-            ProductType productType,
+            Long productId,
             PaymentStatus status,
             LocalDateTime requestedAt
     );

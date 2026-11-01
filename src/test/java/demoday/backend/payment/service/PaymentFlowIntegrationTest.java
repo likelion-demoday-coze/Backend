@@ -200,6 +200,42 @@ class PaymentFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("다른 패스 상품의 진행 중 결제창은 재사용하지 않는다")
+    void doesNotReusePaymentWindowForDifferentProduct() {
+        createOrder();
+
+        long sequence = SEQUENCE.incrementAndGet();
+        Product anotherProduct = productRepository.saveAndFlush(
+                Product.create(
+                        "ANOTHER_PASS_" + sequence,
+                        ProductType.PASS,
+                        "다른 일주일 패스",
+                        2900,
+                        168,
+                        NOW_KST.minusDays(1),
+                        NOW_KST.plusDays(10),
+                        true
+                )
+        );
+
+        assertThatThrownBy(() -> orderService.createOrder(
+                member.getMemberId(),
+                new PaymentOrderRequest(
+                        anotherProduct.getProductCode(),
+                        "01012345678"
+                )
+        )).isInstanceOfSatisfying(
+                ProjectException.class,
+                exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(PaymentErrorCode.PAYMENT_IN_PROGRESS)
+        );
+
+        assertThat(paymentRepository.count()).isEqualTo(1);
+        verify(payAppClient, times(1))
+                .requestPayment(any(PayAppPaymentRequest.class));
+    }
+
+    @Test
     @DisplayName("결제 완료 Feedback은 패스를 한 번 지급하고 COMPLETED로 변경한다")
     void feedbackCompletesPaymentAndIssuesPassOnce() {
         var order = createOrder();

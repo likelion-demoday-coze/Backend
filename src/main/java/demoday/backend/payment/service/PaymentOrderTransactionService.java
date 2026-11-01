@@ -99,9 +99,9 @@ public class PaymentOrderTransactionService {
         );
 
         Optional<Payment> reusablePayment = paymentRepository
-                .findFirstByMemberMemberIdAndProductProductTypeAndStatusAndRequestedAtGreaterThanOrderByRequestedAtDescPaymentIdDesc(
+                .findFirstByMemberMemberIdAndProductProductIdAndStatusAndRequestedAtGreaterThanOrderByRequestedAtDescPaymentIdDesc(
                         memberId,
-                        ProductType.PASS,
+                        product.getProductId(),
                         PaymentStatus.PAYMENT_REQUESTED,
                         reusableFrom
                 )
