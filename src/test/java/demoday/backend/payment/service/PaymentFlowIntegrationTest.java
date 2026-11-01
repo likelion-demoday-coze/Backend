@@ -5,6 +5,7 @@ import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.client.PayAppClient;
 import demoday.backend.payment.client.dto.PayAppCancelResponse;
+import demoday.backend.payment.client.dto.PayAppPaymentRequest;
 import demoday.backend.payment.client.dto.PayAppPaymentResponse;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.code.PaymentStatus;
@@ -173,6 +174,29 @@ class PaymentFlowIntegrationTest {
                 .isEqualTo(168);
         assertThat(payment.getProviderTransactionId())
                 .isEqualTo(transactionId(response.orderNumber()));
+        assertThat(payment.getPaymentUrl())
+                .isEqualTo(response.paymentUrl());
+    }
+
+    @Test
+    @DisplayName("결제창 이탈 후 재주문하면 유효한 기존 결제창을 반환한다")
+    void reusesExistingPaymentWindow() {
+        var first = createOrder();
+
+        var reentered = createOrder();
+
+        assertThat(reentered.paymentId())
+                .isEqualTo(first.paymentId());
+        assertThat(reentered.orderNumber())
+                .isEqualTo(first.orderNumber());
+        assertThat(reentered.paymentUrl())
+                .isEqualTo(first.paymentUrl());
+        assertThat(reentered.status())
+                .isEqualTo(PaymentStatus.PAYMENT_REQUESTED);
+        assertThat(paymentRepository.count()).isEqualTo(1);
+
+        verify(payAppClient, times(1))
+                .requestPayment(any(PayAppPaymentRequest.class));
     }
 
     @Test

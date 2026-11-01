@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -93,14 +94,30 @@ public class PaymentOrderTransactionService {
                         UNRESOLVED_STATUSES
                 );
 
+        LocalDateTime reusableFrom = requestedAt.minus(
+                orderPolicyProperties.expiration()
+        );
+
+        Optional<Payment> reusablePayment = paymentRepository
+                .findFirstByMemberMemberIdAndProductProductTypeAndStatusAndRequestedAtGreaterThanOrderByRequestedAtDescPaymentIdDesc(
+                        memberId,
+                        ProductType.PASS,
+                        PaymentStatus.PAYMENT_REQUESTED,
+                        reusableFrom
+                )
+                .filter(payment -> payment.getPaymentUrl() != null
+                        && !payment.getPaymentUrl().isBlank());
+
+        if (!unresolvedPaymentExists && reusablePayment.isPresent()) {
+            return reusablePayment.get();
+        }
+
         boolean validPendingOrderExists = paymentRepository
                 .existsByMemberMemberIdAndProductProductTypeAndStatusInAndRequestedAtGreaterThan(
                         memberId,
                         ProductType.PASS,
                         EXPIRABLE_STATUSES,
-                        requestedAt.minus(
-                                orderPolicyProperties.expiration()
-                        )
+                        reusableFrom
                 );
 
         if (unresolvedPaymentExists || validPendingOrderExists) {
@@ -124,7 +141,8 @@ public class PaymentOrderTransactionService {
     @Transactional
     public Payment markPaymentRequested(
             String orderNumber,
-            String providerTransactionId
+            String providerTransactionId,
+            String paymentUrl
     ) {
         Payment payment = paymentRepository
                 .findByOrderNumberForUpdate(orderNumber)
@@ -132,7 +150,10 @@ public class PaymentOrderTransactionService {
                         PaymentErrorCode.ORDER_NOT_FOUND
                 ));
 
-        payment.markPaymentRequested(providerTransactionId);
+        payment.markPaymentRequested(
+                providerTransactionId,
+                paymentUrl
+        );
         return payment;
     }
 

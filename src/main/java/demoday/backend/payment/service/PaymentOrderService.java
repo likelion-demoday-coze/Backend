@@ -5,6 +5,7 @@ import demoday.backend.global.exception.ProjectException;
 import demoday.backend.payment.client.PayAppClient;
 import demoday.backend.payment.client.dto.PayAppPaymentRequest;
 import demoday.backend.payment.client.dto.PayAppPaymentResponse;
+import demoday.backend.payment.code.PaymentStatus;
 import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.dto.PaymentOrderRequest;
 import demoday.backend.payment.dto.PaymentOrderResponse;
@@ -55,19 +56,37 @@ public class PaymentOrderService {
 
         String orderNumber = createOrderNumber(requestedAt);
 
-        Payment readyPayment = transactionService.createReadyOrder(
+        Payment preparedPayment = transactionService.createReadyOrder(
                 memberId,
                 request.productCode(),
                 orderNumber,
                 requestedAt
         );
 
+        if (preparedPayment.getStatus()
+                == PaymentStatus.PAYMENT_REQUESTED
+                && preparedPayment.getPaymentUrl() != null
+                && !preparedPayment.getPaymentUrl().isBlank()) {
+            log.info(
+                    "[Payment] 기존 결제창 재사용 - paymentId: {}, orderNumber: {}, memberId: {}, status: {}",
+                    preparedPayment.getPaymentId(),
+                    preparedPayment.getOrderNumber(),
+                    memberId,
+                    preparedPayment.getStatus()
+            );
+
+            return PaymentOrderResponse.of(
+                    preparedPayment,
+                    preparedPayment.getPaymentUrl()
+            );
+        }
+
         log.info(
                 "[Payment] 결제 주문 생성 완료 - paymentId: {}, orderNumber: {}, memberId: {}, amount: {}",
-                readyPayment.getPaymentId(),
-                readyPayment.getOrderNumber(),
+                preparedPayment.getPaymentId(),
+                preparedPayment.getOrderNumber(),
                 memberId,
-                readyPayment.getAmount()
+                preparedPayment.getAmount()
         );
 
         paymentMetrics.recordOrderCreated();
@@ -76,9 +95,9 @@ public class PaymentOrderService {
             PayAppPaymentResponse payAppResponse =
                     payAppClient.requestPayment(
                             new PayAppPaymentRequest(
-                                    readyPayment.getOrderNumber(),
-                                    readyPayment.getOrderedProductName(),
-                                    readyPayment.getAmount(),
+                                    preparedPayment.getOrderNumber(),
+                                    preparedPayment.getOrderedProductName(),
+                                    preparedPayment.getAmount(),
                                     request.receiverPhone()
                             )
                     );
@@ -86,7 +105,8 @@ public class PaymentOrderService {
             Payment requestedPayment =
                     transactionService.markPaymentRequested(
                             orderNumber,
-                            payAppResponse.transactionId()
+                            payAppResponse.transactionId(),
+                            payAppResponse.paymentUrl()
                     );
 
             log.info(

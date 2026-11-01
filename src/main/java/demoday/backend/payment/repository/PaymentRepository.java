@@ -76,6 +76,13 @@ public interface PaymentRepository
             LocalDateTime requestedAt
     );
 
+    Optional<Payment> findFirstByMemberMemberIdAndProductProductTypeAndStatusAndRequestedAtGreaterThanOrderByRequestedAtDescPaymentIdDesc(
+            Long memberId,
+            ProductType productType,
+            PaymentStatus status,
+            LocalDateTime requestedAt
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
         SELECT p
