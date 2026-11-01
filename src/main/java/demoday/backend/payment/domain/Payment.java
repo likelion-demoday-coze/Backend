@@ -37,7 +37,7 @@ public class Payment {
 
     private static final int CARD_NAME_MAX_LENGTH = 50;
     private static final int RECEIPT_URL_MAX_LENGTH = 500;
-    private static final int PAYMENT_URL_MAX_LENGTH = 1000;
+    public static final int PAYMENT_URL_MAX_LENGTH = 1000;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

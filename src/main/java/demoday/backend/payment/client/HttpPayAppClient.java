@@ -6,6 +6,7 @@ import demoday.backend.payment.client.dto.PayAppPaymentResponse;
 import demoday.backend.payment.client.dto.PayAppCancelResponse;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.config.PayAppProperties;
+import demoday.backend.payment.domain.Payment;
 import demoday.backend.payment.logging.PaymentLogSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -327,9 +328,11 @@ public class HttpPayAppClient implements PayAppClient {
                 && (transactionId == null
                 || transactionId.isBlank()
                 || paymentUrl == null
-                || paymentUrl.isBlank())) {
+                || paymentUrl.isBlank()
+                || paymentUrl.length()
+                > Payment.PAYMENT_URL_MAX_LENGTH)) {
             log.error(
-                    "[Payment] 페이앱 성공 응답 필수값 누락 - orderNumber: {}",
+                    "[Payment] 페이앱 성공 응답 필수값 오류 - orderNumber: {}",
                     orderNumber
             );
 
