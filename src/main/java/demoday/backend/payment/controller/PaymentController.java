@@ -69,12 +69,20 @@ public class PaymentController {
         );
     }
 
-    @Operation(summary = "내 결제 내역 상세 조회")
+    @Operation(
+            summary = "내 결제 내역 상세 조회",
+            description = """
+                    결제 정보와 패스 이용 기간, 영수증 URL, 환불 처리 상태를 조회합니다.
+                    refundable이 true인 경우에만 환불 신청 버튼을 노출합니다.
+                    다른 회원의 결제 내역은 조회할 수 없습니다.
+                    """
+    )
     @GetMapping("/{paymentId}")
-    public ApiResponse<PaymentStatusResponse> getPaymentDetail(
+    public ApiResponse<PaymentDetailResponse> getPaymentDetail(
             @Parameter(hidden = true)
             @AuthenticationPrincipal Long memberId,
 
+            @Parameter(description = "결제 ID", example = "1")
             @PathVariable Long paymentId
     ) {
         return ApiResponse.onSuccess(

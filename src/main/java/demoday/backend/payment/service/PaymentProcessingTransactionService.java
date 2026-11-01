@@ -71,11 +71,18 @@ public class PaymentProcessingTransactionService {
         }
 
         if (payment.isExpiredOrder()) {
+            LocalDateTime cancellationRequestedAt =
+                    LocalDateTime.now(clock.withZone(KST))
+                            .truncatedTo(ChronoUnit.MICROS);
+
             payment.approveLateAndRequestCancellation(
                     request.transactionId(),
                     SUCCESS_RESULT_CODE,
                     CARD_PAY_METHOD,
-                    approvedAt
+                    request.cardName(),
+                    request.receiptUrl(),
+                    approvedAt,
+                    cancellationRequestedAt
             );
 
             log.warn(
@@ -105,6 +112,8 @@ public class PaymentProcessingTransactionService {
                 request.transactionId(),
                 SUCCESS_RESULT_CODE,
                 CARD_PAY_METHOD,
+                request.cardName(),
+                request.receiptUrl(),
                 approvedAt
         );
 

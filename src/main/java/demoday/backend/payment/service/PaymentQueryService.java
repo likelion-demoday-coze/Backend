@@ -4,9 +4,12 @@ import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.payment.code.PaymentErrorCode;
 import demoday.backend.payment.code.PaymentStatus;
+import demoday.backend.payment.domain.MemberPass;
 import demoday.backend.payment.domain.Payment;
+import demoday.backend.payment.dto.PaymentDetailResponse;
 import demoday.backend.payment.dto.PaymentHistoryPageResponse;
 import demoday.backend.payment.dto.PaymentStatusResponse;
+import demoday.backend.payment.repository.MemberPassRepository;
 import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -14,12 +17,17 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PaymentQueryService {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private static final List<PaymentStatus>
             HISTORY_VISIBLE_STATUSES = List.of(
@@ -30,6 +38,8 @@ public class PaymentQueryService {
     );
 
     private final PaymentRepository paymentRepository;
+    private final MemberPassRepository memberPassRepository;
+    private final Clock clock;
 
     public PaymentStatusResponse getStatus(
             Long memberId,
@@ -81,7 +91,7 @@ public class PaymentQueryService {
         return PaymentHistoryPageResponse.from(payments);
     }
 
-    public PaymentStatusResponse getDetail(
+    public PaymentDetailResponse getDetail(
             Long memberId,
             Long paymentId
     ) {
@@ -97,7 +107,32 @@ public class PaymentQueryService {
                         new ProjectException(PaymentErrorCode.ORDER_NOT_FOUND)
                 );
 
-        return PaymentStatusResponse.from(payment);
+        MemberPass memberPass = memberPassRepository
+                .findByPaymentPaymentId(paymentId)
+                .orElse(null);
+
+        LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
+        boolean refundable = isRefundable(payment, memberPass, now);
+
+        return PaymentDetailResponse.from(
+                payment,
+                memberPass,
+                refundable
+        );
+    }
+
+    private boolean isRefundable(
+            Payment payment,
+            MemberPass memberPass,
+            LocalDateTime now
+    ) {
+        if (payment.getStatus() == PaymentStatus.APPROVED) {
+            return true;
+        }
+
+        return payment.getStatus() == PaymentStatus.COMPLETED
+                && memberPass != null
+                && memberPass.isActiveAt(now);
     }
 
     private void validateMember(Long memberId) {

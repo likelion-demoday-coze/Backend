@@ -35,6 +35,9 @@ public class Payment {
     private static final Pattern ORDER_NUMBER_PATTERN =
             Pattern.compile("^[A-Za-z0-9]{1,40}$");
 
+    private static final int CARD_NAME_MAX_LENGTH = 50;
+    private static final int RECEIPT_URL_MAX_LENGTH = 500;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "payment_id")
@@ -111,6 +114,15 @@ public class Payment {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
+    @Column(name = "card_name", length = 50)
+    private String cardName;
+
+    @Column(name = "receipt_url", length = 500)
+    private String receiptUrl;
+
+    @Column(name = "cancellation_requested_at")
+    private LocalDateTime cancellationRequestedAt;
+
     public static Payment create(
             Member member,
             Product product,
@@ -181,6 +193,24 @@ public class Payment {
             String payMethod,
             LocalDateTime approvedAt
     ) {
+        approve(
+                providerTransactionId,
+                resultCode,
+                payMethod,
+                null,
+                null,
+                approvedAt
+        );
+    }
+
+    public void approve(
+            String providerTransactionId,
+            String resultCode,
+            String payMethod,
+            String cardName,
+            String receiptUrl,
+            LocalDateTime approvedAt
+    ) {
         if (status != PaymentStatus.READY
                 && status != PaymentStatus.PAYMENT_REQUESTED) {
             throw new IllegalStateException(
@@ -203,6 +233,14 @@ public class Payment {
         this.providerTransactionId = providerTransactionId;
         this.resultCode = resultCode;
         this.payMethod = payMethod;
+        this.cardName = normalizeOptional(
+                cardName,
+                CARD_NAME_MAX_LENGTH
+        );
+        this.receiptUrl = normalizeOptional(
+                receiptUrl,
+                RECEIPT_URL_MAX_LENGTH
+        );
         this.approvedAt = approvedAt;
         this.failureMessage = null;
         this.status = PaymentStatus.APPROVED;
@@ -276,7 +314,10 @@ public class Payment {
             String providerTransactionId,
             String resultCode,
             String payMethod,
-            LocalDateTime approvedAt
+            String cardName,
+            String receiptUrl,
+            LocalDateTime approvedAt,
+            LocalDateTime cancellationRequestedAt
     ) {
         if (!isExpiredOrder()) {
             throw new IllegalStateException(
@@ -286,7 +327,8 @@ public class Payment {
 
         if (providerTransactionId == null
                 || providerTransactionId.isBlank()
-                || approvedAt == null) {
+                || approvedAt == null
+                || cancellationRequestedAt == null) {
             throw new IllegalArgumentException(
                     "지연 승인 정보가 올바르지 않습니다."
             );
@@ -295,7 +337,16 @@ public class Payment {
         this.providerTransactionId = providerTransactionId;
         this.resultCode = resultCode;
         this.payMethod = payMethod;
+        this.cardName = normalizeOptional(
+                cardName,
+                CARD_NAME_MAX_LENGTH
+        );
+        this.receiptUrl = normalizeOptional(
+                receiptUrl,
+                RECEIPT_URL_MAX_LENGTH
+        );
         this.approvedAt = approvedAt;
+        this.cancellationRequestedAt = cancellationRequestedAt;
         this.failureMessage =
                 "만료 후 승인되어 전액 취소 결과를 확인하고 있습니다.";
         this.status = PaymentStatus.CANCEL_REQUESTED;
@@ -323,7 +374,9 @@ public class Payment {
         this.status = PaymentStatus.CANCELLED;
     }
 
-    public PaymentStatus requestCancellation() {
+    public PaymentStatus requestCancellation(
+            LocalDateTime cancellationRequestedAt
+    ) {
         if (status != PaymentStatus.APPROVED
                 && status != PaymentStatus.COMPLETED) {
             throw new IllegalStateException(
@@ -331,8 +384,16 @@ public class Payment {
             );
         }
 
+        if (cancellationRequestedAt == null) {
+            throw new IllegalArgumentException(
+                    "환불 신청 시각은 필수입니다."
+            );
+        }
+
         PaymentStatus previousStatus = status;
+        this.cancellationRequestedAt = cancellationRequestedAt;
         this.status = PaymentStatus.CANCEL_REQUESTED;
+
         return previousStatus;
     }
 
@@ -347,6 +408,7 @@ public class Payment {
             );
         }
 
+        this.cancellationRequestedAt = null;
         this.status = previousStatus;
     }
 
@@ -447,5 +509,22 @@ public class Payment {
 
     public void recordCancellationFailure(String message) {
         this.failureMessage = normalizeMessage(message);
+    }
+
+    private static String normalizeOptional(
+            String value,
+            int maxLength
+    ) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        String normalized = value.trim();
+
+        if (normalized.length() > maxLength) {
+            return null;
+        }
+
+        return normalized;
     }
 }

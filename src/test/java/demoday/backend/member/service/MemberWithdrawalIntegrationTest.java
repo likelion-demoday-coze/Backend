@@ -245,11 +245,11 @@ class MemberWithdrawalIntegrationTest {
             }
             case CANCEL_REQUESTED -> {
                 approve(payment, sequence);
-                payment.requestCancellation();
+                payment.requestCancellation(LocalDateTime.now());
             }
             case REFUNDED -> {
                 approve(payment, sequence);
-                payment.requestCancellation();
+                payment.requestCancellation(LocalDateTime.now());
                 payment.refund(NOW_LOCAL);
             }
             case FAILED -> payment.fail("A001", "결제 인증 실패");

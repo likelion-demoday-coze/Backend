@@ -307,6 +307,117 @@ class PaymentFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("선택 승인 정보가 컬럼 길이를 초과해도 결제 승인과 패스 지급은 완료된다")
+    void ignoresOversizedOptionalApprovalMetadata() {
+        var order = createOrder();
+
+        PayAppFeedbackRequest feedback =
+                oversizedOptionalMetadataFeedback(
+                        order.orderNumber()
+                );
+
+        feedbackService.process(feedback);
+
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        assertThat(payment.getStatus())
+                .isEqualTo(PaymentStatus.COMPLETED);
+        assertThat(payment.getCardName()).isNull();
+        assertThat(payment.getReceiptUrl()).isNull();
+
+        MemberPass memberPass = memberPassRepository
+                .findByPaymentPaymentId(payment.getPaymentId())
+                .orElseThrow();
+
+        assertThat(memberPass.getStatus())
+                .isEqualTo(PassStatus.ACTIVE);
+    }
+
+    private PayAppFeedbackRequest oversizedOptionalMetadataFeedback(
+            String orderNumber
+    ) {
+        return new PayAppFeedbackRequest(
+                "test-user",
+                "test-link-key",
+                "test-link-value",
+                "일주일 패스",
+                "1900",
+                "2026-10-25 12:00:00",
+                "1",
+                "4",
+                orderNumber,
+                transactionId(orderNumber),
+                "0",
+                null,
+                "https://payapp.test/" + "a".repeat(600),
+                "카".repeat(51)
+        );
+    }
+
+    @Test
+    @DisplayName("결제 상세 API는 승인 정보와 패스 기간 및 환불 상태를 반환한다")
+    void exposesPaymentDetailAndRefundState() throws Exception {
+        var order = createOrder();
+        feedbackService.process(detailedFeedback(order.orderNumber()));
+
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        mockMvc.perform(
+                        get("/api/v1/payments/{paymentId}",
+                                payment.getPaymentId())
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.paymentId")
+                        .value(payment.getPaymentId()))
+                .andExpect(jsonPath("$.result.orderNumber")
+                        .value(order.orderNumber()))
+                .andExpect(jsonPath("$.result.status")
+                        .value("COMPLETED"))
+                .andExpect(jsonPath("$.result.cardName")
+                        .value("신한카드"))
+                .andExpect(jsonPath("$.result.receiptUrl")
+                        .value("https://payapp.test/receipt/"
+                                + order.orderNumber()))
+                .andExpect(jsonPath("$.result.passStartedAt")
+                        .value("2026-10-25T12:00:00"))
+                .andExpect(jsonPath("$.result.passExpiresAt")
+                        .value("2026-11-01T12:00:00"))
+                .andExpect(jsonPath("$.result.refundable")
+                        .value(true))
+                .andExpect(jsonPath("$.result.refundedAt")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.result.refundedAmount")
+                        .doesNotExist());
+
+        cancellationService.cancel(
+                member.getMemberId(),
+                payment.getPaymentId()
+        );
+
+        mockMvc.perform(
+                        get("/api/v1/payments/{paymentId}",
+                                payment.getPaymentId())
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status")
+                        .value("REFUNDED"))
+                .andExpect(jsonPath("$.result.cancellationRequestedAt")
+                        .value("2026-10-25T12:00:00"))
+                .andExpect(jsonPath("$.result.refundedAt")
+                        .value("2026-10-25T12:00:00"))
+                .andExpect(jsonPath("$.result.refundedAmount")
+                        .value(1900))
+                .andExpect(jsonPath("$.result.refundable")
+                        .value(false));
+    }
+
+    @Test
     @DisplayName("결제와 패스 내역 API는 잘못된 페이지 요청을 400으로 거절한다")
     void rejectsInvalidHistoryPageRequests() throws Exception {
         mockMvc.perform(
@@ -351,12 +462,23 @@ class PaymentFlowIntegrationTest {
                                 .param("pay_state", feedback.payState())
                                 .param("var1", feedback.orderNumber())
                                 .param("mul_no", feedback.transactionId())
+                                .param("csturl", "https://payapp.test/receipt/"
+                                        + order.orderNumber())
+                                .param("card_name", "신한카드")
                 )
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.TEXT_PLAIN
                 ))
                 .andExpect(content().string("SUCCESS"));
+
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+        assertThat(payment.getCardName()).isEqualTo("신한카드");
+        assertThat(payment.getReceiptUrl()).isEqualTo(
+                "https://payapp.test/receipt/" + order.orderNumber()
+        );
     }
 
     @Test
@@ -422,7 +544,9 @@ class PaymentFlowIntegrationTest {
         );
         expirationService.expirePendingOrders();
 
-        feedbackService.process(feedback(expired.getOrderNumber()));
+        feedbackService.process(
+                lateApprovalFeedback(expired.getOrderNumber())
+        );
 
         Payment refunded = paymentRepository
                 .findById(expired.getPaymentId())
@@ -430,9 +554,26 @@ class PaymentFlowIntegrationTest {
 
         assertThat(refunded.getStatus())
                 .isEqualTo(PaymentStatus.REFUNDED);
+
+        // 페이앱이 전달한 실제 승인 시각
+        assertThat(refunded.getApprovedAt())
+                .isEqualTo(
+                        LocalDateTime.of(
+                                2026, 10, 25, 11, 55
+                        )
+                );
+
+        // 서버가 자동 취소를 요청한 시각
+        assertThat(refunded.getCancellationRequestedAt())
+                .isEqualTo(NOW_KST);
+
+        assertThat(refunded.getCancellationRequestedAt())
+                .isAfter(refunded.getApprovedAt());
+
         assertThat(memberPassRepository
                 .findByPaymentPaymentId(expired.getPaymentId()))
                 .isEmpty();
+
         verify(payAppClient, times(1))
                 .cancelPayment(
                         transactionId(expired.getOrderNumber()),
@@ -610,7 +751,7 @@ class PaymentFlowIntegrationTest {
 
     @Test
     @DisplayName("이미 만료된 패스 결제는 환불할 수 없다")
-    void rejectsRefundForExpiredPass() {
+    void rejectsRefundForExpiredPass() throws Exception {
         long sequence = SEQUENCE.incrementAndGet();
         Payment payment = Payment.create(
                 member,
@@ -648,6 +789,17 @@ class PaymentFlowIntegrationTest {
 
         verify(payAppClient, times(0))
                 .cancelPayment(anyString(), anyString());
+
+        mockMvc.perform(
+                        get("/api/v1/payments/{paymentId}",
+                                payment.getPaymentId())
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status")
+                        .value("COMPLETED"))
+                .andExpect(jsonPath("$.result.refundable")
+                        .value(false));
     }
 
     @Test
@@ -712,6 +864,19 @@ class PaymentFlowIntegrationTest {
                 .getStatus()).isEqualTo(
                 PaymentStatus.CANCEL_REQUESTED
         );
+
+        mockMvc.perform(
+                        get("/api/v1/payments/{paymentId}",
+                                payment.getPaymentId())
+                                .with(memberAuthentication())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status")
+                        .value("CANCEL_REQUESTED"))
+                .andExpect(jsonPath("$.result.cancellationRequestedAt")
+                        .value("2026-10-25T12:00:00"))
+                .andExpect(jsonPath("$.result.refundable")
+                        .value(false));
 
         mockMvc.perform(
                         get("/api/v1/payments")
@@ -780,6 +945,43 @@ class PaymentFlowIntegrationTest {
                 orderNumber,
                 transactionId(orderNumber),
                 "0"
+        );
+    }
+
+    private PayAppFeedbackRequest lateApprovalFeedback(
+            String orderNumber
+    ) {
+        return new PayAppFeedbackRequest(
+                "test-user",
+                "test-link-key",
+                "test-link-value",
+                "일주일 패스",
+                "1900",
+                "2026-10-25 11:55:00",
+                "1",
+                "4",
+                orderNumber,
+                transactionId(orderNumber),
+                "0"
+        );
+    }
+
+    private PayAppFeedbackRequest detailedFeedback(String orderNumber) {
+        return new PayAppFeedbackRequest(
+                "test-user",
+                "test-link-key",
+                "test-link-value",
+                "일주일 패스",
+                "1900",
+                "2026-10-25 12:00:00",
+                "1",
+                "4",
+                orderNumber,
+                transactionId(orderNumber),
+                "0",
+                null,
+                "https://payapp.test/receipt/" + orderNumber,
+                "신한카드"
         );
     }
 
