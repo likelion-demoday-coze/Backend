@@ -4,9 +4,8 @@ load_config() {
   source "$APP_DIR/deploy.env"
   STATE_DIR="$APP_DIR/deploy-state"
   UPSTREAM_FILE=${UPSTREAM_FILE:-/etc/nginx/backend/active-upstream.conf}
-  : "${SMOKE_BASE_URL:?}" "${SMOKE_COOKIE_FILE:?}"
-  export SMOKE_BASE_URL SMOKE_COOKIE_FILE
-  test -r "$SMOKE_COOKIE_FILE"
+  : "${SMOKE_BASE_URL:?}"
+  export SMOKE_BASE_URL
   # Create only after the baseline has shared JDBC sessions and scheduler locks.
   test "$(cat "$STATE_DIR/blue-green-ready")" = v1
   test -f "$UPSTREAM_FILE"

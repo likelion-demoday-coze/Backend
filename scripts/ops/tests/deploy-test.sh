@@ -21,6 +21,7 @@ case "$1" in
       *) echo 'sha256:immutable registry/backend:previous-sha' ;;
     esac ;;
   run) [[ ${FAIL:-} != run ]] || exit 1; touch "$APP_DIR/created"; echo new ;;
+  exec) [[ ${FAIL:-} != readiness ]] || exit 7; printf '{"status":"UP"}\n200' ;;
   stop) [[ ${FAIL:-} != stop ]] ;;
   start|rm) exit 0 ;;
   *) echo "Unexpected docker call: $*" >&2; exit 1 ;;
@@ -55,8 +56,7 @@ fi
 MOCK
 cat > "$TMP/bin/python3" <<'MOCK'
 #!/usr/bin/env bash
-cat >/dev/null
-if [[ $1 == - ]]; then echo 'Cookie: mock' > "$4"; fi
+if [[ $1 == -c ]]; then echo smoke.invalid; else cat >/dev/null; fi
 MOCK
 cat > "$TMP/bin/date" <<'MOCK'
 #!/usr/bin/env bash
@@ -112,7 +112,6 @@ run_case() {
   echo 'server 127.0.0.1:8080;' > "$APP_DIR/upstream"
   echo 8080 > "$APP_DIR/live-port"
   echo 123 > "$APP_DIR/nginx.pid"
-  touch "$APP_DIR/cookies"
   touch "$APP_DIR/commands"
   echo 'sha256:immutable registry/backend:previous-sha' > "$APP_DIR/deploy-state/known-good-blue"
   cat > "$APP_DIR/deploy.env" <<CONFIG
@@ -120,7 +119,6 @@ BACKUP_SCRIPT='$TMP/backup'
 PRE_DEPLOY_CHECK_SCRIPT='$TMP/precheck'
 POST_DEPLOY_CHECK_SCRIPT='$TMP/telemetry'
 SMOKE_BASE_URL=https://smoke.invalid
-SMOKE_COOKIE_FILE='$APP_DIR/cookies'
 UPSTREAM_FILE='$APP_DIR/upstream'
 NGINX_PID_FILE='$APP_DIR/nginx.pid'
 CONFIG
@@ -151,6 +149,7 @@ run_case pull-failure preflight pull
 run_case previous-requests-not-finished preflight prior-drain
 run_case start-failure failed-before-switch run
 run_case readiness-failure failed-before-switch health
+run_case internal-readiness-failure failed-before-switch readiness
 run_case candidate-smoke-failure failed-before-switch candidate-smoke
 run_case nginx-test-failure rolled-back nginx
 run_case nginx-reload-failure rolled-back reload

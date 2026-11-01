@@ -1,37 +1,67 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${SMOKE_BASE_URL:?}"
-: "${SMOKE_COOKIE_FILE:?}"
 [[ $SMOKE_BASE_URL == https://* ]] || { echo 'Smoke tests require HTTPS' >&2; exit 1; }
-extra=()
 base=${SMOKE_BASE_URL%/}
-if [[ -n ${SMOKE_TARGET_PORT:-} ]]; then
-  [[ $SMOKE_TARGET_PORT == 8080 || $SMOKE_TARGET_PORT == 8081 ]] || exit 2
-  # Select cookies against their real HTTPS origin, then send them only to the
-  # loopback candidate. Secure cookies would otherwise be omitted on local HTTP.
-  umask 077
-  headers=$(mktemp)
-  trap 'rm -f -- "$headers"' EXIT
-  python3 - "$base" "$SMOKE_COOKIE_FILE" "$headers" <<'PY'
-import http.cookiejar, sys, urllib.request, urllib.parse
-base, cookie_file, output = sys.argv[1:]
-jar = http.cookiejar.MozillaCookieJar(cookie_file)
-jar.load(ignore_discard=True)
-request = urllib.request.Request(base + '/api/v1/members/me')
-jar.add_cookie_header(request)
-cookie = request.get_header('Cookie')
-if not cookie:
-    raise SystemExit('No valid smoke session for the configured HTTPS origin')
-with open(output, 'w') as file:
-    file.write('Cookie: ' + cookie + '\nHost: ' + urllib.parse.urlsplit(base).netloc + '\nX-Forwarded-Proto: https\n')
-PY
-  extra=(--header "@$headers")
-  base="http://127.0.0.1:$SMOKE_TARGET_PORT"
+extra=()
+port=${SMOKE_TARGET_PORT:-}
+if [[ -n $port ]]; then
+  case "$port" in
+    8080) container=backend-blue ;;
+    8081) container=backend-green ;;
+    *) echo 'Invalid smoke target port' >&2; exit 2 ;;
+  esac
+  host=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.urlsplit(sys.argv[1]).netloc)' "$base")
+  extra=(--header "Host: $host" --header 'X-Forwarded-Proto: https')
+  base="http://127.0.0.1:$port"
 fi
-# Do not follow redirects: a redirect to a login page is a failed smoke test.
-for path in /api/v1/members/me /api/v1/stocks/me /api/v1/daily-quizzes/today /api/v1/products; do
-  curl --silent --show-error --fail --connect-timeout 5 --max-time 20 \
-    --cookie "$SMOKE_COOKIE_FILE" "${extra[@]}" --write-out '\n%{http_code}' "$base$path" |
-    python3 -c 'import json,sys; body,status=sys.stdin.read().rsplit("\n",1); r=json.loads(body); sys.exit(0 if status == "200" and r.get("isSuccess") is True else 1)'
-  echo "Smoke passed: $path"
-done
+
+# Responses can contain fresh CSRF tokens. Keep them private and out of logs.
+umask 077
+response=$(mktemp)
+trap 'rm -f -- "$response"' EXIT
+check_response() {
+  local kind=$1
+  shift
+  if ! "$@" > "$response"; then
+    echo "Smoke failed: $kind request failed" >&2
+    return 1
+  fi
+  python3 - "$kind" "$response" <<'PY'
+import json, sys
+from pathlib import Path
+kind, path = sys.argv[1:]
+try:
+    body, status = Path(path).read_text().rsplit("\n", 1)
+    if status != "200":
+        raise ValueError("HTTP " + status)
+    data = json.loads(body)
+    if not isinstance(data, dict):
+        raise ValueError("expected JSON object")
+    if kind == "readiness":
+        valid = data.get("status") == "UP"
+    else:
+        result = data.get("result")
+        valid = data.get("isSuccess") is True and isinstance(result, dict) and all(
+            isinstance(result.get(key), str) and bool(result[key].strip())
+            for key in ("headerName", "token")
+        )
+    if not valid:
+        raise ValueError("unexpected response shape or unhealthy status")
+except (ValueError, OSError) as error:
+    # Do not print response bodies, tokens or JSON parser input.
+    message = str(error) if type(error) is ValueError else "invalid response"
+    sys.exit("Smoke failed: " + kind + " (" + message + ")")
+PY
+  echo "Smoke passed: $kind"
+}
+
+if [[ -n $port ]]; then
+  # Readiness includes DB connectivity; management stays on container loopback.
+  check_response readiness docker exec "$container" curl \
+    --silent --show-error --connect-timeout 5 --max-time 20 \
+    --write-out '\n%{http_code}' http://127.0.0.1:9090/actuator/health/readiness
+fi
+# No saved cookies or credentials. A fresh anonymous CSRF session may be created.
+check_response csrf curl --silent --show-error --connect-timeout 5 --max-time 20 \
+  "${extra[@]}" --write-out '\n%{http_code}' "$base/api/v1/auth/csrf"

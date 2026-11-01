@@ -9,7 +9,7 @@
 3. 서버·DB 용량 점검, SHA 이미지 pull, DB 백업을 수행한다. 이 단계에서는 현재 앱을 건드리지 않는다.
 4. 비활성 슬롯의 이전 컨테이너만 정리하고 새 SHA 이미지를 시작한다. 기존 슬롯은 계속 서비스한다.
 5. Docker health check가 `/actuator/health/readiness` 성공을 확인한다. readiness에는 DB 연결도 포함한다. 동일 이미지는 주기적으로 이 readiness를 검사한다.
-6. 새 슬롯의 loopback 주소로 인증·홈·퀴즈·상품 조회 smoke를 수행한다. 전용 회원의 Secure 쿠키를 원래 HTTPS 도메인 기준으로 선택해, 접근이 제한된 임시 헤더 파일로 전달한다. 쿠키를 명령 인자나 CI 로그에 출력하지 않는다.
+6. 새 슬롯의 컨테이너 내부 readiness(앱·DB 연결)와 loopback 주소의 비로그인 CSRF API를 검사한다. 저장된 로그인 세션이나 쿠키 파일은 사용하지 않는다. CSRF 토큰을 포함한 응답은 권한 0600의 임시 파일에서 검사하고 삭제하며 로그에 출력하지 않는다.
 7. 보호 시간을 다시 확인한 후 upstream 파일을 같은 디렉터리에서 원자적으로 교체한다. `nginx -t`, graceful reload, 실제 로컬 라우팅 응답의 대상 포트 검증을 순서대로 수행한다.
 8. 공개 HTTPS smoke, 필수 수집 검증 hook, 기본 60초 관찰을 수행한다. 실패하면 이전 upstream으로 reload하고 실제 라우팅 복구를 확인한다. 두 컨테이너는 조사와 진행 중 요청을 위해 유지한다. CD는 실패로 종료한다.
 9. 성공한 슬롯/이미지를 기록하고, 전환 전에 존재하던 Nginx worker PID들이 모두 종료되기를 기다린다. 최대 180초 후에도 요청이 남아 있거나 자정 보호 시간에 들어갔다면 기존 앱을 유지한다. 그렇지 않으면 기존 앱에 SIGTERM을 보낸다.
@@ -52,14 +52,15 @@ BACKUP_SCRIPT=/opt/backend-ops/backup-mysql.sh
 PRE_DEPLOY_CHECK_SCRIPT=/opt/backend-ops/check-disk.sh
 POST_DEPLOY_CHECK_SCRIPT=/opt/backend-ops/check-production-telemetry.sh
 SMOKE_BASE_URL=https://api.example.com
-SMOKE_COOKIE_FILE=/home/ubuntu/Backend/smoke.cookies
 UPSTREAM_FILE=/etc/nginx/backend/active-upstream.conf
 NGINX_PID_FILE=/run/nginx.pid
 ```
 
-`smoke.cookies`는 유효한 테스트 회원의 Netscape 쿠키 파일(0600)이며 만료 전에 갱신한다. 자동 조회는 `/api/v1/members/me`, `/stocks/me`, `/daily-quizzes/today`, `/products`(각 경로의 `/api/v1` 접두사 포함)이다. HTTP 200과 JSON `isSuccess=true`를 모두 요구한다. 실제 OAuth 로그인, 퀴즈 제출, 결제 승인은 출시 담당자가 별도로 확인한다.
+자동 smoke는 HTTP 200과 `/api/v1/auth/csrf`의 `isSuccess=true`, 비어 있지 않은 `result.headerName`·`result.token`을 확인한다. 후보 슬롯 검사에서는 해당 컨테이너 내부의 `/actuator/health/readiness`가 HTTP 200·`status=UP`인지 먼저 확인한다. readiness에는 DB 검사가 포함되며 관리 포트를 외부에 공개하지 않는다. 전환 후와 롤백 후에는 공개 HTTPS CSRF 응답을 검사한다. CSRF 호출은 새 익명 세션을 만들 수 있지만 사전에 로그인한 세션은 필요하지 않다. 인증된 회원·퀴즈·상품 API 및 로그인 유지 여부는 이 smoke의 보장 범위가 아니며, 인증 통합 테스트와 별도 출시 점검으로 확인한다.
 
-`POST_DEPLOY_CHECK_SCRIPT`는 환경별로 작성해야 하는 필수 검증이다. `DEPLOY_SHA`, `DEPLOY_RECORD_DIR`가 전달된다. 최신 요청의 로그·트레이스·메트릭 유입과 사전 승인된 시험 알림 수신을 검증한 경우에만 0을 반환한다. 최대 180초이며 Collector HTTP 200만으로 성공 처리하지 않는다. [관측 가이드](../../docs/observability.md)를 참고한다.
+기존 서버의 `SMOKE_COOKIE_FILE` 설정은 새 스크립트에서 무시한다. 새 버전의 첫 배포에도 설정 변경이나 쿠키 갱신은 필요 없다. 과거 release의 롤백 스크립트는 쿠키를 요구할 수 있으므로 해당 버전의 복구가 필요한 동안 기존 설정·파일을 유지한다. 새 버전 배포 후 확인 명령과 서버 적용 절차는 [세션 없는 배포 검사 전환](sessionless-smoke-migration.md)을 참고한다.
+
+`POST_DEPLOY_CHECK_SCRIPT`는 환경별로 작성해야 하는 필수 검증이다. `DEPLOY_SHA`, `DEPLOY_RECORD_DIR`가 전달된다. 배포 대상 컨테이너의 최신 로그·트레이스·메트릭 유입을 검증한 경우에만 0을 반환한다. 최대 180초이며 Collector HTTP 200만으로 성공 처리하지 않는다. Discord 등 알림 전송 시험은 자동 배포의 필수 조건이 아니며 별도 운영 점검으로 관리한다. [관측 가이드](../../docs/observability.md)를 참고한다.
 
 CD는 SHA별 `scripts/ops`를 서버 releases 디렉터리에 복사한다. 정기 작업에 사용하는 별도 `/opt/backend-ops`도 검토한 버전으로 설치하고 스크립트에 실행 권한을 부여한다. 서버 접속 정보는 기존 GitHub Secrets를 사용한다.
 
