@@ -37,6 +37,7 @@ public class Payment {
 
     private static final int CARD_NAME_MAX_LENGTH = 50;
     private static final int RECEIPT_URL_MAX_LENGTH = 500;
+    public static final int PAYMENT_URL_MAX_LENGTH = 1000;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -76,6 +77,9 @@ public class Payment {
             length = 100
     )
     private String providerTransactionId;
+
+    @Column(name = "payment_url", length = 1000)
+    private String paymentUrl;
 
     @Column(
             nullable = false,
@@ -171,6 +175,13 @@ public class Payment {
     }
 
     public void markPaymentRequested(String providerTransactionId) {
+        markPaymentRequested(providerTransactionId, null);
+    }
+
+    public void markPaymentRequested(
+            String providerTransactionId,
+            String paymentUrl
+    ) {
         if (status != PaymentStatus.READY) {
             throw new IllegalStateException(
                     "결제 요청 상태로 변경할 수 없습니다."
@@ -184,6 +195,10 @@ public class Payment {
         }
 
         this.providerTransactionId = providerTransactionId;
+        this.paymentUrl = normalizeOptional(
+                paymentUrl,
+                PAYMENT_URL_MAX_LENGTH
+        );
         this.status = PaymentStatus.PAYMENT_REQUESTED;
     }
 
