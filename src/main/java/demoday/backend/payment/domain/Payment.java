@@ -35,6 +35,9 @@ public class Payment {
     private static final Pattern ORDER_NUMBER_PATTERN =
             Pattern.compile("^[A-Za-z0-9]{1,40}$");
 
+    private static final int CARD_NAME_MAX_LENGTH = 50;
+    private static final int RECEIPT_URL_MAX_LENGTH = 500;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "payment_id")
@@ -230,8 +233,14 @@ public class Payment {
         this.providerTransactionId = providerTransactionId;
         this.resultCode = resultCode;
         this.payMethod = payMethod;
-        this.cardName = normalizeNullable(cardName);
-        this.receiptUrl = normalizeNullable(receiptUrl);
+        this.cardName = normalizeOptional(
+                cardName,
+                CARD_NAME_MAX_LENGTH
+        );
+        this.receiptUrl = normalizeOptional(
+                receiptUrl,
+                RECEIPT_URL_MAX_LENGTH
+        );
         this.approvedAt = approvedAt;
         this.failureMessage = null;
         this.status = PaymentStatus.APPROVED;
@@ -328,8 +337,14 @@ public class Payment {
         this.providerTransactionId = providerTransactionId;
         this.resultCode = resultCode;
         this.payMethod = payMethod;
-        this.cardName = normalizeNullable(cardName);
-        this.receiptUrl = normalizeNullable(receiptUrl);
+        this.cardName = normalizeOptional(
+                cardName,
+                CARD_NAME_MAX_LENGTH
+        );
+        this.receiptUrl = normalizeOptional(
+                receiptUrl,
+                RECEIPT_URL_MAX_LENGTH
+        );
         this.approvedAt = approvedAt;
         this.cancellationRequestedAt = cancellationRequestedAt;
         this.failureMessage =
@@ -496,11 +511,20 @@ public class Payment {
         this.failureMessage = normalizeMessage(message);
     }
 
-    private static String normalizeNullable(String value) {
+    private static String normalizeOptional(
+            String value,
+            int maxLength
+    ) {
         if (value == null || value.isBlank()) {
             return null;
         }
 
-        return value.trim();
+        String normalized = value.trim();
+
+        if (normalized.length() > maxLength) {
+            return null;
+        }
+
+        return normalized;
     }
 }

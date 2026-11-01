@@ -307,6 +307,56 @@ class PaymentFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("선택 승인 정보가 컬럼 길이를 초과해도 결제 승인과 패스 지급은 완료된다")
+    void ignoresOversizedOptionalApprovalMetadata() {
+        var order = createOrder();
+
+        PayAppFeedbackRequest feedback =
+                oversizedOptionalMetadataFeedback(
+                        order.orderNumber()
+                );
+
+        feedbackService.process(feedback);
+
+        Payment payment = paymentRepository
+                .findByOrderNumber(order.orderNumber())
+                .orElseThrow();
+
+        assertThat(payment.getStatus())
+                .isEqualTo(PaymentStatus.COMPLETED);
+        assertThat(payment.getCardName()).isNull();
+        assertThat(payment.getReceiptUrl()).isNull();
+
+        MemberPass memberPass = memberPassRepository
+                .findByPaymentPaymentId(payment.getPaymentId())
+                .orElseThrow();
+
+        assertThat(memberPass.getStatus())
+                .isEqualTo(PassStatus.ACTIVE);
+    }
+
+    private PayAppFeedbackRequest oversizedOptionalMetadataFeedback(
+            String orderNumber
+    ) {
+        return new PayAppFeedbackRequest(
+                "test-user",
+                "test-link-key",
+                "test-link-value",
+                "일주일 패스",
+                "1900",
+                "2026-10-25 12:00:00",
+                "1",
+                "4",
+                orderNumber,
+                transactionId(orderNumber),
+                "0",
+                null,
+                "https://payapp.test/" + "a".repeat(600),
+                "카".repeat(51)
+        );
+    }
+
+    @Test
     @DisplayName("결제 상세 API는 승인 정보와 패스 기간 및 환불 상태를 반환한다")
     void exposesPaymentDetailAndRefundState() throws Exception {
         var order = createOrder();
