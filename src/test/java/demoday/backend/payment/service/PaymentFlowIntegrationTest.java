@@ -494,7 +494,9 @@ class PaymentFlowIntegrationTest {
         );
         expirationService.expirePendingOrders();
 
-        feedbackService.process(feedback(expired.getOrderNumber()));
+        feedbackService.process(
+                lateApprovalFeedback(expired.getOrderNumber())
+        );
 
         Payment refunded = paymentRepository
                 .findById(expired.getPaymentId())
@@ -502,9 +504,26 @@ class PaymentFlowIntegrationTest {
 
         assertThat(refunded.getStatus())
                 .isEqualTo(PaymentStatus.REFUNDED);
+
+        // 페이앱이 전달한 실제 승인 시각
+        assertThat(refunded.getApprovedAt())
+                .isEqualTo(
+                        LocalDateTime.of(
+                                2026, 10, 25, 11, 55
+                        )
+                );
+
+        // 서버가 자동 취소를 요청한 시각
+        assertThat(refunded.getCancellationRequestedAt())
+                .isEqualTo(NOW_KST);
+
+        assertThat(refunded.getCancellationRequestedAt())
+                .isAfter(refunded.getApprovedAt());
+
         assertThat(memberPassRepository
                 .findByPaymentPaymentId(expired.getPaymentId()))
                 .isEmpty();
+
         verify(payAppClient, times(1))
                 .cancelPayment(
                         transactionId(expired.getOrderNumber()),
@@ -871,6 +890,24 @@ class PaymentFlowIntegrationTest {
                 "일주일 패스",
                 "1900",
                 "2026-10-25 12:00:00",
+                "1",
+                "4",
+                orderNumber,
+                transactionId(orderNumber),
+                "0"
+        );
+    }
+
+    private PayAppFeedbackRequest lateApprovalFeedback(
+            String orderNumber
+    ) {
+        return new PayAppFeedbackRequest(
+                "test-user",
+                "test-link-key",
+                "test-link-value",
+                "일주일 패스",
+                "1900",
+                "2026-10-25 11:55:00",
                 "1",
                 "4",
                 orderNumber,

@@ -307,7 +307,8 @@ public class Payment {
             String payMethod,
             String cardName,
             String receiptUrl,
-            LocalDateTime approvedAt
+            LocalDateTime approvedAt,
+            LocalDateTime cancellationRequestedAt
     ) {
         if (!isExpiredOrder()) {
             throw new IllegalStateException(
@@ -317,7 +318,8 @@ public class Payment {
 
         if (providerTransactionId == null
                 || providerTransactionId.isBlank()
-                || approvedAt == null) {
+                || approvedAt == null
+                || cancellationRequestedAt == null) {
             throw new IllegalArgumentException(
                     "지연 승인 정보가 올바르지 않습니다."
             );
@@ -329,7 +331,7 @@ public class Payment {
         this.cardName = normalizeNullable(cardName);
         this.receiptUrl = normalizeNullable(receiptUrl);
         this.approvedAt = approvedAt;
-        this.cancellationRequestedAt = approvedAt;
+        this.cancellationRequestedAt = cancellationRequestedAt;
         this.failureMessage =
                 "만료 후 승인되어 전액 취소 결과를 확인하고 있습니다.";
         this.status = PaymentStatus.CANCEL_REQUESTED;
