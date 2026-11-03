@@ -2,31 +2,86 @@ package demoday.backend.character.code;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+
 import java.math.BigDecimal;
 
 @Getter
 @RequiredArgsConstructor
 public enum CharacterStage {
-    BEGINNER("초보냥", BigDecimal.ZERO),
-    BIG_HAND("큰손냥", new BigDecimal("1000.00")),
-    NOBLE("귀족냥", new BigDecimal("10000.00"));
+
+    BABY(
+            "아기냥",
+            BigDecimal.ZERO
+    ),
+    BASIC(
+            "기본냥",
+            new BigDecimal("100.00")
+    ),
+    BIG_HAND(
+            "큰손냥",
+            new BigDecimal("250.00")
+    ),
+    ROYAL(
+            "왕족냥",
+            new BigDecimal("1500.00")
+    );
 
     private final String displayName;
     private final BigDecimal minimumStock;
 
-    /** 시초가 100 아래로 하락해도 기본 외형을 유지한다. 기준값은 해당 단계에 포함한다. */
     public static CharacterStage fromStock(BigDecimal stock) {
-        if (stock == null || stock.signum() < 0) throw new IllegalArgumentException("주가는 0 이상이어야 합니다.");
-        if (stock.compareTo(NOBLE.minimumStock) >= 0) return NOBLE;
-        if (stock.compareTo(BIG_HAND.minimumStock) >= 0) return BIG_HAND;
-        return BEGINNER;
+        if (stock == null || stock.signum() < 0) {
+            throw new IllegalArgumentException(
+                    "주가는 0 이상이어야 합니다."
+            );
+        }
+
+        if (stock.compareTo(ROYAL.minimumStock) >= 0) {
+            return ROYAL;
+        }
+
+        if (stock.compareTo(BIG_HAND.minimumStock) >= 0) {
+            return BIG_HAND;
+        }
+
+        if (stock.compareTo(BASIC.minimumStock) >= 0) {
+            return BASIC;
+        }
+
+        return BABY;
+    }
+
+    public static CharacterStage higherOf(
+            CharacterStage first,
+            CharacterStage second
+    ) {
+        if (first == null || second == null) {
+            throw new IllegalArgumentException(
+                    "캐릭터 단계는 필수입니다."
+            );
+        }
+
+        return first.ordinal() >= second.ordinal()
+                ? first
+                : second;
     }
 
     public CharacterStage next() {
         return switch (this) {
-            case BEGINNER -> BIG_HAND;
-            case BIG_HAND -> NOBLE;
-            case NOBLE -> null;
+            case BABY -> BASIC;
+            case BASIC -> BIG_HAND;
+            case BIG_HAND -> ROYAL;
+            case ROYAL -> null;
         };
+    }
+
+    public boolean isHigherThan(CharacterStage other) {
+        return other != null
+                && this.ordinal() > other.ordinal();
+    }
+
+    public boolean isLowerThan(CharacterStage other) {
+        return other != null
+                && this.ordinal() < other.ordinal();
     }
 }

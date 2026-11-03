@@ -1,5 +1,6 @@
 package demoday.backend.stock.service;
 
+import demoday.backend.character.code.CharacterStage;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.global.transaction.TransactionRetryExecutor;
 import demoday.backend.member.domain.Member;
@@ -62,6 +63,53 @@ class StockChangeIntegrationTest {
         assertThat(change("100.00", "110.000", StockChangeType.QUIZ_CORRECT, "quiz")).isEqualTo(first);
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("120");
         assertThat(changeCount()).isEqualTo(4);
+    }
+
+    @Test
+    void babyEvolvesToBasicOnFirstCorrectAnswerBelowStockThreshold() {
+        change("100", "80", StockChangeType.ADMIN_ADJUSTMENT, "baby-setup");
+        change("80", "80.80", StockChangeType.QUIZ_CORRECT, "baby-correct");
+
+        Member updated = members.findById(memberId).orElseThrow();
+        assertThat(updated.getCurrentStock()).isEqualByComparingTo("80.80");
+        assertThat(updated.getCharacterStage()).isEqualTo(CharacterStage.BASIC);
+        assertThat(updated.getPendingEvolutionStage()).isEqualTo(CharacterStage.BASIC);
+    }
+
+    @Test
+    void quizCorrectCrossesBigHandBoundaryAndCreatesPendingEvolution() {
+        change("100", "249", StockChangeType.ADMIN_ADJUSTMENT, "big-hand-setup");
+        change("249", "251.49", StockChangeType.QUIZ_CORRECT, "big-hand-correct");
+
+        Member updated = members.findById(memberId).orElseThrow();
+        assertThat(updated.getCharacterStage()).isEqualTo(CharacterStage.BIG_HAND);
+        assertThat(updated.getPendingEvolutionStage()).isEqualTo(CharacterStage.BIG_HAND);
+    }
+
+    @Test
+    void quizCorrectCrossesRoyalBoundaryAndCreatesPendingEvolution() {
+        change("100", "1499", StockChangeType.ADMIN_ADJUSTMENT, "royal-setup");
+        change("1499", "1513.99", StockChangeType.QUIZ_CORRECT, "royal-correct");
+
+        Member updated = members.findById(memberId).orElseThrow();
+        assertThat(updated.getCharacterStage()).isEqualTo(CharacterStage.ROYAL);
+        assertThat(updated.getPendingEvolutionStage()).isEqualTo(CharacterStage.ROYAL);
+    }
+
+    @Test
+    void penaltyDowngradesAndClearsInvalidPendingEvolutionThenRecoveryRestoresIt() {
+        change("100", "250", StockChangeType.ADMIN_ADJUSTMENT, "penalty-stage-setup");
+        var penalty = change("250", "200", StockChangeType.STREAK_PENALTY, "stage-penalty");
+
+        Member penalized = members.findById(memberId).orElseThrow();
+        assertThat(penalized.getCharacterStage()).isEqualTo(CharacterStage.BASIC);
+        assertThat(penalized.getPendingEvolutionStage()).isNull();
+
+        recover("200", "250", penalty.stockChangeId(), "stage-recovery");
+
+        Member recovered = members.findById(memberId).orElseThrow();
+        assertThat(recovered.getCharacterStage()).isEqualTo(CharacterStage.BIG_HAND);
+        assertThat(recovered.getPendingEvolutionStage()).isEqualTo(CharacterStage.BIG_HAND);
     }
 
     @Test
@@ -226,8 +274,17 @@ class StockChangeIntegrationTest {
     void roundedSmallValuesMayRemainUnchanged() {
         change("100", "0.01", StockChangeType.ADMIN_ADJUSTMENT, "setup");
         change("0.01", "0.01", StockChangeType.QUIZ_CORRECT, "quiz-rule");
+
+        Member evolved = members.findById(memberId).orElseThrow();
+        assertThat(evolved.getCharacterStage()).isEqualTo(CharacterStage.BASIC);
+        assertThat(evolved.getPendingEvolutionStage()).isEqualTo(CharacterStage.BASIC);
+
         change("0.01", "0.01", StockChangeType.STREAK_PENALTY, "penalty-rule");
+
+        Member unchanged = members.findById(memberId).orElseThrow();
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("0.01");
+        assertThat(unchanged.getCharacterStage()).isEqualTo(CharacterStage.BASIC);
+        assertThat(unchanged.getPendingEvolutionStage()).isEqualTo(CharacterStage.BASIC);
     }
 
     @Test

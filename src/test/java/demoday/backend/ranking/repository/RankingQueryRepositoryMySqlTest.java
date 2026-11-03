@@ -1,5 +1,6 @@
 package demoday.backend.ranking.repository;
 
+import demoday.backend.character.code.CharacterStage;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.ranking.repository.projection.RankingWinnerRow;
@@ -131,7 +132,10 @@ class RankingQueryRepositoryMySqlTest {
                 "ranking-closing-first",
                 closedAt.plusMinutes(2)
         ));
-        first.changeStock(new BigDecimal("250.00"));
+        first.changeStock(
+                new BigDecimal("250.00"),
+                CharacterStage.BIG_HAND
+        );
 
         stockChangeRepository.save(StockChange.create(
                 first,
@@ -142,7 +146,10 @@ class RankingQueryRepositoryMySqlTest {
                 "ranking-closing-second",
                 closedAt.plusMinutes(5)
         ));
-        first.changeStock(new BigDecimal("350.00"));
+        first.changeStock(
+                new BigDecimal("350.00"),
+                CharacterStage.BIG_HAND
+        );
         memberRepository.flush();
 
         var rows = rankingQueryRepository.findStockClosingValues(closedAt);
@@ -392,7 +399,11 @@ class RankingQueryRepositoryMySqlTest {
             String stock
     ) {
         Member member = Member.create(kakaoUserId, nickname);
-        member.changeStock(new BigDecimal(stock));
+        BigDecimal stockValue = new BigDecimal(stock);
+        member.changeStock(
+                stockValue,
+                CharacterStage.fromStock(stockValue)
+        );
         ReflectionTestUtils.setField(
                 member,
                 "createdAt",

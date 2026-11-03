@@ -125,9 +125,7 @@ public class MyPageService {
                                 member.getCreatedAt(),
                                 today
                         ),
-                        CharacterStage.fromStock(
-                                member.getCurrentStock()
-                        ),
+                        member.getCharacterStage(),
                         activePass != null,
                         activePass == null
                                 ? null

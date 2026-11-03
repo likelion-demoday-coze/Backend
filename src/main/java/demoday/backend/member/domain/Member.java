@@ -1,6 +1,8 @@
 package demoday.backend.member.domain;
 
 import demoday.backend.attendance.code.AttendanceErrorCode;
+import demoday.backend.character.code.CharacterErrorCode;
+import demoday.backend.character.code.CharacterStage;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.code.MemberErrorCode;
 import demoday.backend.member.code.MemberStatus;
@@ -66,6 +68,29 @@ public class Member {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "character_stage",
+            nullable = false,
+            length = 20
+    )
+    private CharacterStage characterStage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "pending_evolution_stage",
+            length = 20
+    )
+    private CharacterStage pendingEvolutionStage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "confirmed_character_stage",
+            nullable = false,
+            length = 20
+    )
+    private CharacterStage confirmedCharacterStage;
+
     private static final java.util.regex.Pattern NICKNAME_PATTERN =
             java.util.regex.Pattern.compile("^[가-힣A-Za-z0-9]{2,8}$");
 
@@ -90,6 +115,9 @@ public class Member {
                 .signupRewardPopupPending(false)
                 .rankingExcluded(false)
                 .status(MemberStatus.ACTIVE)
+                .characterStage(CharacterStage.BASIC)
+                .confirmedCharacterStage(CharacterStage.BASIC)
+                .pendingEvolutionStage(null)
                 .build();
     }
 
@@ -131,25 +159,82 @@ public class Member {
     // 정답 맞히고 주가 상승 기회 남아 있을 때 현재 주가 올림
     public void increaseStock(int increasePercent) {
         if (increasePercent < 1 || increasePercent > 10) {
-            throw new ProjectException(MemberErrorCode.INVALID_STOCK_INCREASE_PERCENT);
+            throw new ProjectException(
+                    MemberErrorCode.INVALID_STOCK_INCREASE_PERCENT
+            );
         }
 
         BigDecimal rate = BigDecimal.ONE.add(
-                BigDecimal.valueOf(increasePercent).movePointLeft(2)
+                BigDecimal.valueOf(increasePercent)
+                        .movePointLeft(2)
         );
 
-        changeStock(currentStock.multiply(rate).setScale(2, RoundingMode.HALF_UP));
+        BigDecimal updatedStock = currentStock
+                .multiply(rate)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        CharacterStage stockStage =
+                CharacterStage.fromStock(updatedStock);
+
+        CharacterStage targetStage;
+
+        if (characterStage == CharacterStage.BABY) {
+            targetStage = CharacterStage.BASIC;
+        } else {
+            targetStage = CharacterStage.higherOf(
+                    characterStage,
+                    stockStage
+            );
+        }
+
+        changeStock(updatedStock, targetStage);
     }
 
     // 업무에서는 주가와 이력을 함께 저장하는 StockService.changeStock을 사용한다.
-    public void changeStock(BigDecimal value) {
-        if (value == null || value.signum() < 0 || value.compareTo(BigDecimal.TEN.pow(28)) >= 0) {
-            throw new ProjectException(MemberErrorCode.INVALID_STOCK_VALUE);
+    public void changeStock(
+            BigDecimal value,
+            CharacterStage newStage
+    ) {
+        if (value == null
+                || value.signum() < 0
+                || value.compareTo(BigDecimal.TEN.pow(28)) >= 0) {
+            throw new ProjectException(
+                    MemberErrorCode.INVALID_STOCK_VALUE
+            );
         }
+
+        if (newStage == null) {
+            throw new IllegalArgumentException(
+                    "변경할 캐릭터 단계는 필수입니다."
+            );
+        }
+
+        BigDecimal normalizedValue;
+
         try {
-            currentStock = value.setScale(2, RoundingMode.UNNECESSARY);
+            normalizedValue = value.setScale(
+                    2,
+                    RoundingMode.UNNECESSARY
+            );
         } catch (ArithmeticException exception) {
-            throw new ProjectException(MemberErrorCode.INVALID_STOCK_VALUE);
+            throw new ProjectException(
+                    MemberErrorCode.INVALID_STOCK_VALUE
+            );
+        }
+
+        this.currentStock = normalizedValue;
+        this.characterStage = newStage;
+
+        // 이미 확인한 단계보다 더 아래로 퇴화하면 그 단계가 새로운 확정 기준이 된다.
+        if (newStage.isLowerThan(confirmedCharacterStage)) {
+            this.confirmedCharacterStage = newStage;
+        }
+
+        // 마지막으로 확인한 단계보다 높은 현재 단계만 진화 확인 대상으로 유지한다.
+        if (newStage.isHigherThan(confirmedCharacterStage)) {
+            this.pendingEvolutionStage = newStage;
+        } else {
+            this.pendingEvolutionStage = null;
         }
     }
 
@@ -228,6 +313,29 @@ public class Member {
                     MemberErrorCode.INVALID_NICKNAME
             );
         }
+    }
+
+    public void confirmEvolution(CharacterStage stage) {
+        if (stage == null) {
+            throw new IllegalArgumentException(
+                    "확인할 캐릭터 단계는 필수입니다."
+            );
+        }
+
+        // 이미 처리된 요청의 재전송은 성공으로 처리
+        if (pendingEvolutionStage == null) {
+            return;
+        }
+
+        // 이전 팝업의 늦은 확인 요청이 새로운 진화 상태를 지우지 못하게 함
+        if (pendingEvolutionStage != stage) {
+            throw new ProjectException(
+                    CharacterErrorCode.EVOLUTION_STAGE_MISMATCH
+            );
+        }
+
+        confirmedCharacterStage = stage;
+        pendingEvolutionStage = null;
     }
 
     public boolean isActive() {
