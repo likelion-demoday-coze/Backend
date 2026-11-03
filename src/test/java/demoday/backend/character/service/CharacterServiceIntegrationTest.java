@@ -185,7 +185,10 @@ class CharacterServiceIntegrationTest {
         Long memberId = member.getMemberId();
         transactions.execute(() -> {
             var saved = members.findByIdForUpdate(memberId).orElseThrow();
-            saved.changeStock(new BigDecimal(stock));
+            member.changeStock(
+                    new BigDecimal("80.00"),
+                    CharacterStage.BABY
+            );
             learn(saved, 3, TODAY.minusDays(2));
             return null;
         });
@@ -246,5 +249,25 @@ class CharacterServiceIntegrationTest {
     @TestConfiguration
     static class TimeConfig {
         @Bean @Primary Clock characterClock() { return Clock.fixed(Instant.parse("2026-10-05T03:00:00Z"), ZoneOffset.UTC); }
+    }
+
+    @Test
+    void newMemberStartsAsBasic() {
+        var response =
+                characters.getCurrent(
+                        member.getMemberId()
+                );
+
+        assertThat(response.stage())
+                .isEqualTo(CharacterStage.BASIC);
+
+        assertThat(response.pendingEvolutionStage())
+                .isNull();
+
+        assertThat(response.nextStage())
+                .isEqualTo(CharacterStage.BIG_HAND);
+
+        assertThat(response.nextStageStock())
+                .isEqualByComparingTo("250.00");
     }
 }

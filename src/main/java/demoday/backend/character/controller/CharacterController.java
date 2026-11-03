@@ -1,5 +1,6 @@
 package demoday.backend.character.controller;
 
+import demoday.backend.character.dto.CharacterEvolutionConfirmRequest;
 import demoday.backend.character.dto.CharacterResponse;
 import demoday.backend.character.service.CharacterService;
 import demoday.backend.global.api.ApiResponse;
@@ -7,11 +8,10 @@ import demoday.backend.global.api.code.GeneralSuccessCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Character", description = "현재 주가·연속 학습에 따른 캐릭터 외형과 효과")
 @RestController
@@ -25,5 +25,32 @@ public class CharacterController {
     public ApiResponse<CharacterResponse> getCurrent(
             @Parameter(hidden = true) @AuthenticationPrincipal Long memberId) {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, characters.getCurrent(memberId));
+    }
+
+    @Operation(
+            summary = "내 캐릭터 진화 단계 확인",
+            description = """
+                진화 팝업의 확인 버튼을 누른 뒤 호출합니다.
+                조회 응답의 pendingEvolutionStage와
+                같은 stage를 보내야 합니다.
+                """
+    )
+    @PatchMapping("/me/evolution")
+    public ApiResponse<Void> confirmEvolution(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal Long memberId,
+
+            @Valid
+            @RequestBody
+            CharacterEvolutionConfirmRequest request
+    ) {
+        characters.confirmEvolution(
+                memberId,
+                request
+        );
+
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK
+        );
     }
 }

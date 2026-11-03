@@ -1,5 +1,6 @@
 package demoday.backend.stock.service;
 
+import demoday.backend.character.code.CharacterStage;
 import demoday.backend.global.api.code.GeneralErrorCode;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.member.code.MemberErrorCode;
@@ -150,7 +151,36 @@ public class StockService {
             throw new ProjectException(StockErrorCode.STALE_STOCK);
         }
         validateChangeRule(memberId, before, after, type, referenceId);
-        member.changeStock(after);
+        CharacterStage beforeStage =
+                member.getCharacterStage();
+
+        CharacterStage stockStage =
+                CharacterStage.fromStock(after);
+
+        CharacterStage targetStage;
+
+        if (type == StockChangeType.QUIZ_CORRECT) {
+            if (beforeStage == CharacterStage.BABY) {
+                // 아기냥은 주가가 여전히 100 미만이어도
+                // 문제 하나를 맞히는 즉시 기본냥으로 진화
+                targetStage = CharacterStage.BASIC;
+            } else {
+                // 정답으로 주가가 상승했는데 캐릭터가 퇴화하면 안 됨
+                targetStage = CharacterStage.higherOf(
+                        beforeStage,
+                        stockStage
+                );
+            }
+        } else {
+            // 스트릭 하락, 복구, 관리자 조정은
+            // 변경된 실제 주가를 기준으로 단계 결정
+            targetStage = stockStage;
+        }
+
+        member.changeStock(
+                after,
+                targetStage
+        );
         try {
             return StockChangeResponse.from(stockChangeRepository.save(StockChange.create(
                     member, type, before, after, referenceId, idempotencyKey,
