@@ -33,14 +33,25 @@ class MemberCharacterStageTest {
     }
 
     @Test
-    void downgradeBelowPendingStageRemovesObsoletePopup() {
+    void downgradeKeepsHighestUnconfirmedReachableStagePending() {
         Member member = Member.create(1L, "하락회원");
-        member.changeStock(new BigDecimal("250.00"), CharacterStage.BIG_HAND);
 
-        member.changeStock(new BigDecimal("200.00"), CharacterStage.BASIC);
+        member.changeStock(
+                new BigDecimal("1500.00"),
+                CharacterStage.ROYAL
+        );
 
-        assertThat(member.getCharacterStage()).isEqualTo(CharacterStage.BASIC);
-        assertThat(member.getPendingEvolutionStage()).isNull();
+        member.changeStock(
+                new BigDecimal("300.00"),
+                CharacterStage.BIG_HAND
+        );
+
+        assertThat(member.getCharacterStage())
+                .isEqualTo(CharacterStage.BIG_HAND);
+        assertThat(member.getConfirmedCharacterStage())
+                .isEqualTo(CharacterStage.BASIC);
+        assertThat(member.getPendingEvolutionStage())
+                .isEqualTo(CharacterStage.BIG_HAND);
     }
 
     @Test
@@ -58,5 +69,55 @@ class MemberCharacterStageTest {
         member.confirmEvolution(CharacterStage.BIG_HAND);
 
         assertThat(member.getPendingEvolutionStage()).isNull();
+    }
+
+    @Test
+    void confirmedStageDoesNotBecomePendingAgainOnDowngrade() {
+        Member member = Member.create(1L, "확정회원");
+
+        member.changeStock(
+                new BigDecimal("250.00"),
+                CharacterStage.BIG_HAND
+        );
+        member.confirmEvolution(CharacterStage.BIG_HAND);
+
+        member.changeStock(
+                new BigDecimal("1500.00"),
+                CharacterStage.ROYAL
+        );
+        member.changeStock(
+                new BigDecimal("300.00"),
+                CharacterStage.BIG_HAND
+        );
+
+        assertThat(member.getConfirmedCharacterStage())
+                .isEqualTo(CharacterStage.BIG_HAND);
+        assertThat(member.getPendingEvolutionStage()).isNull();
+    }
+
+    @Test
+    void downgradeBelowConfirmedStageMovesConfirmedBaselineDown() {
+        Member member = Member.create(1L, "퇴화회원");
+
+        member.changeStock(
+                new BigDecimal("80.00"),
+                CharacterStage.BABY
+        );
+
+        assertThat(member.getCharacterStage())
+                .isEqualTo(CharacterStage.BABY);
+        assertThat(member.getConfirmedCharacterStage())
+                .isEqualTo(CharacterStage.BABY);
+        assertThat(member.getPendingEvolutionStage()).isNull();
+
+        member.changeStock(
+                new BigDecimal("80.80"),
+                CharacterStage.BASIC
+        );
+
+        assertThat(member.getConfirmedCharacterStage())
+                .isEqualTo(CharacterStage.BABY);
+        assertThat(member.getPendingEvolutionStage())
+                .isEqualTo(CharacterStage.BASIC);
     }
 }

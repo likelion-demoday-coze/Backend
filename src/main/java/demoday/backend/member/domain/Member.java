@@ -80,6 +80,14 @@ public class Member {
     )
     private CharacterStage pendingEvolutionStage;
 
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "confirmed_character_stage",
+            nullable = false,
+            length = 20
+    )
+    private CharacterStage confirmedCharacterStage;
+
     private static final java.util.regex.Pattern NICKNAME_PATTERN =
             java.util.regex.Pattern.compile("^[가-힣A-Za-z0-9]{2,8}$");
 
@@ -104,6 +112,7 @@ public class Member {
                 .rankingExcluded(false)
                 .status(MemberStatus.ACTIVE)
                 .characterStage(CharacterStage.BASIC)
+                .confirmedCharacterStage(CharacterStage.BASIC)
                 .pendingEvolutionStage(null)
                 .build();
     }
@@ -200,20 +209,18 @@ public class Member {
             );
         }
 
-        CharacterStage previousStage = this.characterStage;
-
         this.currentStock = normalizedValue;
         this.characterStage = newStage;
 
-        // 상승 진화가 발생하면 확인할 팝업 단계 저장
-        if (newStage.isHigherThan(previousStage)) {
-            this.pendingEvolutionStage = newStage;
-            return;
+        // 이미 확인한 단계보다 더 아래로 퇴화하면 그 단계가 새로운 확정 기준이 된다.
+        if (newStage.isLowerThan(confirmedCharacterStage)) {
+            this.confirmedCharacterStage = newStage;
         }
 
-        // 팝업 확인 전에 주가가 하락하여 해당 진화 단계가 무효화된 경우
-        if (pendingEvolutionStage != null
-                && newStage.isLowerThan(pendingEvolutionStage)) {
+        // 마지막으로 확인한 단계보다 높은 현재 단계만 진화 확인 대상으로 유지한다.
+        if (newStage.isHigherThan(confirmedCharacterStage)) {
+            this.pendingEvolutionStage = newStage;
+        } else {
             this.pendingEvolutionStage = null;
         }
     }
@@ -314,6 +321,7 @@ public class Member {
             );
         }
 
+        confirmedCharacterStage = stage;
         pendingEvolutionStage = null;
     }
 
