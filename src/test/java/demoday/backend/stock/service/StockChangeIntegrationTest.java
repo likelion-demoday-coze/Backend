@@ -274,8 +274,17 @@ class StockChangeIntegrationTest {
     void roundedSmallValuesMayRemainUnchanged() {
         change("100", "0.01", StockChangeType.ADMIN_ADJUSTMENT, "setup");
         change("0.01", "0.01", StockChangeType.QUIZ_CORRECT, "quiz-rule");
+
+        Member evolved = members.findById(memberId).orElseThrow();
+        assertThat(evolved.getCharacterStage()).isEqualTo(CharacterStage.BASIC);
+        assertThat(evolved.getPendingEvolutionStage()).isEqualTo(CharacterStage.BASIC);
+
         change("0.01", "0.01", StockChangeType.STREAK_PENALTY, "penalty-rule");
+
+        Member unchanged = members.findById(memberId).orElseThrow();
         assertThat(stockService.getCurrentStock(memberId).currentStock()).isEqualByComparingTo("0.01");
+        assertThat(unchanged.getCharacterStage()).isEqualTo(CharacterStage.BASIC);
+        assertThat(unchanged.getPendingEvolutionStage()).isEqualTo(CharacterStage.BASIC);
     }
 
     @Test

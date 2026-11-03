@@ -171,6 +171,10 @@ public class StockService {
                         stockStage
                 );
             }
+        } else if (before.compareTo(after) == 0) {
+            // 반올림으로 실제 주가가 변하지 않은 하락·복구·관리자 조정은
+            // 현재 단계와 미확인 진화 상태를 유지
+            targetStage = beforeStage;
         } else {
             // 스트릭 하락, 복구, 관리자 조정은
             // 변경된 실제 주가를 기준으로 단계 결정
