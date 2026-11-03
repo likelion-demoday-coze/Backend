@@ -24,7 +24,7 @@ public class CharacterService {
     private final MemberRepository members;
     private final StreakService streaks;
 
-    /** 같은 DB 스냅샷에서 주가와 유효 스트릭을 읽으며 캐릭터 상태를 따로 저장하지 않는다. */
+    /** 같은 DB 스냅샷에서 저장된 캐릭터 단계와 유효 스트릭을 함께 읽는다. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CharacterResponse getCurrent(Long memberId) {
         if (memberId == null) throw new ProjectException(GeneralErrorCode.UNAUTHORIZED);

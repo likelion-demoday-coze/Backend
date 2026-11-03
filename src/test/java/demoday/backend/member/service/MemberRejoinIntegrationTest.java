@@ -1,5 +1,6 @@
 package demoday.backend.member.service;
 
+import demoday.backend.character.code.CharacterStage;
 import demoday.backend.member.code.MemberStatus;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
@@ -57,7 +58,10 @@ class MemberRejoinIntegrationTest {
         Long previousMemberId = previousMember.getMemberId();
 
         previousMember.addFish(500L);
-        previousMember.changeStock(new BigDecimal("275.00"));
+        previousMember.changeStock(
+                new BigDecimal("275.00"),
+                CharacterStage.BIG_HAND
+        );
         previousMember.completeLearning(
                 false,
                 LocalDate.of(2026, 10, 29)

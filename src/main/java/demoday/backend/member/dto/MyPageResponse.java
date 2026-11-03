@@ -31,7 +31,7 @@ public record MyPageResponse(
             @Schema(description = "가입 후 경과 일수", example = "12")
             Long joinedDays,
 
-            @Schema(description = "캐릭터 단계", example = "BEGINNER")
+            @Schema(description = "캐릭터 단계", example = "BASIC")
             CharacterStage characterStage,
 
             @Schema(description = "패스 활성 여부", example = "true")
