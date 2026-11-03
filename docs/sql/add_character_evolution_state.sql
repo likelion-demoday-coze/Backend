@@ -23,6 +23,9 @@ ALTER TABLE member
     ADD COLUMN pending_evolution_stage VARCHAR(20) NULL
         AFTER character_stage;
 
+ALTER TABLE member
+    ALTER COLUMN character_stage SET DEFAULT 'BASIC';
+
 -- 3. 기존 회원의 현재 주가를 기준으로 단계를 백필한다.
 --    WHERE character_stage IS NULL 조건이 있어 재실행해도 기존 값을 덮어쓰지 않는다.
 UPDATE member
@@ -43,7 +46,7 @@ WHERE character_stage IS NULL;
 --
 -- 위 결과가 0이어야 한다.
 ALTER TABLE member
-    MODIFY COLUMN character_stage VARCHAR(20) NOT NULL;
+    MODIFY COLUMN character_stage VARCHAR(20) NOT NULL DEFAULT 'BASIC';
 
 -- 5. 적용 결과를 검증한 뒤 JPA_DDL_AUTO=validate 애플리케이션을 배포한다.
 SELECT
@@ -53,10 +56,7 @@ FROM member
 GROUP BY character_stage
 ORDER BY character_stage;
 
-SELECT
-    COLUMN_NAME,
-    COLUMN_TYPE,
-    IS_NULLABLE
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'member'
