@@ -1,6 +1,6 @@
 # 🐾 COZ:E Backend
 
-> **Climb On, Zero to Economy**  
+> **Your Cozy Economy Guide**  
 > 하루 5분, 편하고 쉽게 즐기는 경제 퀴즈 플랫폼
 
 [서비스 바로가기](https://www.coze.kids/) · [API 문서](https://api.coze.kids/swagger-ui/index.html)
@@ -441,5 +441,6 @@ type: 작업 내용
 ## 🔗 Links
 
 - **Service:** [https://www.coze.kids/](https://www.coze.kids/)
-- **API Documentation:** [https://api.coze.kids/swagger-ui/index.html](https://api.coze.kids/swagger-ui/index.html)
+- **Instagram:** [https://www.instagram.com/cozeconomy?mdxt=djVsaTBtaTFyZXI%3D&utm_source=qr](https://www.instagram.com/cozeconomy?mdxt=djVsaTBtaTFyZXI%3D&utm_source=qr)
+- **Kakaotalk Channel** [https://pf.kakao.com/_ngMWX](https://pf.kakao.com/_ngMWX)
 - **Backend Repository:** [https://github.com/likelion-demoday-coze/Backend](https://github.com/likelion-demoday-coze/Backend)
