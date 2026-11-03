@@ -293,7 +293,7 @@ Feedback 인증 및 주문 정보 검증
 | Member | Contribution |
 | --- | --- |
 | 주해윤 ([@uaeoon](https://github.com/uaeoon)) | 데일리·맛보기·타임어택 퀴즈, 랭킹·보상, 회원·마이페이지, 결제 상품·페이앱 결제·일주일 패스, 결제 관측성 및 담당 기능 테스트 |
-| 이한재 ([@leehanjay](https://github.com/leehanjay)) | 생선·주가, 출석 보상, 연속 학습 복구, 상점·아이템, 경제 트렌드, 홈 통합 조회, 스케줄러, 데이터베이스 및 CI/CD·배포 환경 관리 |
+| 이한재 ([@leehanjay](https://github.com/leehanjay)) | 생선·주가, 출석 보상, 연속 학습 복구, 상점·아이템, 경제 트렌드, 스케줄러, 데이터베이스 및 CI/CD·배포 환경 관리 |
 
 ---
 
