@@ -10,6 +10,7 @@ import demoday.backend.member.domain.Member;
 import demoday.backend.member.dto.MemberResponse;
 import demoday.backend.member.dto.NicknameAvailabilityResponse;
 import demoday.backend.member.dto.NicknameUpdateRequest;
+import demoday.backend.member.dto.OpenChatModalResponse;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.payment.code.PassStatus;
 import demoday.backend.payment.code.PaymentStatus;
@@ -21,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -38,6 +41,9 @@ public class MemberService {
     private static final long SIGNUP_REWARD_FISH_AMOUNT = 200L;
 
     private static final long PAYMENT_AUTHENTICATION_MINUTES = 30L;
+
+    private static final ZoneId KST =
+            ZoneId.of("Asia/Seoul");
 
     private static final List<PaymentStatus>
             WITHDRAWAL_BLOCKING_PAYMENT_STATUSES = List.of(
@@ -226,5 +232,51 @@ public class MemberService {
         member.completeTutorial();
 
         return MemberResponse.from(member);
+    }
+
+    @Transactional(readOnly = true)
+    public OpenChatModalResponse getOpenChatModal(
+            Long memberId
+    ) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() ->
+                        new ProjectException(
+                                GeneralErrorCode.NOT_FOUND
+                        )
+                );
+
+        LocalDateTime now =
+                LocalDateTime.now(clock.withZone(KST))
+                        .truncatedTo(ChronoUnit.MICROS);
+
+        return OpenChatModalResponse.from(member, now);
+    }
+
+    @Transactional
+    public OpenChatModalResponse hideOpenChatModalForThreeDays(
+            Long memberId
+    ) {
+        Member member = memberRepository
+                .findByIdForUpdate(memberId)
+                .orElseThrow(() ->
+                        new ProjectException(
+                                GeneralErrorCode.NOT_FOUND
+                        )
+                );
+
+        LocalDate today =
+                LocalDate.now(clock.withZone(KST));
+
+        // 오늘을 포함해 3일 동안 숨기고 4일째 00:00부터 재노출
+        LocalDateTime hiddenUntil =
+                today.plusDays(3).atStartOfDay();
+
+        member.hideOpenChatModalUntil(hiddenUntil);
+
+        LocalDateTime now =
+                LocalDateTime.now(clock.withZone(KST))
+                        .truncatedTo(ChronoUnit.MICROS);
+
+        return OpenChatModalResponse.from(member, now);
     }
 }

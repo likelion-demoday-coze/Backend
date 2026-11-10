@@ -68,6 +68,9 @@ public class Member {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "open_chat_modal_hidden_until")
+    private LocalDateTime openChatModalHiddenUntil;
+
     @Enumerated(EnumType.STRING)
     @Column(
             name = "character_stage",
@@ -336,6 +339,16 @@ public class Member {
 
         confirmedCharacterStage = stage;
         pendingEvolutionStage = null;
+    }
+
+    public void hideOpenChatModalUntil(LocalDateTime hiddenUntil) {
+        if (hiddenUntil == null) {
+            throw new IllegalArgumentException(
+                    "오픈채팅 모달 숨김 종료 시각은 필수입니다."
+            );
+        }
+
+        this.openChatModalHiddenUntil = hiddenUntil;
     }
 
     public boolean isActive() {

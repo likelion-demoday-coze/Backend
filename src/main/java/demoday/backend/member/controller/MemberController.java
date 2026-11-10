@@ -5,6 +5,7 @@ import demoday.backend.global.api.code.GeneralSuccessCode;
 import demoday.backend.member.dto.MemberResponse;
 import demoday.backend.member.dto.NicknameAvailabilityResponse;
 import demoday.backend.member.dto.NicknameUpdateRequest;
+import demoday.backend.member.dto.OpenChatModalResponse;
 import demoday.backend.member.service.MemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -114,6 +115,34 @@ public class MemberController {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
                 memberService.completeTutorial(memberId)
+        );
+    }
+
+    @Operation(
+            summary = "오픈채팅 참여 모달 노출 상태 조회",
+            description = "현재 오픈채팅 참여 모달을 노출해야 하는지 조회합니다."
+    )
+    @GetMapping("/me/open-chat-modal")
+    public ApiResponse<OpenChatModalResponse> getOpenChatModal(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                memberService.getOpenChatModal(memberId)
+        );
+    }
+
+    @Operation(
+            summary = "오픈채팅 참여 모달 3일간 숨김",
+            description = "오늘을 포함해 3일 동안 오픈채팅 참여 모달을 숨깁니다."
+    )
+    @PatchMapping("/me/open-chat-modal")
+    public ApiResponse<OpenChatModalResponse> hideOpenChatModal(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.onSuccess(
+                GeneralSuccessCode.OK,
+                memberService.hideOpenChatModalForThreeDays(memberId)
         );
     }
 }
