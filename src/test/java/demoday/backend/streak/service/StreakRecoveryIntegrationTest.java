@@ -189,6 +189,67 @@ class StreakRecoveryIntegrationTest {
     }
 
     @Test
+    void recoveredPopupRemainsPendingUntilAcknowledgedAndRepeatedPatchPreservesRecovery() throws Exception {
+        Long eventId = breakStreak(1);
+        giveItems(2);
+        recoveries.request(memberId, eventId);
+        assertThat(recoveries.getLatest(memberId).recoveryPopupPending()).isFalse();
+        completeRegularQuiz();
+        var auth = new UsernamePasswordAuthenticationToken(memberId, null,
+                List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
+        var before = member();
+
+        clock.set("2026-10-06T03:00:00Z");
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mvc.perform(get("/api/v1/streaks/recovery").with(authentication(auth)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.recoveryPopupPending").value(true));
+        }
+        mvc.perform(patch("/api/v1/streaks/recoveries/{id}/popup", eventId)
+                        .with(authentication(auth)).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.eventId").value(eventId))
+                .andExpect(jsonPath("$.result.status").value("RECOVERED"))
+                .andExpect(jsonPath("$.result.recoveryPopupPending").value(false));
+        var acknowledgedAt = events.findById(eventId).orElseThrow().getRecoveryPopupAcknowledgedAt();
+        assertThat(acknowledgedAt).isEqualTo(TODAY.plusDays(1).atTime(12, 0));
+
+        clock.set("2026-10-06T04:00:00Z");
+        mvc.perform(patch("/api/v1/streaks/recoveries/{id}/popup", eventId)
+                        .with(authentication(auth)).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.recoveryPopupPending").value(false));
+        var event = events.findById(eventId).orElseThrow();
+        assertThat(event.getRecoveryPopupAcknowledgedAt()).isEqualTo(acknowledgedAt);
+        assertThat(event.getPenaltyNotificationAcknowledgedAt()).isNull();
+        assertThat(recoveries.getLatest(memberId).recoveryPopupPending()).isFalse();
+        assertThat(member().getCurrentStock()).isEqualByComparingTo(before.getCurrentStock());
+        assertThat(member().getCurrentStreak()).isEqualTo(before.getCurrentStreak());
+        assertThat(quantity()).isEqualTo(1);
+        assertThat(recoveryCount()).isEqualTo(1);
+    }
+
+    @Test
+    void popupAcknowledgmentRequiresOwnedCompletedRecoveryAndCsrf() throws Exception {
+        Long eventId = breakStreak(1);
+        var auth = new UsernamePasswordAuthenticationToken(memberId, null,
+                List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
+        long sequence = SEQUENCE.incrementAndGet();
+        Long otherId = members.saveAndFlush(Member.create(sequence, "r" + sequence)).getMemberId();
+        var other = new UsernamePasswordAuthenticationToken(otherId, null,
+                List.of(new SimpleGrantedAuthority("ROLE_MEMBER")));
+        String path = "/api/v1/streaks/recoveries/{id}/popup";
+        mvc.perform(patch(path, eventId).with(csrf())).andExpect(status().isUnauthorized());
+        mvc.perform(patch(path, eventId).with(authentication(auth))).andExpect(status().isForbidden());
+        mvc.perform(patch(path, eventId).with(authentication(other)).with(csrf()))
+                .andExpect(status().isNotFound());
+        mvc.perform(patch(path, eventId).with(authentication(auth)).with(csrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STREAK_409_4"));
+        assertThat(events.findById(eventId).orElseThrow().getRecoveryPopupAcknowledgedAt()).isNull();
+    }
+
+    @Test
     void twoMissedDaysCannotRecoverAndRestartAtOne() {
         Long eventId = breakStreak(2);
         giveItems(1);

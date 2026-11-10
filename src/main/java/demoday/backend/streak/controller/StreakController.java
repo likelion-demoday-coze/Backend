@@ -46,6 +46,15 @@ public class StreakController {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, recoveryService.request(memberId, eventId));
     }
 
+    @Operation(summary = "복구 완료 팝업 확인", description = "본인의 복구 완료 이벤트만 확인할 수 있습니다. "
+            + "재호출해도 recoveryPopupPending=false를 반환합니다. 하락 알림 확인과 별도로 처리하며, "
+            + "복구 결과와 복구권 수량은 유지됩니다. 세션 인증·ROLE_MEMBER·CSRF 토큰이 필요합니다.")
+    @PatchMapping("/recoveries/{eventId}/popup")
+    public ApiResponse<StreakRecoveryResponse> acknowledgeRecoveryPopup(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long eventId) {
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, recoveryService.acknowledgeRecoveryPopup(memberId, eventId));
+    }
+
     @Operation(summary = "내 미확인 하락 알림 조회", description = "최신 하락이 미확인일 때만 당시 주가·감소액·연속 학습일과 현재 복구 상태를 반환합니다. 하락이 없거나 최신 하락을 확인했다면 result는 null입니다. GET은 확인 처리하지 않으므로 실제 팝업을 표시한 후 확인 API를 호출해야 합니다. 이전 미확인 알림을 순서대로 다시 노출하지 않습니다. 세션 인증과 ROLE_MEMBER가 필요합니다.")
     @GetMapping("/penalty-notification")
     public ApiResponse<StreakPenaltyNotificationResponse> getPenaltyNotification(
