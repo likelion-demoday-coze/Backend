@@ -19,13 +19,15 @@ public record StreakRecoveryResponse(
         LocalDateTime recoveredAt,
         @Schema(description = "신청 직후 보유 수량. 패스 무료 신청이면 null") Integer quantityAfterRequest,
         @Schema(description = "복구 완료 직후 주가. 완료 전에는 null이며 최신 주가와 다를 수 있음") BigDecimal stockAfterRecovery,
-        @Schema(description = "복구 완료 직후 연속 학습일. 완료 전에는 null") Integer streakAfterRecovery
+        @Schema(description = "복구 완료 직후 연속 학습일. 완료 전에는 null") Integer streakAfterRecovery,
+        @Schema(description = "복구가 완료됐고 아직 복구 완료 팝업을 확인하지 않았다면 true") boolean recoveryPopupPending
 ) {
     public static StreakRecoveryResponse from(StreakRecoveryEvent event, LocalDateTime now, boolean requestable) {
         StreakRecoveryStatus status = event.recoveryStatusAt(now);
         LocalDateTime expiresAt = event.getRecoveryDeadline();
         return new StreakRecoveryResponse(event.getStreakRecoveryEventId(), event.getMissedDate(), status, requestable,
                 event.getRecoveryMethod(), event.getRequestedAt(), expiresAt, event.getRecoveredAt(),
-                event.getQuantityAfterRequest(), event.getStockAfterRecovery(), event.getStreakAfterRecovery());
+                event.getQuantityAfterRequest(), event.getStockAfterRecovery(), event.getStreakAfterRecovery(),
+                event.isRecoveryPopupPending());
     }
 }

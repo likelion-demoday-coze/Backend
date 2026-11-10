@@ -58,6 +58,22 @@ public class StreakRecoveryService {
                 .map(event -> StreakRecoveryResponse.from(event, now, isRequestable(member, event, now))).orElse(null);
     }
 
+    public StreakRecoveryResponse acknowledgeRecoveryPopup(Long memberId, Long eventId) {
+        if (eventId == null || eventId <= 0) throw new ProjectException(GeneralErrorCode.BAD_REQUEST);
+        return transactions.execute(() -> {
+            // 복구 및 하락 알림 확인과 같은 회원 잠금으로 최초 확인을 직렬화한다.
+            findActiveMember(memberId, true);
+            var event = events.findByStreakRecoveryEventIdAndMemberMemberId(eventId, memberId)
+                    .orElseThrow(() -> new ProjectException(StreakErrorCode.RECOVERY_NOT_FOUND));
+            if (event.getStatus() != StreakRecoveryStatus.RECOVERED) {
+                throw new ProjectException(StreakErrorCode.RECOVERY_NOT_COMPLETED);
+            }
+            LocalDateTime now = now();
+            event.acknowledgeRecoveryPopup(now);
+            return StreakRecoveryResponse.from(event, now, false);
+        });
+    }
+
     /** 이벤트 ID가 동일하면 신청 결과를 재조회하며 아이템을 중복 소모하지 않는다. */
     public StreakRecoveryResponse request(Long memberId, Long eventId) {
         if (eventId == null || eventId <= 0) throw new ProjectException(GeneralErrorCode.BAD_REQUEST);
