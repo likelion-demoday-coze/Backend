@@ -63,7 +63,8 @@ public record CharacterResponse(
         @Schema(
                 description = """
                         홈·모드 선택 화면에 적용할
-                        현재 최고 연속 학습 효과
+                        현재 최고 연속 학습 효과.
+                        2·3·5·7·10·14·17·21일 중 달성한 최고 단계 하나를 반환한다.
                         """
         )
         List<CharacterEffect> effects,

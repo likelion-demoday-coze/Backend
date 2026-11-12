@@ -87,8 +87,8 @@ class CharacterServiceIntegrationTest {
         assertThat(response.stockToNextStage()).isEqualByComparingTo("150.00");
         assertThat(response.correctAnswersToNextStage()).isNull();
         assertThat(response.effects()).isEmpty();
-        assertThat(response.nextEffect()).isEqualTo(CharacterEffect.GLOWING_BASE);
-        assertThat(response.daysToNextEffect()).isEqualTo(3);
+        assertThat(response.nextEffect()).isEqualTo(CharacterEffect.PAW_PRINT);
+        assertThat(response.daysToNextEffect()).isEqualTo(2);
     }
 
     @Test
@@ -117,14 +117,16 @@ class CharacterServiceIntegrationTest {
         assertThat(response.stockToNextStage()).isNull();
         assertThat(response.correctAnswersToNextStage()).isNull();
         assertThat(response.effects()).containsExactly(CharacterEffect.AURA);
-        assertThat(response.nextEffect()).isEqualTo(CharacterEffect.GOLDEN_HALO);
-        assertThat(response.daysToNextEffect()).isEqualTo(6);
+        assertThat(response.nextEffect()).isEqualTo(CharacterEffect.GINKGO_LEAF);
+        assertThat(response.daysToNextEffect()).isEqualTo(2);
     }
 
     @ParameterizedTest
     @CsvSource({
-            "0,NONE,3", "2,NONE,1", "3,GLOWING_BASE,4", "6,GLOWING_BASE,1",
-            "7,AURA,7", "13,AURA,1", "14,GOLDEN_HALO,7", "20,GOLDEN_HALO,1",
+            "0,NONE,2", "1,NONE,1", "2,PAW_PRINT,1",
+            "3,GLOWING_BASE,2", "4,GLOWING_BASE,1", "5,FEATHER,2", "6,FEATHER,1",
+            "7,AURA,3", "9,AURA,1", "10,GINKGO_LEAF,4", "13,GINKGO_LEAF,1",
+            "14,GOLDEN_HALO,3", "16,GOLDEN_HALO,1", "17,GOLDEN_FLOWER,4", "20,GOLDEN_FLOWER,1",
             "21,COIN_BACKGROUND,0", "22,COIN_BACKGROUND,0"
     })
     void effectsChangeAtStreakMilestones(int streak, String effect, int days) {
@@ -142,6 +144,7 @@ class CharacterServiceIntegrationTest {
             assertThat(response.daysToNextEffect()).isNull();
         } else {
             assertThat(response.daysToNextEffect()).isEqualTo(days);
+            assertThat(response.nextEffect().getMinimumStreak()).isEqualTo(streak + days);
         }
     }
 
@@ -154,6 +157,17 @@ class CharacterServiceIntegrationTest {
         assertThat(response.currentStreak()).isZero();
         assertThat(response.effects()).isEmpty();
         assertThat(member.getCurrentStreak()).isEqualTo(7);
+    }
+
+    @Test
+    void httpReturnsNewEffectAndNextMilestoneForFiveDayStreak() throws Exception {
+        learn(member, 5, TODAY);
+
+        mvc.perform(get("/api/v1/characters/me").with(authentication(memberAuthentication(member.getMemberId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.effects[0]").value("FEATHER"))
+                .andExpect(jsonPath("$.result.nextEffect").value("AURA"))
+                .andExpect(jsonPath("$.result.daysToNextEffect").value(2));
     }
 
     @Test

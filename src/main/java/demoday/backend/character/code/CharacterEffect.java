@@ -6,9 +6,13 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum CharacterEffect {
-    GLOWING_BASE("빛나는 받침", 3),
-    AURA("은은한 오라", 7),
-    GOLDEN_HALO("금빛 후광", 14),
+    PAW_PRINT("발자국", 2),
+    GLOWING_BASE("동전", 3),
+    FEATHER("깃털", 5),
+    AURA("은화", 7),
+    GINKGO_LEAF("은행잎", 10),
+    GOLDEN_HALO("금화", 14),
+    GOLDEN_FLOWER("황금꽃", 17),
     COIN_BACKGROUND("시크릿", 21);
 
     private final String displayName;
