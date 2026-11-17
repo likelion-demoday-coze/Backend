@@ -136,8 +136,8 @@ public class MemberController {
     }
 
     @Operation(
-            summary = "오픈채팅 참여 모달 3일간 숨김",
-            description = "오늘을 포함해 3일 동안 오픈채팅 참여 모달을 숨깁니다."
+            summary = "오픈채팅 참여 모달 오늘 하루 숨김",
+            description = "오픈채팅 참여 모달을 오늘 하루 숨기고 다음 날 00:00부터 다시 노출합니다."
     )
     @PatchMapping("/me/open-chat-modal")
     public ApiResponse<OpenChatModalResponse> hideOpenChatModal(
