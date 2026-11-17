@@ -34,10 +34,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -57,6 +59,12 @@ class TimeAttackServiceTest {
     private static final Long MEMBER_ID = 1L;
     private static final Long SESSION_ID = 10L;
 
+    private static final LocalDateTime NOW =
+            LocalDateTime.of(2026, 10, 1, 12, 0);
+
+    private static final LocalDate TODAY =
+            NOW.toLocalDate();
+
     @Mock MemberRepository memberRepository;
     @Mock MemberDailyActivityRepository memberDailyActivityRepository;
     @Mock MemberPassRepository memberPassRepository;
@@ -68,6 +76,12 @@ class TimeAttackServiceTest {
     @Mock TimeAttackAnswerRepository timeAttackAnswerRepository;
 
     @InjectMocks TimeAttackService timeAttackService;
+
+    @Spy
+    private Clock clock = Clock.fixed(
+            NOW.atZone(KST).toInstant(),
+            KST
+    );
 
     @BeforeEach
     void setUpRetryExecutor() {
@@ -81,7 +95,7 @@ class TimeAttackServiceTest {
     @Test
     @DisplayName("오늘 사용한 횟수로 남은 참여 횟수를 계산한다")
     void getTodayAvailability() {
-        MemberDailyActivity activity = activity(member(), LocalDate.now(KST));
+        MemberDailyActivity activity = activity(member(), TODAY);
         activity.recordTimeAttackAttempt(3);
         when(memberDailyActivityRepository.findByMemberMemberIdAndActivityDate(
                 eq(MEMBER_ID), any(LocalDate.class)
@@ -130,7 +144,7 @@ class TimeAttackServiceTest {
     @DisplayName("일일 참여 횟수를 모두 사용하면 세션을 생성할 수 없다")
     void createSessionFailsWhenDailyLimitExceeded() {
         Member member = member();
-        MemberDailyActivity activity = activity(member, LocalDate.now(KST));
+        MemberDailyActivity activity = activity(member, TODAY);
         activity.recordTimeAttackAttempt(3);
         activity.recordTimeAttackAttempt(3);
         activity.recordTimeAttackAttempt(3);
@@ -150,7 +164,7 @@ class TimeAttackServiceTest {
     @Test
     @DisplayName("다음 문제와 현재 연속 정답 수를 조회한다")
     void getNextQuestion() {
-        TimeAttackSession session = session(member(), LocalDateTime.now(KST).minusSeconds(10));
+        TimeAttackSession session = session(member(), NOW.minusSeconds(10));
         QuizQuestion question = question(100L, "문제", "해설");
         List<QuizOption> options = List.of(
                 option(1001L, question, 1, "오답", false),
@@ -178,7 +192,7 @@ class TimeAttackServiceTest {
     @Test
     @DisplayName("제한 시간이 지나면 다음 문제를 조회할 수 없다")
     void getNextQuestionFailsWhenExpired() {
-        TimeAttackSession session = session(member(), LocalDateTime.now(KST).minusSeconds(61));
+        TimeAttackSession session = session(member(), NOW.minusSeconds(61));
         when(timeAttackSessionRepository
                 .findByTimeAttackSessionIdAndMemberMemberId(SESSION_ID, MEMBER_ID))
                 .thenReturn(Optional.of(session));
@@ -193,7 +207,7 @@ class TimeAttackServiceTest {
     @Test
     @DisplayName("정답 제출 시 답안을 저장하고 누적 정답 수와 콤보를 반환한다")
     void submitCorrectAnswer() {
-        TimeAttackSession session = session(member(), LocalDateTime.now(KST).minusSeconds(10));
+        TimeAttackSession session = session(member(), NOW.minusSeconds(10));
         QuizQuestion question = question(100L, "문제", "해설");
         QuizOption correctOption = option(1002L, question, 2, "정답", true);
         when(timeAttackSessionRepository.findByIdAndMemberIdForUpdate(SESSION_ID, MEMBER_ID))
@@ -225,7 +239,7 @@ class TimeAttackServiceTest {
     @Test
     @DisplayName("현재 문제가 아니면 답안을 제출할 수 없다")
     void submitAnswerFailsWhenQuestionIsNotCurrent() {
-        TimeAttackSession session = session(member(), LocalDateTime.now(KST).minusSeconds(10));
+        TimeAttackSession session = session(member(), NOW.minusSeconds(10));
         QuizQuestion current = question(100L, "현재 문제", "해설");
         when(timeAttackSessionRepository.findByIdAndMemberIdForUpdate(SESSION_ID, MEMBER_ID))
                 .thenReturn(Optional.of(session));
@@ -251,7 +265,7 @@ class TimeAttackServiceTest {
     @DisplayName("60초 전에는 정상 종료할 수 없다")
     void completeSessionFailsBeforeTimeLimit() {
         Member member = member();
-        TimeAttackSession session = session(member, LocalDateTime.now(KST).minusSeconds(10));
+        TimeAttackSession session = session(member, NOW.minusSeconds(10));
         when(memberRepository.findByIdForUpdate(MEMBER_ID)).thenReturn(Optional.of(member));
         when(timeAttackSessionRepository.findByIdAndMemberIdForUpdate(SESSION_ID, MEMBER_ID))
                 .thenReturn(Optional.of(session));
@@ -271,7 +285,7 @@ class TimeAttackServiceTest {
         Member member = member();
         TimeAttackSession session = session(
                 member,
-                LocalDateTime.now(KST).minusSeconds(71)
+                NOW.minusSeconds(71)
         );
         when(memberRepository.findByIdForUpdate(MEMBER_ID))
                 .thenReturn(Optional.of(member));
@@ -299,7 +313,7 @@ class TimeAttackServiceTest {
         Member member = member();
         TimeAttackSession session = session(
                 member,
-                LocalDateTime.now(KST).minusSeconds(61)
+                NOW.minusSeconds(61)
         );
         when(memberRepository.findByIdForUpdate(MEMBER_ID))
                 .thenReturn(Optional.of(member));
@@ -344,7 +358,7 @@ class TimeAttackServiceTest {
         TimeAttackSession session =
                 session(
                         member,
-                        LocalDateTime.now(KST).minusSeconds(61)
+                        NOW.minusSeconds(61)
                 );
 
         when(memberRepository.findByIdForUpdate(MEMBER_ID))
@@ -402,20 +416,20 @@ class TimeAttackServiceTest {
     @DisplayName("정상 완료된 세션의 문제별 답안과 최대 콤보를 조회한다")
     void getResult() {
         Member member = member();
-        TimeAttackSession session = session(member, LocalDateTime.now(KST).minusSeconds(61));
+        TimeAttackSession session = session(member, NOW.minusSeconds(61));
         QuizQuestion firstQuestion = question(100L, "첫 번째 문제", "첫 번째 해설");
         QuizQuestion secondQuestion = question(200L, "두 번째 문제", "두 번째 해설");
         QuizOption firstCorrect = option(1002L, firstQuestion, 2, "첫 번째 정답", true);
         QuizOption secondWrong = option(2001L, secondQuestion, 1, "두 번째 오답", false);
         QuizOption secondCorrect = option(2002L, secondQuestion, 2, "두 번째 정답", true);
         TimeAttackAnswer firstAnswer = TimeAttackAnswer.create(
-                session, firstQuestion, firstCorrect, LocalDateTime.now(KST).minusSeconds(50)
+                session, firstQuestion, firstCorrect, NOW.minusSeconds(50)
         );
         TimeAttackAnswer secondAnswer = TimeAttackAnswer.create(
-                session, secondQuestion, secondWrong, LocalDateTime.now(KST).minusSeconds(40)
+                session, secondQuestion, secondWrong, NOW.minusSeconds(40)
         );
         session.increaseCorrectCount();
-        session.complete(LocalDateTime.now(KST));
+        session.complete(NOW);
 
         when(timeAttackSessionRepository
                 .findByTimeAttackSessionIdAndMemberMemberId(SESSION_ID, MEMBER_ID))
@@ -444,7 +458,7 @@ class TimeAttackServiceTest {
     @Test
     @DisplayName("정상 완료되지 않은 세션은 결과를 조회할 수 없다")
     void getResultFailsWhenNotCompleted() {
-        TimeAttackSession session = session(member(), LocalDateTime.now(KST).minusSeconds(10));
+        TimeAttackSession session = session(member(), NOW.minusSeconds(10));
         when(timeAttackSessionRepository
                 .findByTimeAttackSessionIdAndMemberMemberId(SESSION_ID, MEMBER_ID))
                 .thenReturn(Optional.of(session));
