@@ -1,7 +1,7 @@
 package demoday.backend.fish.service;
 
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
-import demoday.backend.dailyquiz.service.DailyQuizService;
+import demoday.backend.dailyquiz.service.DailyQuizSessionService;
 import demoday.backend.fish.code.FishErrorCode;
 import demoday.backend.fish.dto.FishTransactionResponse;
 import demoday.backend.fish.repository.FishTransactionRepository;
@@ -78,7 +78,7 @@ class FishServiceIntegrationTest {
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
-    @Autowired private DailyQuizService dailyQuizService;
+    @Autowired private DailyQuizSessionService dailyQuizSessionService;
     @Autowired private QuizQuestionRepository quizQuestionRepository;
 
     private Long memberId;
@@ -302,7 +302,7 @@ class FishServiceIntegrationTest {
                 .mapToObj(index -> QuizQuestion.create(QuizCategory.MACRO_ECONOMY, "MULTIPLE_CHOICE",
                         "문제 " + index, "해설", true)).toList());
 
-        var session = dailyQuizService.createSession(memberId,
+        var session = dailyQuizSessionService.createSession(memberId,
                 new DailyQuizSessionCreateRequest(QuizCategory.MACRO_ECONOMY));
 
         assertThat(fishService.getBalance(memberId).balance()).isEqualTo(50);

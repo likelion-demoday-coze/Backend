@@ -9,7 +9,9 @@ import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionDetailResponse;
 import demoday.backend.dailyquiz.dto.session.DailyQuizTodayResponse;
-import demoday.backend.dailyquiz.service.DailyQuizService;
+import demoday.backend.dailyquiz.service.DailyQuizAnswerService;
+import demoday.backend.dailyquiz.service.DailyQuizResultService;
+import demoday.backend.dailyquiz.service.DailyQuizSessionService;
 import demoday.backend.global.api.ApiResponse;
 import demoday.backend.global.api.code.GeneralSuccessCode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,7 +34,9 @@ import java.util.List;
 @RequestMapping("/api/v1/daily-quizzes")
 public class DailyQuizController {
 
-    private final DailyQuizService dailyQuizService;
+    private final DailyQuizSessionService dailyQuizSessionService;
+    private final DailyQuizAnswerService dailyQuizAnswerService;
+    private final DailyQuizResultService dailyQuizResultService;
 
     @Operation(
             summary = "오늘의 정규장 주가 반영 가능 횟수 조회",
@@ -47,7 +51,7 @@ public class DailyQuizController {
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                dailyQuizService.getTodayAvailability(memberId)
+                dailyQuizSessionService.getTodayAvailability(memberId)
         );
     }
 
@@ -59,7 +63,7 @@ public class DailyQuizController {
     public ApiResponse<List<DailyQuizCategoryResponse>> getCategories() {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                dailyQuizService.getCategories()
+                dailyQuizSessionService.getCategories()
         );
     }
 
@@ -78,7 +82,7 @@ public class DailyQuizController {
             @Valid @RequestBody DailyQuizSessionCreateRequest request
     ) {
         DailyQuizSessionCreateResponse response =
-                dailyQuizService.createSession(
+                dailyQuizSessionService.createSession(
                         memberId,
                         request
                 );
@@ -106,7 +110,7 @@ public class DailyQuizController {
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                dailyQuizService.getActiveSession(memberId)
+                dailyQuizSessionService.getActiveSession(memberId)
         );
     }
 
@@ -125,7 +129,7 @@ public class DailyQuizController {
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                dailyQuizService.getSessionDetail(
+                dailyQuizSessionService.getSessionDetail(
                         memberId,
                         sessionId
                 )
@@ -153,7 +157,7 @@ public class DailyQuizController {
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                dailyQuizService.submitAnswer(
+                dailyQuizAnswerService.submitAnswer(
                         memberId,
                         sessionId,
                         sessionQuestionId,
@@ -176,7 +180,7 @@ public class DailyQuizController {
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                dailyQuizService.completeSession(
+                dailyQuizResultService.completeSession(
                         memberId,
                         sessionId
                 )
@@ -198,7 +202,7 @@ public class DailyQuizController {
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
-                dailyQuizService.getResult(
+                dailyQuizResultService.getResult(
                         memberId,
                         sessionId
                 )

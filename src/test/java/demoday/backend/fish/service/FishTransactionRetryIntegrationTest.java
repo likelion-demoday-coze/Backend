@@ -1,7 +1,7 @@
 package demoday.backend.fish.service;
 
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
-import demoday.backend.dailyquiz.service.DailyQuizService;
+import demoday.backend.dailyquiz.service.DailyQuizSessionService;
 import demoday.backend.fish.code.FishErrorCode;
 import demoday.backend.fish.dto.FishTransactionResponse;
 import demoday.backend.fish.repository.FishTransactionRepository;
@@ -56,7 +56,7 @@ class FishTransactionRetryIntegrationTest {
     private static final AtomicLong SEQUENCE = new AtomicLong();
     @MockitoSpyBean private FishService fishService;
     @MockitoSpyBean private FishTransactionRepository fishTransactionRepository;
-    @Autowired private DailyQuizService dailyQuizService;
+    @Autowired private DailyQuizSessionService dailyQuizSessionService;
     @Autowired private TransactionRetryExecutor retryExecutor;
     @Autowired private MemberRepository memberRepository;
     @Autowired private QuizQuestionRepository quizQuestionRepository;
@@ -92,7 +92,7 @@ class FishTransactionRetryIntegrationTest {
             return response;
         }).when(fishService).debit(eq(memberId), eq(50L), eq(DAILY_QUIZ_COST), anyLong(), anyString());
 
-        var result = dailyQuizService.createSession(memberId,
+        var result = dailyQuizSessionService.createSession(memberId,
                 new DailyQuizSessionCreateRequest(QuizCategory.MACRO_ECONOMY));
 
         assertThat(attempts).hasValue(2);

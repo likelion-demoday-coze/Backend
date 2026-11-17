@@ -7,7 +7,7 @@ import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerRequest;
 import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerResponse;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
-import demoday.backend.dailyquiz.service.DailyQuizService;
+import demoday.backend.dailyquiz.service.DailyQuizAnswerService;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
 import demoday.backend.quiz.code.QuizCategory;
@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.*;
 })
 class StockQuizIntegrationTest {
     private static final AtomicLong SEQUENCE = new AtomicLong();
-    @Autowired private DailyQuizService quizzes;
+    @Autowired private DailyQuizAnswerService quizzes;
     @Autowired private StockService stocks;
     @Autowired private MemberRepository members;
     @Autowired private QuizQuestionRepository questions;
