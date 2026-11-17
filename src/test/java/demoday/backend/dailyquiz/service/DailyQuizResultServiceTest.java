@@ -17,7 +17,9 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,10 +29,16 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DailyQuizResultServiceTest {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final Instant NOW =
+            Instant.parse("2026-10-05T03:00:00Z");
+    private static final LocalDateTime STARTED_AT =
+            LocalDateTime.ofInstant(NOW, KST).minusMinutes(1);
+
     @Mock private DailyQuizSessionRepository dailyQuizSessionRepository;
     @Mock private DailyQuizAttemptRepository dailyQuizAttemptRepository;
     @Mock private QuizOptionRepository quizOptionRepository;
-    @Spy private Clock clock = Clock.systemUTC();
+    @Spy private Clock clock = Clock.fixed(NOW, KST);
 
     @InjectMocks
     private DailyQuizResultService dailyQuizResultService;
@@ -43,7 +51,7 @@ class DailyQuizResultServiceTest {
                 member,
                 QuizCategory.MACRO_ECONOMY,
                 member.getCurrentStock(),
-                LocalDateTime.now().minusMinutes(1),
+                STARTED_AT,
                 false);
         when(dailyQuizSessionRepository.findByDailyQuizSessionIdAndMemberMemberId(2L, 1L))
                 .thenReturn(Optional.of(session));
@@ -63,7 +71,7 @@ class DailyQuizResultServiceTest {
                 member,
                 QuizCategory.MACRO_ECONOMY,
                 member.getCurrentStock(),
-                LocalDateTime.now().minusMinutes(1),
+                STARTED_AT,
                 false);
         when(dailyQuizSessionRepository.findByIdAndMemberIdForUpdate(2L, 1L))
                 .thenReturn(Optional.of(session));
