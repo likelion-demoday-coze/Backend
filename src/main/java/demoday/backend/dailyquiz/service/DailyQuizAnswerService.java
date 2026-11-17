@@ -128,7 +128,8 @@ public class DailyQuizAnswerService {
             return handleExistingOriginalAttempt(
                     existingAttempt.get(),
                     request.selectedOptionId(),
-                    session
+                    session,
+                    member
             );
         }
 
@@ -284,7 +285,8 @@ public class DailyQuizAnswerService {
     private DailyQuizAnswerResponse handleExistingOriginalAttempt(
             DailyQuizAttempt existingAttempt,
             Long selectedOptionId,
-            DailyQuizSession session
+            DailyQuizSession session,
+            Member member
     ) {
         if (!Objects.equals(
                 existingAttempt.getSelectedOption().getOptionId(),
@@ -314,7 +316,7 @@ public class DailyQuizAnswerService {
                 existingAttempt.getSessionQuestion()
                         .getQuestion()
                         .getExplanation(),
-                existingAttempt.getStockAfter(),
+                member.getCurrentStock(),
                 answeredCount,
                 QUESTIONS_PER_SESSION,
                 session.getStatus()
