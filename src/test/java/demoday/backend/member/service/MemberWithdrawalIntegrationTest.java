@@ -50,7 +50,7 @@ class MemberWithdrawalIntegrationTest {
     private static final Instant NOW = Instant.parse("2026-10-07T06:30:00Z");
     private static final LocalDateTime NOW_LOCAL = LocalDateTime.ofInstant(NOW, KST);
 
-    @Autowired private MemberService memberService;
+    @Autowired private MemberWithdrawalService memberWithdrawalService;
     @Autowired private MemberRepository memberRepository;
     @Autowired private ProductRepository productRepository;
     @Autowired private PaymentRepository paymentRepository;
@@ -92,7 +92,7 @@ class MemberWithdrawalIntegrationTest {
     void readyPaymentAtExpirationBoundaryAllowsWithdrawal() {
         savePayment(PaymentStatus.READY, NOW_LOCAL.minusMinutes(30));
 
-        memberService.withdraw(member.getMemberId());
+        memberWithdrawalService.withdraw(member.getMemberId());
 
         assertWithdrawn();
     }
@@ -102,7 +102,7 @@ class MemberWithdrawalIntegrationTest {
     void expiredReadyPaymentAllowsWithdrawal() {
         savePayment(PaymentStatus.READY, NOW_LOCAL.minusMinutes(31));
 
-        memberService.withdraw(member.getMemberId());
+        memberWithdrawalService.withdraw(member.getMemberId());
 
         assertWithdrawn();
     }
@@ -137,7 +137,7 @@ class MemberWithdrawalIntegrationTest {
                 NOW_LOCAL.minusMinutes(31)
         );
 
-        memberService.withdraw(member.getMemberId());
+        memberWithdrawalService.withdraw(member.getMemberId());
 
         assertWithdrawn();
     }
@@ -150,7 +150,7 @@ class MemberWithdrawalIntegrationTest {
     void terminalPaymentAllowsWithdrawal(PaymentStatus paymentStatus) {
         savePayment(paymentStatus, NOW_LOCAL.minusMinutes(1));
 
-        memberService.withdraw(member.getMemberId());
+        memberWithdrawalService.withdraw(member.getMemberId());
 
         assertWithdrawn();
     }
@@ -163,7 +163,9 @@ class MemberWithdrawalIntegrationTest {
                 NOW_LOCAL.plusDays(6)
         );
 
-        assertThatThrownBy(() -> memberService.withdraw(member.getMemberId()))
+        assertThatThrownBy(() ->
+                memberWithdrawalService.withdraw(member.getMemberId())
+        )
                 .isInstanceOfSatisfying(
                         ProjectException.class,
                         exception -> assertThat(exception.getErrorCode())
@@ -186,13 +188,17 @@ class MemberWithdrawalIntegrationTest {
                 NOW_LOCAL.minusDays(1)
         );
 
-        memberService.withdraw(member.getMemberId());
+        memberWithdrawalService.withdraw(member.getMemberId());
 
         assertWithdrawn();
     }
 
     private void assertWithdrawalBlocked() {
-        assertThatThrownBy(() -> memberService.withdraw(member.getMemberId()))
+        assertThatThrownBy(
+                () -> memberWithdrawalService.withdraw(
+                        member.getMemberId()
+                )
+        )
                 .isInstanceOfSatisfying(
                         ProjectException.class,
                         exception -> assertThat(exception.getErrorCode())

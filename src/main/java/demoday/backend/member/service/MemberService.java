@@ -12,10 +12,6 @@ import demoday.backend.member.dto.NicknameAvailabilityResponse;
 import demoday.backend.member.dto.NicknameUpdateRequest;
 import demoday.backend.member.dto.OpenChatModalResponse;
 import demoday.backend.member.repository.MemberRepository;
-import demoday.backend.payment.code.PassStatus;
-import demoday.backend.payment.code.PaymentStatus;
-import demoday.backend.payment.repository.MemberPassRepository;
-import demoday.backend.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -26,36 +22,19 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class MemberService {
 
     private final MemberRepository memberRepository;
-    private final PaymentRepository paymentRepository;
-    private final MemberPassRepository memberPassRepository;
     private final Clock clock;
     private final FishService fishService;
 
     private static final long SIGNUP_REWARD_FISH_AMOUNT = 200L;
 
-    private static final long PAYMENT_AUTHENTICATION_MINUTES = 30L;
-
     private static final ZoneId KST =
             ZoneId.of("Asia/Seoul");
-
-    private static final List<PaymentStatus>
-            WITHDRAWAL_BLOCKING_PAYMENT_STATUSES = List.of(
-            PaymentStatus.APPROVED,
-            PaymentStatus.CANCEL_REQUESTED
-    );
-
-    private static final List<PaymentStatus>
-            EXPIRABLE_PAYMENT_STATUSES = List.of(
-            PaymentStatus.READY,
-            PaymentStatus.PAYMENT_REQUESTED
-    );
 
     public NicknameAvailabilityResponse checkNickname(String nickname) {
         return new NicknameAvailabilityResponse(
@@ -156,62 +135,6 @@ public class MemberService {
         }
 
         return MemberResponse.from(member);
-    }
-
-    @Transactional
-    public void withdraw(Long memberId) {
-        if (memberId == null) {
-            throw new ProjectException(
-                    GeneralErrorCode.UNAUTHORIZED
-            );
-        }
-
-        Member member = memberRepository.findByIdForUpdate(memberId)
-                .orElseThrow(() ->
-                        new ProjectException(
-                                GeneralErrorCode.NOT_FOUND
-                        )
-                );
-
-        if (member.isWithdrawn()) {
-            throw new ProjectException(
-                    MemberErrorCode.ALREADY_WITHDRAWN
-            );
-        }
-
-        LocalDateTime now = LocalDateTime.now(clock)
-                .truncatedTo(ChronoUnit.MICROS);
-
-        boolean blockingPaymentExists =
-                paymentRepository.existsBlockingWithdrawalPayment(
-                        memberId,
-                        WITHDRAWAL_BLOCKING_PAYMENT_STATUSES,
-                        EXPIRABLE_PAYMENT_STATUSES,
-                        now.minusMinutes(
-                                PAYMENT_AUTHENTICATION_MINUTES
-                        )
-                );
-
-        if (blockingPaymentExists) {
-            throw new ProjectException(
-                    MemberErrorCode
-                            .WITHDRAWAL_BLOCKED_BY_PENDING_PAYMENT
-            );
-        }
-
-        boolean activePassExists = memberPassRepository.findActivePass(
-                memberId,
-                PassStatus.ACTIVE,
-                now
-        ).isPresent();
-
-        if (activePassExists) {
-            throw new ProjectException(
-                    MemberErrorCode.WITHDRAWAL_BLOCKED_BY_ACTIVE_PASS
-            );
-        }
-
-        member.withdraw(now);
     }
 
     @Transactional
