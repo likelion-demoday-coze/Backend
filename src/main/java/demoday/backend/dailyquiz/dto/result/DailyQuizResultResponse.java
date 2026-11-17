@@ -19,6 +19,7 @@ public record DailyQuizResultResponse(
         BigDecimal totalProfit,
         BigDecimal totalReturnPercent,
         Integer currentStreak,
+        Boolean stockReflectionApplied,
         List<DailyQuizResultQuestionResponse> questions
 ) {
 
@@ -44,6 +45,7 @@ public record DailyQuizResultResponse(
                 totalProfit,
                 totalReturnPercent,
                 session.getMember().getCurrentStreak(),
+                session.getStockReflectionApplied(),
                 questions
         );
     }

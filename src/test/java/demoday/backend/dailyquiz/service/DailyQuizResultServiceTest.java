@@ -52,7 +52,8 @@ class DailyQuizResultServiceTest {
                 QuizCategory.MACRO_ECONOMY,
                 member.getCurrentStock(),
                 STARTED_AT,
-                false);
+                false,
+                true);
         when(dailyQuizSessionRepository.findByDailyQuizSessionIdAndMemberMemberId(2L, 1L))
                 .thenReturn(Optional.of(session));
 
@@ -72,7 +73,8 @@ class DailyQuizResultServiceTest {
                 QuizCategory.MACRO_ECONOMY,
                 member.getCurrentStock(),
                 STARTED_AT,
-                false);
+                false,
+                true);
         when(dailyQuizSessionRepository.findByIdAndMemberIdForUpdate(2L, 1L))
                 .thenReturn(Optional.of(session));
 

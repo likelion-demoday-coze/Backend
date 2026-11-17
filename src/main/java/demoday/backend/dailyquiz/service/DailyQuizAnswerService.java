@@ -160,14 +160,10 @@ public class DailyQuizAnswerService {
                                 )
                         );
 
-        // 주가 상승 기회 제한 결정
-        int stockOpportunityLimit = stockOpportunityQuestionLimit(
-                Boolean.TRUE.equals(session.getPassApplied())
-        );
-
-        // 원본 답안 횟수 및 상승 기회 기록
-        boolean stockOpportunityAvailable =
-                dailyActivity.recordOriginalAnswer(stockOpportunityLimit);
+        // 원본 답안 횟수와 세션 생성 시 확정한 주가 반영 여부 기록
+        boolean stockReflectionApplied =
+                Boolean.TRUE.equals(session.getStockReflectionApplied());
+        dailyActivity.recordOriginalAnswer(stockReflectionApplied);
 
         Integer stockIncreasePercent = null;
         BigDecimal stockBefore = null;
@@ -175,7 +171,7 @@ public class DailyQuizAnswerService {
 
         // 정답이면 주가 상승
         if (Boolean.TRUE.equals(selectedOption.getCorrect())
-                && stockOpportunityAvailable) {
+                && stockReflectionApplied) {
             stockBefore = member.getCurrentStock();
 
             stockIncreasePercent = ThreadLocalRandom.current().nextInt(

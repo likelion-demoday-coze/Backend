@@ -51,12 +51,16 @@ public class DailyQuizSession {
     @Column(name = "pass_applied", nullable = false)
     private Boolean passApplied;
 
+    @Column(name = "stock_reflection_applied", nullable = false)
+    private Boolean stockReflectionApplied;
+
     public static DailyQuizSession create(
             Member member,
             QuizCategory category,
             BigDecimal startStock,
             LocalDateTime startedAt,
-            Boolean passApplied
+            Boolean passApplied,
+            Boolean stockReflectionApplied
     ) {
         if (startStock == null) {
             throw new IllegalArgumentException("시작 주가는 필수입니다.");
@@ -78,6 +82,7 @@ public class DailyQuizSession {
                 .startedAt(startedAt)
                 .expiresAt(expiresAt)
                 .passApplied(passApplied)
+                .stockReflectionApplied(stockReflectionApplied)
                 .build();
     }
 

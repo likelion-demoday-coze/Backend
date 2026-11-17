@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -64,7 +65,7 @@ class StockQuizIntegrationTest {
         correctOptionId = options.saveAndFlush(QuizOption.create(question, 1, "정답", true)).getOptionId();
         wrongOptionId = options.saveAndFlush(QuizOption.create(question, 2, "오답", false)).getOptionId();
         var session = sessions.saveAndFlush(DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
-                member.getCurrentStock(), LocalDateTime.now(ZoneId.of("Asia/Seoul")), false));
+                member.getCurrentStock(), LocalDateTime.now(ZoneId.of("Asia/Seoul")), false, true));
         sessionId = session.getDailyQuizSessionId();
         sessionQuestionId = sessionQuestions.saveAndFlush(DailyQuizSessionQuestion.create(question, session))
                 .getSessionQuestionId();
@@ -88,6 +89,20 @@ class StockQuizIntegrationTest {
     @Test
     void wrongAnswerDoesNotChangeStock() {
         var result = submit(wrongOptionId);
+        assertThat(result.stockIncreasePercent()).isNull();
+        assertThat(result.currentStock()).isEqualByComparingTo("100");
+        assertThat(changeCount()).isZero();
+    }
+
+    @Test
+    void correctAnswerInNonReflectedSessionDoesNotChangeStock() {
+        DailyQuizSession session = sessions.findById(sessionId).orElseThrow();
+        ReflectionTestUtils.setField(session, "stockReflectionApplied", false);
+        sessions.saveAndFlush(session);
+
+        var result = submit(correctOptionId);
+
+        assertThat(result.correct()).isTrue();
         assertThat(result.stockIncreasePercent()).isNull();
         assertThat(result.currentStock()).isEqualByComparingTo("100");
         assertThat(changeCount()).isZero();

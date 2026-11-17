@@ -83,7 +83,8 @@ class DailyQuizAnswerServiceTest {
                 QuizCategory.MACRO_ECONOMY,
                 new BigDecimal("100.00"),
                 startedAt,
-                false
+                false,
+                true
         );
         ReflectionTestUtils.setField(session, "dailyQuizSessionId", 2L);
 
@@ -183,7 +184,8 @@ class DailyQuizAnswerServiceTest {
                 QuizCategory.MACRO_ECONOMY,
                 member.getCurrentStock(),
                 LocalDate.of(2026, 10, 5).atTime(12, 0),
-                false);
+                false,
+                true);
         when(dailyQuizSessionRepository.findByIdAndMemberIdForUpdate(2L, 1L)).thenAnswer(invocation -> {
             time.set(after);
             return Optional.of(session);
