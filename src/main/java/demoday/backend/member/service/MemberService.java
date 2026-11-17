@@ -190,9 +190,9 @@ public class MemberService {
         LocalDate today =
                 LocalDate.now(clock.withZone(KST));
 
-        // 오늘을 포함해 3일 동안 숨기고 4일째 00:00부터 재노출
+        // 오늘 하루 숨기고 다음 날 00:00부터 재노출
         LocalDateTime hiddenUntil =
-                today.plusDays(3).atStartOfDay();
+                today.plusDays(1).atStartOfDay();
 
         member.hideOpenChatModalUntil(hiddenUntil);
 
