@@ -14,7 +14,8 @@ public record DailyQuizActiveSessionResponse(
         int totalQuestionCount,
         LocalDateTime startedAt,
         LocalDateTime expiresAt,
-        Boolean passApplied
+        Boolean passApplied,
+        Boolean stockReflectionApplied
 ) {
 
     public static DailyQuizActiveSessionResponse of(
@@ -30,7 +31,8 @@ public record DailyQuizActiveSessionResponse(
                 totalQuestionCount,
                 session.getStartedAt(),
                 session.getExpiresAt(),
-                session.getPassApplied()
+                session.getPassApplied(),
+                session.getStockReflectionApplied()
         );
     }
 }

@@ -20,11 +20,6 @@ public final class DailyQuizPolicy {
                 : NORMAL_STOCK_REFLECTION_LIMIT;
     }
 
-    public static int stockOpportunityQuestionLimit(boolean passApplied) {
-        return stockReflectionLimit(passApplied)
-                * QUESTIONS_PER_SESSION;
-    }
-
     public static long entryFishCost(boolean passApplied) {
         return passApplied ? 0L : ENTRY_FISH_COST;
     }

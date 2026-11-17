@@ -166,6 +166,7 @@ class DailyQuizSessionServiceTest {
                 1L, new DailyQuizSessionCreateRequest(QuizCategory.MACRO_ECONOMY));
 
         assertThat(result.passApplied()).isEqualTo(passApplied);
+        assertThat(result.stockReflectionApplied()).isTrue();
         if (passApplied) {
             verifyNoInteractions(fishService);
             assertThat(member.getFishBalance()).isEqualTo(100);
@@ -173,6 +174,37 @@ class DailyQuizSessionServiceTest {
             verify(fishService).debit(
                     1L, 50L, FishTransactionType.DAILY_QUIZ_COST, 23L, "DAILY_QUIZ_SESSION:23");
         }
+    }
+
+    @Test
+    @DisplayName("일반 회원이 오늘 주가 반영 세션을 모두 사용하면 새 세션은 미반영으로 생성한다")
+    void createsSessionWithoutStockReflectionWhenDailyLimitIsExhausted() {
+        when(transactionRetryExecutor.execute(any())).thenAnswer(invocation ->
+                ((Supplier<?>) invocation.getArgument(0)).get());
+        Member member = Member.create(1L, "회원");
+        member.addFish(100);
+        when(memberRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member));
+        when(memberPassRepository.findActivePass(eq(1L), eq(PassStatus.ACTIVE), any()))
+                .thenReturn(Optional.empty());
+        when(dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionMemberMemberIdAndAttemptTypeAndAnsweredAtGreaterThanEqualAndAnsweredAtLessThan(
+                        eq(1L), eq(DailyQuizAttemptType.ORIGINAL), any(), any()))
+                .thenReturn(10L);
+        when(quizQuestionRepository.findAvailableQuestions(eq(1L), eq(QuizCategory.MACRO_ECONOMY), any()))
+                .thenReturn(IntStream.range(0, 5)
+                        .mapToObj(index -> QuizQuestion.create(
+                                QuizCategory.MACRO_ECONOMY, "MULTIPLE_CHOICE", "문제 " + index, "해설", true))
+                        .toList());
+        when(dailyQuizSessionRepository.save(any(DailyQuizSession.class))).thenAnswer(invocation -> {
+            DailyQuizSession session = invocation.getArgument(0);
+            ReflectionTestUtils.setField(session, "dailyQuizSessionId", 24L);
+            return session;
+        });
+
+        var result = dailyQuizSessionService.createSession(
+                1L, new DailyQuizSessionCreateRequest(QuizCategory.MACRO_ECONOMY));
+
+        assertThat(result.stockReflectionApplied()).isFalse();
     }
 
     @Test

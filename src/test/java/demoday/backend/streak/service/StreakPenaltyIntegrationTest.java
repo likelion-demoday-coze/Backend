@@ -149,12 +149,12 @@ class StreakPenaltyIntegrationTest {
         transactions.execute(() -> {
             var member = members.findByIdForUpdate(memberId).orElseThrow();
             var session = DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
-                    member.getCurrentStock(), TODAY.minusDays(2).atTime(10, 0), false);
+                    member.getCurrentStock(), TODAY.minusDays(2).atTime(10, 0), false, true);
             session.completeOriginal(member.getCurrentStock());
             session.expire(TODAY.atStartOfDay());
             sessions.save(session);
             sessions.save(DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
-                    member.getCurrentStock(), TODAY.minusDays(1).atTime(10, 0), false));
+                    member.getCurrentStock(), TODAY.minusDays(1).atTime(10, 0), false, true));
             return null;
         });
         jdbc.update("update member set current_streak=3 where member_id=?", memberId);
@@ -251,7 +251,7 @@ class StreakPenaltyIntegrationTest {
         learnedThreeDaysEnding(now.toLocalDate().minusDays(2));
         var member = members.findById(memberId).orElseThrow();
         var session = sessions.saveAndFlush(DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
-                member.getCurrentStock(), now, false));
+                member.getCurrentStock(), now, false, true));
         for (int index = 0; index < 5; index++) {
             var question = questions.saveAndFlush(QuizQuestion.create(QuizCategory.MACRO_ECONOMY,
                     "MULTIPLE_CHOICE", "답안 문제" + index, "해설", true));

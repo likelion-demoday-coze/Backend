@@ -12,7 +12,8 @@ public record DailyQuizSessionCreateResponse(
         DailyQuizSessionStatus status,
         LocalDateTime startedAt,
         LocalDateTime expiresAt,
-        Boolean passApplied
+        Boolean passApplied,
+        Boolean stockReflectionApplied
 ) {
 
     public static DailyQuizSessionCreateResponse from(
@@ -24,7 +25,8 @@ public record DailyQuizSessionCreateResponse(
                 session.getStatus(),
                 session.getStartedAt(),
                 session.getExpiresAt(),
-                session.getPassApplied()
+                session.getPassApplied(),
+                session.getStockReflectionApplied()
         );
     }
 }

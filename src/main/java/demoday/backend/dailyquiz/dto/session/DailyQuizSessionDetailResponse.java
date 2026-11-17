@@ -17,6 +17,7 @@ public record DailyQuizSessionDetailResponse(
         LocalDateTime startedAt,
         LocalDateTime expiresAt,
         Boolean passApplied,
+        Boolean stockReflectionApplied,
         List<DailyQuizQuestionResponse> questions
 ) {
 
@@ -34,6 +35,7 @@ public record DailyQuizSessionDetailResponse(
                 session.getStartedAt(),
                 session.getExpiresAt(),
                 session.getPassApplied(),
+                session.getStockReflectionApplied(),
                 questions
         );
     }

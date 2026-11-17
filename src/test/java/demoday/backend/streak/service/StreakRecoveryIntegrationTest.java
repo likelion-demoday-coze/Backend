@@ -137,7 +137,7 @@ class StreakRecoveryIntegrationTest {
         var member = members.findById(memberId).orElseThrow();
         LocalDateTime now = LocalDateTime.now(clock.withZone(ZoneId.of("Asia/Seoul")));
         var session = sessions.saveAndFlush(DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
-                member.getCurrentStock(), now, false));
+                member.getCurrentStock(), now, false, true));
         for (int index = 0; index < 5; index++) {
             var question = questions.saveAndFlush(QuizQuestion.create(QuizCategory.MACRO_ECONOMY,
                     "MULTIPLE_CHOICE", "복구 문제" + index, "해설", true));

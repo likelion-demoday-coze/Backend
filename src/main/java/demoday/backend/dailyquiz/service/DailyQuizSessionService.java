@@ -153,6 +153,12 @@ public class DailyQuizSessionService {
                 now
         ).isPresent();
 
+        boolean stockReflectionApplied = isStockReflectionAvailable(
+                memberId,
+                passApplied,
+                now
+        );
+
         // 없다면 생선 50개 보유 여부 확인
         if (!passApplied
                 && member.getFishBalance() < ENTRY_FISH_COST) {
@@ -185,7 +191,8 @@ public class DailyQuizSessionService {
                 request.category(),
                 member.getCurrentStock(),
                 now,
-                passApplied
+                passApplied,
+                stockReflectionApplied
         );
 
         dailyQuizSessionRepository.save(session);
@@ -216,6 +223,27 @@ public class DailyQuizSessionService {
 
         // 생성된 세션 정보 응답
         return DailyQuizSessionCreateResponse.from(session);
+    }
+
+    private boolean isStockReflectionAvailable(
+            Long memberId,
+            boolean passApplied,
+            LocalDateTime now
+    ) {
+        LocalDate today = now.toLocalDate();
+        long todayOriginalAnswerCount = dailyQuizAttemptRepository
+                .countBySessionQuestionDailyQuizSessionMemberMemberIdAndAttemptTypeAndAnsweredAtGreaterThanEqualAndAnsweredAtLessThan(
+                        memberId,
+                        DailyQuizAttemptType.ORIGINAL,
+                        today.atStartOfDay(),
+                        today.plusDays(1).atStartOfDay()
+                );
+
+        long usedReflectionCount =
+                (todayOriginalAnswerCount + QUESTIONS_PER_SESSION - 1)
+                        / QUESTIONS_PER_SESSION;
+
+        return usedReflectionCount < stockReflectionLimit(passApplied);
     }
 
     private void validateActiveSession(

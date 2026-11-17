@@ -116,7 +116,7 @@ class StreakServiceIntegrationTest {
     void legacyMemberUsesOriginalCompletionEvenAfterRetrySessionExpired() {
         jdbc.update("update member set current_streak=3 where member_id=?", member.getMemberId());
         var session = DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
-                member.getCurrentStock(), TODAY.minusDays(1).atTime(12, 0), false);
+                member.getCurrentStock(), TODAY.minusDays(1).atTime(12, 0), false, true);
         session.completeOriginal(member.getCurrentStock());
         session.expire(TODAY.atStartOfDay());
         sessions.saveAndFlush(session);
@@ -130,7 +130,7 @@ class StreakServiceIntegrationTest {
     @Test
     void partialQuizDoesNotCountAsLearning() {
         sessions.saveAndFlush(DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
-                member.getCurrentStock(), TODAY.atTime(12, 0), false));
+                member.getCurrentStock(), TODAY.atTime(12, 0), false, true));
         jdbc.update("update member set current_streak=7 where member_id=?", member.getMemberId());
         entityManager.clear();
         var result = streaks.getCurrent(member.getMemberId());
@@ -161,7 +161,7 @@ class StreakServiceIntegrationTest {
         // 답안 처리의 가장 바깥 재시도 트랜잭션을 실제로 실행한다.
         LocalDateTime now = TODAY.atStartOfDay();
         var session = sessions.saveAndFlush(DailyQuizSession.create(member, QuizCategory.MACRO_ECONOMY,
-                member.getCurrentStock(), now, false));
+                member.getCurrentStock(), now, false, true));
         Long lastQuestionId = null;
         Long lastOptionId = null;
         for (int index = 0; index < 5; index++) {

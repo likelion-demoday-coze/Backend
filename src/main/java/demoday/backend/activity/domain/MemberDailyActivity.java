@@ -62,15 +62,12 @@ public class MemberDailyActivity {
     }
 
     // 원본 문제 최초 제출 시 그날의 활동 횟수 기록
-    public boolean recordOriginalAnswer(int maxStockOpportunityCount) {
+    public void recordOriginalAnswer(boolean stockReflectionApplied) {
         originalAnswerCount++;
 
-        if (stockOpportunityUsedCount >= maxStockOpportunityCount) {
-            return false;
+        if (stockReflectionApplied) {
+            stockOpportunityUsedCount++;
         }
-
-        stockOpportunityUsedCount++;
-        return true;
     }
 
     // 원본 문제 5개 모두 제출 시 해당 날짜의 학습 완료를 기록
