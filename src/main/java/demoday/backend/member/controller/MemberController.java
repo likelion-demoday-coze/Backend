@@ -7,6 +7,7 @@ import demoday.backend.member.dto.NicknameAvailabilityResponse;
 import demoday.backend.member.dto.NicknameUpdateRequest;
 import demoday.backend.member.dto.OpenChatModalResponse;
 import demoday.backend.member.service.MemberService;
+import demoday.backend.member.service.MemberWithdrawalService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 public class MemberController {
 
     private final MemberService memberService;
+    private final MemberWithdrawalService memberWithdrawalService;
 
     @Operation(summary = "닉네임 사용 가능 여부 확인")
     @GetMapping("/nickname-availability")
@@ -97,9 +99,10 @@ public class MemberController {
             HttpServletResponse response,
             Authentication auth
     ) {
-        memberService.withdraw(memberId);
+        memberWithdrawalService.withdraw(memberId);
 
-        new SecurityContextLogoutHandler().logout(request, response, auth);
+        new SecurityContextLogoutHandler()
+                .logout(request, response, auth);
 
         return ResponseEntity.noContent().build();
     }

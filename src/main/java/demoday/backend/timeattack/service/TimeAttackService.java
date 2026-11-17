@@ -35,6 +35,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -61,12 +62,17 @@ public class TimeAttackService {
     private final QuizQuestionRepository quizQuestionRepository;
     private final QuizOptionRepository quizOptionRepository;
     private final TimeAttackAnswerRepository timeAttackAnswerRepository;
+    private final Clock clock;
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock.withZone(KST));
+    }
 
     @Transactional(readOnly = true)
     public TimeAttackTodayResponse getTodayAvailability(
             Long memberId
     ) {
-        LocalDate today = LocalDate.now(KST);
+        LocalDate today = now().toLocalDate();
 
         int usedAttemptCount = memberDailyActivityRepository
                 .findByMemberMemberIdAndActivityDate(
@@ -106,7 +112,7 @@ public class TimeAttackService {
                 );
 
         // 회원 락 대기 시간은 세션 제한 시간에 포함하지 않는다.
-        LocalDateTime validationTime = LocalDateTime.now(KST);
+        LocalDateTime validationTime = now();
         LocalDate today = validationTime.toLocalDate();
 
         if (!TimeAttackSession.canCompleteOnSameDate(validationTime)) {
@@ -145,7 +151,7 @@ public class TimeAttackService {
                 .isPresent();
 
         // 락 획득과 생성 검증이 끝난 시점부터 60초를 계산한다.
-        LocalDateTime startedAt = LocalDateTime.now(KST);
+        LocalDateTime startedAt = now();
 
         TimeAttackSession session =
                 TimeAttackSession.create(
@@ -175,7 +181,7 @@ public class TimeAttackService {
             Long memberId,
             Long sessionId
     ) {
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = now();
 
         TimeAttackSession session =
                 timeAttackSessionRepository
@@ -253,7 +259,7 @@ public class TimeAttackService {
             Long sessionId,
             TimeAttackAnswerRequest request
     ) {
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = now();
 
         // 동일 세션의 동시 답안 제출 직렬화
         TimeAttackSession session =
@@ -387,7 +393,7 @@ public class TimeAttackService {
             Long memberId,
             Long sessionId
     ) {
-        LocalDateTime now = LocalDateTime.now(KST);
+        LocalDateTime now = now();
 
         // 회원 -> 세션 순서로 잠금 획득
         Member member = memberRepository

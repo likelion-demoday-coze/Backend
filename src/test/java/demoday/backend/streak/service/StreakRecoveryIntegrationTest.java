@@ -8,7 +8,7 @@ import demoday.backend.dailyquiz.domain.DailyQuizSessionQuestion;
 import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerRequest;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
-import demoday.backend.dailyquiz.service.DailyQuizService;
+import demoday.backend.dailyquiz.service.DailyQuizAnswerService;
 import demoday.backend.global.exception.ProjectException;
 import demoday.backend.global.transaction.TransactionRetryExecutor;
 import demoday.backend.member.domain.Member;
@@ -85,7 +85,7 @@ class StreakRecoveryIntegrationTest {
     @Autowired private StoreItemRepository items;
     @Autowired private StreakRecoveryEventRepository events;
     @Autowired private MemberDailyActivityRepository activities;
-    @Autowired private DailyQuizService quizzes;
+    @Autowired private DailyQuizAnswerService quizzes;
     @Autowired private DailyQuizSessionRepository sessions;
     @Autowired private DailyQuizSessionQuestionRepository sessionQuestions;
     @Autowired private QuizQuestionRepository questions;

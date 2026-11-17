@@ -7,7 +7,8 @@ import demoday.backend.dailyquiz.dto.answer.DailyQuizAnswerRequest;
 import demoday.backend.dailyquiz.dto.session.DailyQuizSessionCreateRequest;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionRepository;
 import demoday.backend.dailyquiz.repository.DailyQuizSessionQuestionRepository;
-import demoday.backend.dailyquiz.service.DailyQuizService;
+import demoday.backend.dailyquiz.service.DailyQuizAnswerService;
+import demoday.backend.dailyquiz.service.DailyQuizSessionService;
 import demoday.backend.global.transaction.TransactionRetryExecutor;
 import demoday.backend.member.domain.Member;
 import demoday.backend.member.repository.MemberRepository;
@@ -63,7 +64,8 @@ class StreakPenaltyIntegrationTest {
     @Autowired private DailyQuizSessionQuestionRepository sessionQuestions;
     @Autowired private QuizQuestionRepository questions;
     @Autowired private QuizOptionRepository options;
-    @Autowired private DailyQuizService quizzes;
+    @Autowired private DailyQuizAnswerService dailyQuizAnswerService;
+    @Autowired private DailyQuizSessionService dailyQuizSessionService;
     @Autowired private StreakRecoveryEventRepository events;
     @Autowired private StockChangeRepository changes;
     @Autowired private TransactionRetryExecutor transactions;
@@ -236,7 +238,7 @@ class StreakPenaltyIntegrationTest {
             questions.saveAndFlush(QuizQuestion.create(QuizCategory.MACRO_ECONOMY,
                     "MULTIPLE_CHOICE", "시작 문제" + index, "해설", true));
         }
-        quizzes.createSession(memberId, new DailyQuizSessionCreateRequest(QuizCategory.MACRO_ECONOMY));
+        dailyQuizSessionService.createSession(memberId, new DailyQuizSessionCreateRequest(QuizCategory.MACRO_ECONOMY));
         assertThat(sessions.findFirstByMemberMemberIdAndStatusInOrderByStartedAtDesc(memberId,
                 java.util.List.of(demoday.backend.dailyquiz.code.DailyQuizSessionStatus.IN_PROGRESS))
                 .orElseThrow().getStartStock()).isEqualByComparingTo("80.00");
@@ -256,7 +258,7 @@ class StreakPenaltyIntegrationTest {
             var wrong = options.saveAndFlush(QuizOption.create(question, 1, "오답", false));
             options.saveAndFlush(QuizOption.create(question, 2, "정답", true));
             var sq = sessionQuestions.saveAndFlush(DailyQuizSessionQuestion.create(question, session));
-            quizzes.submitAnswer(memberId, session.getDailyQuizSessionId(), sq.getSessionQuestionId(),
+            dailyQuizAnswerService.submitAnswer(memberId, session.getDailyQuizSessionId(), sq.getSessionQuestionId(),
                     new DailyQuizAnswerRequest(wrong.getOptionId(), DailyQuizAttemptType.ORIGINAL));
         }
         var saved = members.findById(memberId).orElseThrow();

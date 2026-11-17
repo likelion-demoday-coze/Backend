@@ -49,6 +49,7 @@ class MemberSignupRewardIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @Autowired SessionRepository<?> sessions;
+    @Autowired private MemberWithdrawalService memberWithdrawalService;
     @MockitoSpyBean FishService fish;
 
     private Member signup() {
@@ -163,7 +164,9 @@ class MemberSignupRewardIntegrationTest {
     @Test
     void withdrawnMemberCannotCompletePopup() throws Exception {
         Member member = signup();
-        members.withdraw(member.getMemberId());
+        memberWithdrawalService.withdraw(
+                member.getMemberId()
+        );
         mvc.perform(patch(POPUP_URL).with(authentication(auth(member))).with(csrf()))
                 .andExpect(status().isUnauthorized());
         assertThatThrownBy(() -> members.completeSignupRewardPopup(member.getMemberId()))

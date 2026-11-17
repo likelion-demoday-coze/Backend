@@ -563,7 +563,7 @@ class PaymentFlowIntegrationTest {
 
     @Test
     @Timeout(30)
-    @DisplayName("동시에 주문을 생성해도 진행 중 주문은 하나만 생성된다")
+    @DisplayName("동시에 주문을 생성해도 주문과 결제창 발급은 한 번만 수행된다")
     void concurrentOrderCreationAllowsOneOrder() throws Exception {
         List<Boolean> results = runConcurrently(() -> {
             try {
@@ -576,8 +576,9 @@ class PaymentFlowIntegrationTest {
             }
         });
 
-        assertThat(results).containsExactlyInAnyOrder(true, false);
+        assertThat(results).contains(true);
         assertThat(paymentRepository.count()).isEqualTo(1);
+        verify(payAppClient, times(1)).requestPayment(any());
     }
 
     @Test

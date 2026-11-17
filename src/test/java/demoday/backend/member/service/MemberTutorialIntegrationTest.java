@@ -41,6 +41,7 @@ class MemberTutorialIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private MemberService memberService;
     @Autowired private MemberRepository memberRepository;
+    @Autowired private MemberWithdrawalService memberWithdrawalService;
 
     private Member member;
 
@@ -110,7 +111,9 @@ class MemberTutorialIntegrationTest {
     @Test
     @DisplayName("탈퇴 회원은 튜토리얼 완료 처리할 수 없다")
     void withdrawnMemberCannotCompleteTutorial() {
-        memberService.withdraw(member.getMemberId());
+        memberWithdrawalService.withdraw(
+                member.getMemberId()
+        );
 
         assertThatThrownBy(() ->
                 memberService.completeTutorial(member.getMemberId())

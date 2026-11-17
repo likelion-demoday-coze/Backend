@@ -45,6 +45,9 @@ class MemberRejoinIntegrationTest {
     private MemberService memberService;
 
     @Autowired
+    private MemberWithdrawalService memberWithdrawalService;
+
+    @Autowired
     private MemberRepository memberRepository;
 
     @Test
@@ -71,7 +74,7 @@ class MemberRejoinIntegrationTest {
         memberRepository.saveAndFlush(previousMember);
 
         // when: 기존 회원이 탈퇴한다.
-        memberService.withdraw(previousMemberId);
+        memberWithdrawalService.withdraw(previousMemberId);
 
         Member withdrawnMember = memberRepository.findById(previousMemberId)
                 .orElseThrow();
