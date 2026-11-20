@@ -34,9 +34,11 @@ public class TimeAttackController {
     @Operation(
             summary = "오늘의 타임어택 참여 가능 횟수 조회",
             description = """
-                    오늘 사용한 타임어택 참여 횟수와 남은 횟수를 조회합니다.
-                    일반 회원과 패스 회원 모두 하루 최대 3회 참여할 수 있습니다.
-                    """
+                오늘 사용한 타임어택 참여 횟수와 남은 횟수를 조회합니다.
+                일반 회원과 패스 회원은 하루 최대 3회 참여할 수 있습니다.
+                운영상 무제한 권한이 부여된 계정은 횟수 제한 없이 참여할 수 있습니다.
+                무제한 계정은 dailyAttemptLimit과 remainingAttemptCount가 null로 반환됩니다.
+                """
     )
     @GetMapping("/today")
     public ApiResponse<TimeAttackTodayResponse>
@@ -55,11 +57,13 @@ public class TimeAttackController {
     @Operation(
             summary = "타임어택 세션 시작",
             description = """
-                    제한 시간이 1분인 타임어택 세션을 생성합니다.
-                    세션 생성 시 오늘의 참여 횟수가 즉시 1회 증가합니다.
-                    활성 패스가 없는 회원은 생선 100개가 차감되며,
-                    패스 회원은 생선 차감 없이 참여할 수 있습니다.
-                    """
+                제한 시간이 1분인 타임어택 세션을 생성합니다.
+                세션 생성 시 오늘의 참여 횟수가 즉시 1회 증가합니다.
+                일반 계정은 하루 최대 3회 참여할 수 있으며,
+                운영상 무제한 권한이 부여된 계정은 횟수 제한이 적용되지 않습니다.
+                활성 패스가 없는 회원은 생선 100개가 차감되며,
+                패스 회원은 생선 차감 없이 참여할 수 있습니다.
+                """
     )
     @PostMapping("/sessions")
     public ResponseEntity<

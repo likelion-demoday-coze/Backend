@@ -72,6 +72,13 @@ public class TimeAttackService {
     public TimeAttackTodayResponse getTodayAvailability(
             Long memberId
     ) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() ->
+                        new ProjectException(
+                                GeneralErrorCode.NOT_FOUND
+                        )
+                );
+
         LocalDate today = now().toLocalDate();
 
         int usedAttemptCount = memberDailyActivityRepository
@@ -82,12 +89,22 @@ public class TimeAttackService {
                 .map(MemberDailyActivity::getTimeAttackAttemptCount)
                 .orElse(0);
 
+        if (member.isTimeAttackUnlimited()) {
+            return new TimeAttackTodayResponse(
+                    true,
+                    null,
+                    usedAttemptCount,
+                    null
+            );
+        }
+
         int remainingAttemptCount = Math.max(
                 DAILY_ATTEMPT_LIMIT - usedAttemptCount,
                 0
         );
 
         return new TimeAttackTodayResponse(
+                false,
                 DAILY_ATTEMPT_LIMIT,
                 usedAttemptCount,
                 remainingAttemptCount
@@ -134,7 +151,9 @@ public class TimeAttackService {
                                 )
                         );
 
-        if (!activity.recordTimeAttackAttempt(DAILY_ATTEMPT_LIMIT)) {
+        if (member.isTimeAttackUnlimited()) {
+            activity.recordUnlimitedTimeAttackAttempt();
+        } else if (!activity.recordTimeAttackAttempt(DAILY_ATTEMPT_LIMIT)) {
             throw new ProjectException(
                     TimeAttackErrorCode.DAILY_ATTEMPT_LIMIT_EXCEEDED
             );

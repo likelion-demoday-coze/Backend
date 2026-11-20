@@ -103,4 +103,11 @@ public class MemberDailyActivity {
         timeAttackAttemptCount++;
         return true;
     }
+
+    // 무제한 계정도 실제 참여 횟수는 통계 목적으로 기록
+    public void recordUnlimitedTimeAttackAttempt() {
+        timeAttackAttemptCount = Math.incrementExact(
+                timeAttackAttemptCount
+        );
+    }
 }

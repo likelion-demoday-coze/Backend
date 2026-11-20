@@ -93,16 +93,25 @@ class TimeAttackServiceTest {
     }
 
     @Test
-    @DisplayName("오늘 사용한 횟수로 남은 참여 횟수를 계산한다")
+    @DisplayName("일반 회원은 오늘 사용한 횟수로 남은 참여 횟수를 계산한다")
     void getTodayAvailability() {
-        MemberDailyActivity activity = activity(member(), TODAY);
+        Member member = member();
+        MemberDailyActivity activity = activity(member, TODAY);
         activity.recordTimeAttackAttempt(3);
-        when(memberDailyActivityRepository.findByMemberMemberIdAndActivityDate(
-                eq(MEMBER_ID), any(LocalDate.class)
-        )).thenReturn(Optional.of(activity));
 
-        TimeAttackTodayResponse result = timeAttackService.getTodayAvailability(MEMBER_ID);
+        when(memberRepository.findById(MEMBER_ID))
+                .thenReturn(Optional.of(member));
+        when(memberDailyActivityRepository
+                .findByMemberMemberIdAndActivityDate(
+                        eq(MEMBER_ID),
+                        any(LocalDate.class)
+                ))
+                .thenReturn(Optional.of(activity));
 
+        TimeAttackTodayResponse result =
+                timeAttackService.getTodayAvailability(MEMBER_ID);
+
+        assertThat(result.unlimited()).isFalse();
         assertThat(result.dailyAttemptLimit()).isEqualTo(3);
         assertThat(result.usedAttemptCount()).isEqualTo(1);
         assertThat(result.remainingAttemptCount()).isEqualTo(2);
@@ -141,22 +150,29 @@ class TimeAttackServiceTest {
     }
 
     @Test
-    @DisplayName("일일 참여 횟수를 모두 사용하면 세션을 생성할 수 없다")
+    @DisplayName("일반 회원은 일일 참여 횟수를 모두 사용하면 세션을 생성할 수 없다")
     void createSessionFailsWhenDailyLimitExceeded() {
         Member member = member();
         MemberDailyActivity activity = activity(member, TODAY);
+
         activity.recordTimeAttackAttempt(3);
         activity.recordTimeAttackAttempt(3);
         activity.recordTimeAttackAttempt(3);
-        when(memberRepository.findByIdForUpdate(MEMBER_ID)).thenReturn(Optional.of(member));
-        when(memberDailyActivityRepository.findByMemberMemberIdAndActivityDate(
-                eq(MEMBER_ID), any(LocalDate.class)
-        )).thenReturn(Optional.of(activity));
+
+        when(memberRepository.findByIdForUpdate(MEMBER_ID))
+                .thenReturn(Optional.of(member));
+        when(memberDailyActivityRepository
+                .findByMemberMemberIdAndActivityDate(
+                        eq(MEMBER_ID),
+                        any(LocalDate.class)
+                ))
+                .thenReturn(Optional.of(activity));
 
         assertError(
                 () -> timeAttackService.createSession(MEMBER_ID),
                 TimeAttackErrorCode.DAILY_ATTEMPT_LIMIT_EXCEEDED
         );
+
         verifyNoInteractions(memberPassRepository, fishService);
         verify(timeAttackSessionRepository, never()).save(any());
     }
@@ -519,5 +535,83 @@ class TimeAttackServiceTest {
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(expectedCode)
                 );
+    }
+
+    @Test
+    @DisplayName("무제한 계정은 참여 제한과 남은 횟수를 반환하지 않는다")
+    void getTodayAvailabilityForUnlimitedMember() {
+        Member member = member();
+        member.changeTimeAttackUnlimited(true);
+
+        MemberDailyActivity activity = activity(member, TODAY);
+        activity.recordUnlimitedTimeAttackAttempt();
+        activity.recordUnlimitedTimeAttackAttempt();
+        activity.recordUnlimitedTimeAttackAttempt();
+        activity.recordUnlimitedTimeAttackAttempt();
+
+        when(memberRepository.findById(MEMBER_ID))
+                .thenReturn(Optional.of(member));
+        when(memberDailyActivityRepository
+                .findByMemberMemberIdAndActivityDate(
+                        eq(MEMBER_ID),
+                        any(LocalDate.class)
+                ))
+                .thenReturn(Optional.of(activity));
+
+        TimeAttackTodayResponse result =
+                timeAttackService.getTodayAvailability(MEMBER_ID);
+
+        assertThat(result.unlimited()).isTrue();
+        assertThat(result.dailyAttemptLimit()).isNull();
+        assertThat(result.usedAttemptCount()).isEqualTo(4);
+        assertThat(result.remainingAttemptCount()).isNull();
+    }
+
+    @Test
+    @DisplayName("무제한 계정은 세 번 참여한 뒤에도 세션을 생성할 수 있다")
+    void createSessionForUnlimitedMember() {
+        Member member = member();
+        member.changeTimeAttackUnlimited(true);
+
+        MemberDailyActivity activity = activity(member, TODAY);
+        activity.recordUnlimitedTimeAttackAttempt();
+        activity.recordUnlimitedTimeAttackAttempt();
+        activity.recordUnlimitedTimeAttackAttempt();
+
+        when(memberRepository.findByIdForUpdate(MEMBER_ID))
+                .thenReturn(Optional.of(member));
+        when(memberDailyActivityRepository
+                .findByMemberMemberIdAndActivityDate(
+                        eq(MEMBER_ID),
+                        any(LocalDate.class)
+                ))
+                .thenReturn(Optional.of(activity));
+        when(memberPassRepository.findActivePass(
+                eq(MEMBER_ID),
+                eq(PassStatus.ACTIVE),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.empty());
+        when(timeAttackSessionRepository.save(
+                any(TimeAttackSession.class)
+        )).thenAnswer(invocation -> {
+            TimeAttackSession session = invocation.getArgument(0);
+            ReflectionTestUtils.setField(
+                    session,
+                    "timeAttackSessionId",
+                    SESSION_ID
+            );
+            return session;
+        });
+
+        TimeAttackSessionCreateResponse result =
+                timeAttackService.createSession(MEMBER_ID);
+
+        assertThat(result.sessionId()).isEqualTo(SESSION_ID);
+        assertThat(activity.getTimeAttackAttemptCount()).isEqualTo(4);
+
+        verify(memberDailyActivityRepository).save(activity);
+        verify(timeAttackSessionRepository).save(
+                any(TimeAttackSession.class)
+        );
     }
 }
