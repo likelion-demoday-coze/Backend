@@ -71,6 +71,9 @@ public class Member {
     @Column(name = "open_chat_modal_hidden_until")
     private LocalDateTime openChatModalHiddenUntil;
 
+    @Column(name = "time_attack_unlimited", nullable = false)
+    private Boolean timeAttackUnlimited;
+
     @Enumerated(EnumType.STRING)
     @Column(
             name = "character_stage",
@@ -117,6 +120,7 @@ public class Member {
                 .tutorialCompleted(false)
                 .signupRewardPopupPending(false)
                 .rankingExcluded(false)
+                .timeAttackUnlimited(false)
                 .status(MemberStatus.ACTIVE)
                 .characterStage(CharacterStage.BASIC)
                 .confirmedCharacterStage(CharacterStage.BASIC)
@@ -375,5 +379,13 @@ public class Member {
         }
 
         this.tutorialCompleted = true;
+    }
+
+    public boolean isTimeAttackUnlimited() {
+        return Boolean.TRUE.equals(timeAttackUnlimited);
+    }
+
+    public void changeTimeAttackUnlimited(boolean unlimited) {
+        this.timeAttackUnlimited = unlimited;
     }
 }

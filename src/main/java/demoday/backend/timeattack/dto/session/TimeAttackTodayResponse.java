@@ -1,8 +1,9 @@
 package demoday.backend.timeattack.dto.session;
 
 public record TimeAttackTodayResponse(
-        int dailyAttemptLimit,
+        boolean unlimited,
+        Integer dailyAttemptLimit,
         int usedAttemptCount,
-        int remainingAttemptCount
+        Integer remainingAttemptCount
 ) {
 }
